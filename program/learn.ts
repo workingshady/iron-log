@@ -158,3 +158,24 @@ export const CARDIO_GUIDE: [string, string][] = [
   ["Effort", "Intervals 8/10 (can't talk). Hill walk 6/10 (short sentences). Zone 2: 4-5/10 (full conversation)."],
   ["Fat loss", "Comes from the calorie deficit. Cardio adds ~250-400 kcal per session; don't eat it back with junk."],
 ];
+
+
+/** "Is this the best exercise?" — the honest verdict for each main lift in the current plan. */
+export const VERDICTS: { ex: string; verdict: "keep" | "optional" | "changed"; why: string }[] = [
+  { ex: "Barbell bench press", verdict: "keep", why: "Strength anchor: ~17% more load than dumbbells and the easiest lift to progress. For SIZE, dumbbell and machine presses are equal (Haugen 2023) — swap it if your shoulders complain." },
+  { ex: "Incline DB press (30°)", verdict: "keep", why: "Upper chest + deep stretch. ~30° gives the most upper-chest activity." },
+  { ex: "Seated DB shoulder press", verdict: "keep", why: "Stable → more load on the delts than standing." },
+  { ex: "Close-grip bench", verdict: "keep", why: "The best dip replacement: triceps + pressing strength." },
+  { ex: "Lateral raises (DB / cable / lean-away)", verdict: "keep", why: "The #1 side-delt exercise. Cable ≈ dumbbell — use whichever is free." },
+  { ex: "Overhead triceps extension", verdict: "keep", why: "Long-head growth 28.5% vs 19.6% for pushdowns (Maeo 2022)." },
+  { ex: "Heavy lat pulldown", verdict: "keep", why: "Same muscle activity as pull-ups → your pull-up builder." },
+  { ex: "Barbell row → machine row", verdict: "changed", why: "Same growth, far less lower-back fatigue — and Legs (squat + RDL) is the next day." },
+  { ex: "Back squat", verdict: "keep", why: "Strength. For size, leg press / hack squat are equal (so they're the alternatives)." },
+  { ex: "Romanian deadlift", verdict: "keep", why: "Top hamstring activity of the hinges, big stretch." },
+  { ex: "Seated leg curl", verdict: "keep", why: "14% vs 9% hamstring growth vs lying curls (Maeo 2021)." },
+  { ex: "Leg extension", verdict: "keep", why: "Trains the rectus femoris squats under-train; lengthened partials work well (Pedrosa 2022)." },
+  { ex: "Machine chest press", verdict: "keep", why: "Safe to push near failure, hard to cheat — good for honest reps." },
+  { ex: "Dumbbell pullover", verdict: "optional", why: "Popular, little growth data. Straight-arm pulldown is the alternative." },
+  { ex: "Standing overhead press", verdict: "keep", why: "Strength. Seated / machine are equal for size — swap if the lower back is tired." },
+  { ex: "Cable Y-raise", verdict: "optional", why: "Variety for side delts; no direct growth study. Plain cable laterals are fine." },
+];

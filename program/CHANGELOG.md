@@ -2,6 +2,10 @@
 
 Each version: what changed, and the data that justified it.
 
+## ppl-arnold@2.1.0 · 2026-11-09
+- Pull day: barbell row → **machine row** (chest-supported). Same growth as barbell rows, much less lower-back fatigue — and Legs (squat + RDL) is the next day. Barbell row stays as an alternative. Source: free weight ≈ machine for hypertrophy (Haugen 2023 meta-analysis); Barbell Medicine on chest-supported rows.
+- Bench press kept on purpose as the strength anchor (≈17% more load than dumbbells, best progression); dumbbell + machine presses carry the growth work.
+
 ## ppl-arnold@2.0.0 · 2026-11-09 — Intensive v2
 No training data yet; changes come from a self-critique of v1 + the user's constraints and habits.
 

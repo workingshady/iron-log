@@ -42,7 +42,7 @@ const D1: E[] = [
 
 const D2: E[] = [
   { ex: "pulldown", s: ["3x6-8", "4x6-8", "4x5-7", "2x8"], rest: 150, heavy: true, t: "Pull-up builder: heavy, full stretch at top, chest to bar" },
-  { ex: "bb_row", s: ["3x6-8", "3x6-8", "3x6-8", "2x8"], rest: 150, heavy: true, t: "Torso ~45°, no heaving" },
+  { ex: "machine_row", s: ["3x6-8", "3x6-8", "3x6-8", "2x8"], rest: 150, heavy: true, t: "Heavy, chest on pad — spares the lower back before Legs" },
   { ex: "neutral_pulldown", s: ["2x10-12", "3x10-12", "3x10-12", "2x10"], rest: 90, t: "3 s down", t3: "Last set: lengthened partials" },
   { ex: "face_pull", s: ["3x15", "3x15", "3x15-20", "2x15"], rest: 60, t: "Pull to eyes, thumbs back", t3: "Last set: drop set" },
   { ex: "bb_shrug", s: ["3x10-12", "3x10-12", "4x8-12", "2x12"], rest: 90, t: "Straight up, hold 2 s" },
@@ -102,10 +102,10 @@ const days = (n: number): DayPlan[] => [
 
 export const v2: Program = {
   id: "ppl-arnold",
-  version: "2.0.0",
+  version: "2.1.0",
   name: "PPL × Arnold · Intensive v2",
   changelog:
-    "No dips, pull-ups, bands or assisted machine. Per-session volume capped at ~11 sets per muscle, weekly volume spread for more growth. Stretch-biased picks, seated leg curl, techniques only on last isolation sets, small muscles as finishers, pull-up roadmap.",
+    "2.1: barbell row → machine row on Pull day (same growth, saves the lower back for Legs the next day). 2.0: No dips, pull-ups, bands or assisted machine. Per-session volume capped at ~11 sets per muscle, weekly volume spread for more growth. Stretch-biased picks, seated leg curl, techniques only on last isolation sets, small muscles as finishers, pull-up roadmap.",
   order: ["D1", "D2", "D3", "D5", "D6"],
   schedules: {
     "A (Mon start)": ["rest", "D1", "D2", "D3", "rest", "D5", "D6"],

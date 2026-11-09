@@ -164,7 +164,7 @@ const list: Exercise[] = [
   { key: "wide_cable_row", name: "Wide-Grip Cable Row", metric: "weight_reps", muscles: "Upper back, rear delts, traps (thickness)", yt: "y7h823PdWIY",
     cues: ["Wide bar, palms down", "Sit tall", "Pull to sternum, elbows out", "Squeeze 1 s"], alts: ["cable_row", "machine_row", "cs_row"] },
   { key: "machine_row", name: "Machine Row", metric: "weight_reps", muscles: "Mid back, lats", yt: "A3M3sdXTT9Y",
-    cues: ["Chest on the pad", "Pull elbows back", "Full stretch forward"], alts: ["cs_row", "cable_row"] },
+    cues: ["Chest on the pad", "Pull elbows back", "Full stretch forward"], alts: ["cs_row", "cable_row", "bb_row"] },
   { key: "lean_lateral", name: "Lean-Away Cable Lateral Raise", metric: "weight_reps", muscles: "Side delts (width) — tension at the stretch", yt: "CVEjRXzHdJw", step: 1, perSide: true,
     cues: ["Cable low, hold the post and lean away", "Arm long, lead with the elbow", "Up to shoulder height", "Slow 2-3 s down"], alts: ["cable_lateral", "db_lateral"] },
   { key: "cable_y_raise", name: "Cable Y-Raise", metric: "weight_reps", muscles: "Side delts (top range), lower traps", yt: "Szf2YX18h_U", step: 1,

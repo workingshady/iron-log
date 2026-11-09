@@ -3,7 +3,7 @@ import {
   BookOpen, CheckCircle2, ChevronDown, ExternalLink, Flame, Footprints, HelpCircle, ListChecks, Route, ShieldAlert, Sparkles, Target, Utensils, Workflow, XCircle,
   type LucideIcon,
 } from "lucide-react";
-import { CARDIO_GUIDE, GROW_RULES, NUTRITION, PULLUP_ROADMAP, SAFETY, SESSION_FLOW, TERMS, WARMUP, WHAT_IF, WHY_V2 } from "../../program/learn";
+import { CARDIO_GUIDE, GROW_RULES, VERDICTS, NUTRITION, PULLUP_ROADMAP, SAFETY, SESSION_FLOW, TERMS, WARMUP, WHAT_IF, WHY_V2 } from "../../program/learn";
 import { CURRENT } from "../../program";
 import { cx } from "../lib/util";
 import { PageHead } from "../components/ui";
@@ -95,6 +95,21 @@ export default function Learn() {
               </div>
             ))}
           </div>
+        </S>
+
+        <S id="verdicts" tone="info" icon={Sparkles} title="Is this the best exercise?" sub="Honest verdict for every main lift — e.g. do I have to bench?">
+          <p className="mb-3 text-sm text-mute">Free weights and machines build the same muscle when effort and volume match (Haugen 2023). Barbells win for maximal strength, dumbbells for stretch, machines for safe, strict near-failure sets.</p>
+          <ul className="space-y-2">
+            {VERDICTS.map((v) => (
+              <li key={v.ex} className="rounded-xl bg-card2 p-3 text-sm">
+                <div className="flex items-center gap-2 font-semibold">
+                  <span className={cx("rounded-full px-2 py-0.5 text-[11px]", v.verdict === "keep" ? "bg-acc/15 text-acc" : v.verdict === "changed" ? "bg-warn/15 text-warn" : "bg-info/15 text-info")}>{v.verdict}</span>
+                  {v.ex}
+                </div>
+                <div className="mt-1 text-mute">{v.why}</div>
+              </li>
+            ))}
+          </ul>
         </S>
 
         <S id="pullup" tone="acc" icon={Route} title="Pull-up roadmap (no bands needed)" sub="From zero to weighted pull-ups, step by step">

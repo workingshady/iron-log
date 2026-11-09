@@ -6,7 +6,7 @@ Goals: muscle + strength, first strict pull-ups and dips, strong core, wrestler 
 ## Stack (all Cloudflare free tier)
 - `worker/`: Hono API on Cloudflare Workers. `worker/db/schema.ts` = Drizzle schema for D1 (SQLite).
 - `src/`: React + Tailwind v4 mobile UI (Vite + `@cloudflare/vite-plugin`). Hash routes, no router lib.
-- `program/`: **the training plan as data.** `exercises.ts` (library + YouTube ids; check with `npx tsx scripts/check-videos.ts`), `versions/vN.ts` (plans), `swaps.ts` (alternative conversions), `groups.ts` (muscle group per exercise), `learn.ts` (glossary, warm-up, levels, what-if, nutrition), `index.ts` (`CURRENT`).
+- `program/`: **the training plan as data.** `exercises.ts` (library + YouTube ids; check with `npx tsx scripts/check-videos.ts`), `versions/vN.ts` (plans), `swaps.ts` (alternative conversions), `groups.ts` (muscle group per exercise), `muscles.ts` (primary/secondary muscles per exercise for the body heatmap; secondary = ½ set), `learn.ts` (glossary, warm-up, levels, what-if, nutrition), `index.ts` (`CURRENT`).
 - `shared/`: types + pick-lists (excuses, set kinds, pain areas) used by both sides.
 - `private/`: git-ignored. Exports land in `private/exports/<date>/`.
 

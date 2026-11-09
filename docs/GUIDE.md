@@ -14,9 +14,9 @@ Your personal training tracker. It runs free on Cloudflare (Workers + D1). On yo
 | Page | What it's for |
 |---|---|
 | **Home** | Dashboard: next workout (with exercise thumbnails), this week, streak, adherence %, minutes, creatine today, training calendar (heatmap), insights, sets/week, bodyweight trend |
-| **Plan** | The whole month: Week 1-4 tabs, every day and exercise with thumbnails, targets, rest, technique (ⓘ explains words like "drop set"). Start any day from here. |
+| **Plan** | The whole month: Week 1-4 tabs, every day and exercise with thumbnails, targets, rest, technique (ⓘ explains words like "drop set"). Start any day from here. **Muscle map** shows which muscles that week hits. |
 | **History** | Calendar + every workout and missed day (with the reason). Filter all / workouts / missed. Tap a workout to see or edit it. |
-| **Stats** | "Am I getting stronger?" Insights, hard sets per muscle vs the 10-20 target, per-week bars, per-exercise trend (tap for chart + table), missed-day reasons, pain log |
+| **Stats** | "Am I getting stronger?" Insights, hard sets per muscle vs the 10-20 target, **body heatmap** (front/back; what you did vs what the plan asks), per-week bars, per-exercise trend (tap for chart + table), missed-day reasons, pain log |
 | **Creatine** | Daily grams: one tap for 3/5/10 g, progress ring, streak, calendar |
 | **Body & habits** | Weight, waist, sleep, protein, steps, water, energy. **Not daily**: fill only what you know, whenever (weekly weigh-in is enough). |
 | **Tests** | Max-effort benchmarks (pull-ups, dips, hangs…). Test at the start and on Week 4 · Day 6. |

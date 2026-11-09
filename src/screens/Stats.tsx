@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Activity, AlertTriangle, BarChart3, CalendarOff, ChevronRight, Dumbbell, Lightbulb, Minus, TrendingDown, TrendingUp, Trophy } from "lucide-react";
 import type { InsightsData, ProgressData } from "../../shared/api";
 import { InsightList, MuscleChart } from "../components/Insights";
+import { BodyMap } from "../components/BodyMap";
+import { CURRENT } from "../../program";
 import { today } from "../lib/util";
 import { EXCUSES } from "../../shared/lists";
 import { EXERCISES } from "../../program/exercises";
@@ -30,6 +32,8 @@ export default function Stats() {
   const [sel, setSel] = useState<Ex | null>(null);
   const [wm, setWm] = useState<"sets" | "sessions" | "minutes" | "volume">("sets");
   const [all, setAll] = useState(false);
+  const [mapMode, setMapMode] = useState<"done" | "plan">("done");
+  const [mapWeek, setMapWeek] = useState<number | null>(null);
   if (!data) return <p className="py-20 text-center text-mute">{error ?? "Loading…"}</p>;
 
   const head = <PageHead icon={BarChart3} title="Stats" sub="Are you getting stronger? Each exercise shows its best number per workout." />;
@@ -55,6 +59,29 @@ export default function Stats() {
           <>
             <Card title="Insights" icon={Lightbulb}><InsightList items={ins.insights} /></Card>
             <Card title="Hard sets per muscle" icon={Activity}><MuscleChart data={ins.muscles} /></Card>
+            <Card title="Muscle map" icon={Activity} className="md:col-span-2">
+              {(() => {
+                const weeks = CURRENT.weeks.map((w) => w.n);
+                const wk = mapWeek ?? ins.muscles.weeks[ins.muscles.weeks.length - 1]?.week ?? 1;
+                const planned = (CURRENT.weeks.find((w) => w.n === wk)?.days ?? []).flatMap((d) => d.items).reduce<Record<string, number>>((a, x) => ({ ...a, [x.ex]: (a[x.ex] ?? 0) + x.sets }), {});
+                const done = ins.muscles.weeks.find((w) => w.week === wk)?.ex ?? {};
+                return (
+                  <>
+                    <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+                      <div className="flex rounded-full bg-card2 p-0.5">
+                        {(["done", "plan"] as const).map((m) => (
+                          <button key={m} onClick={() => setMapMode(m)} className={cx("rounded-full px-3 py-1.5", mapMode === m ? "bg-card3 text-ink" : "text-mute")}>{m === "done" ? "What you did" : "What the plan asks"}</button>
+                        ))}
+                      </div>
+                      {weeks.map((n) => (
+                        <button key={n} onClick={() => setMapWeek(n)} className={cx("rounded-full px-3 py-1.5", n === wk ? "bg-card3 text-ink" : "text-mute")}>Week {n}</button>
+                      ))}
+                    </div>
+                    <div className="mx-auto max-w-md"><BodyMap exSets={mapMode === "done" ? done : planned} caption={mapMode === "done" ? `Logged hard sets, week ${wk}` : `Planned sets, week ${wk}`} /></div>
+                  </>
+                );
+              })()}
+            </Card>
           </>
         )}
 

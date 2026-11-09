@@ -18,14 +18,16 @@ const r1 = (n: number) => Math.round(n * 10) / 10;
 export function muscleSets(sess: S[], sets: X[]) {
   const wk = new Map(sess.map((s) => [s.id, s.week]));
   const out: Record<number, Record<string, number>> = {};
+  const ex: Record<number, Record<string, number>> = {};
   for (const x of sets) {
     if (x.kind === "W") continue;
     const w = wk.get(x.sessionId);
+    if (w == null) continue;
+    (ex[w] ??= {})[x.exKey] = (ex[w][x.exKey] ?? 0) + 1;
     const g = EX_GROUP[x.exKey];
-    if (w == null || !g) continue;
-    (out[w] ??= {})[g] = (out[w][g] ?? 0) + 1;
+    if (g) (out[w] ??= {})[g] = (out[w][g] ?? 0) + 1;
   }
-  return { groups: GROUPS, weeks: Object.entries(out).map(([w, m]) => ({ week: Number(w), sets: m })).sort((a, b) => a.week - b.week) };
+  return { groups: GROUPS, weeks: Object.keys(ex).map(Number).sort((a, b) => a - b).map((w) => ({ week: w, sets: out[w] ?? {}, ex: ex[w] })) };
 }
 
 export function buildInsights(sess: S[], sets: X[], body: B[], intake: I[], creTarget: number, today: string): Insight[] {

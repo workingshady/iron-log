@@ -144,5 +144,5 @@ export interface DashboardData {
 
 export interface InsightsData {
   insights: { tone: "good" | "warn" | "bad" | "info"; title: string; text: string }[];
-  muscles: { groups: readonly string[]; weeks: { week: number; sets: Record<string, number> }[] };
+  muscles: { groups: readonly string[]; weeks: { week: number; sets: Record<string, number>; ex: Record<string, number> }[] };
 }

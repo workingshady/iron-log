@@ -9,12 +9,16 @@ import { Badge, Btn, PageHead, Thumb } from "../components/ui";
 import { HowTo } from "../components/HowTo";
 import { TechNote } from "../components/Terms";
 import { StartSheet } from "../components/StartSheets";
+import { BodyMap } from "../components/BodyMap";
+import { Card } from "../components/ui";
+import { Activity, ChevronDown } from "lucide-react";
 
 export default function Plan() {
   const { data: s } = useLoad<AppState>("/state");
   const [wk, setWk] = useState<number | null>(null);
   const [how, setHow] = useState<PlanItem | null>(null);
   const [start, setStart] = useState<SlotInfo | null>(null);
+  const [showMap, setShowMap] = useState(false);
   const curWeek = wk ?? s?.next?.week ?? 1;
   const week = CURRENT.weeks.find((w) => w.n === curWeek)!;
   const slot = (key: string) => s?.slots.find((x) => x.week === curWeek && x.dayKey === key);
@@ -32,6 +36,19 @@ export default function Plan() {
         ))}
       </div>
       <p className="mb-4 rounded-xl bg-info/10 px-4 py-3 text-sm text-info">{week.brief}</p>
+
+      <Card className="mb-4">
+        <button onClick={() => setShowMap(!showMap)} className="flex w-full items-center gap-2 text-left text-sm font-semibold text-mute">
+          <Activity size={16} />
+          <span className="flex-1">Muscles hit by Week {curWeek} (planned sets)</span>
+          <ChevronDown size={16} className={cx("transition", showMap && "rotate-180")} />
+        </button>
+        {showMap && (
+          <div className="mt-3">
+            <BodyMap exSets={week.days.flatMap((d) => d.items).reduce<Record<string, number>>((a, x) => ({ ...a, [x.ex]: (a[x.ex] ?? 0) + x.sets }), {})} caption="If you complete every set this week" />
+          </div>
+        )}
+      </Card>
 
       <div className="grid gap-3 lg:grid-cols-2">
         {week.days.map((d) => {

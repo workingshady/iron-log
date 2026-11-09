@@ -1,5 +1,6 @@
 import { v1 } from "./versions/v1";
 import { EXERCISES } from "./exercises";
+import { EX_MUSCLES } from "./muscles";
 import type { Program, Rx } from "./types";
 
 // ▶ The ONE line to change when a new program version is ready.
@@ -25,6 +26,9 @@ export function validate(p: Program): string[] {
       if (!p.order.includes(d.key)) errs.push(`W${w.n} ${d.key}: not in program.order`);
       d.items.forEach((it: Rx) => seen(it.ex, `W${w.n} ${d.key}`));
     }
-  for (const e of Object.values(EXERCISES)) (e.alts ?? []).forEach((a) => seen(a, `alts of ${e.key}`));
+  for (const e of Object.values(EXERCISES)) {
+    (e.alts ?? []).forEach((a) => seen(a, `alts of ${e.key}`));
+    if (!EX_MUSCLES[e.key]) errs.push(`${e.key}: missing in program/muscles.ts`);
+  }
   return errs;
 }

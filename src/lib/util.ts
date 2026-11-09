@@ -5,6 +5,9 @@ export function localDate(d: Date) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
+/** "8:05 PM" — 12-hour clock with AM/PM. */
+export const time12 = (ms: number) => new Date(ms).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+
 export const tz = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 export function clock(ms: number) {

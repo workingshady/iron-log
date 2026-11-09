@@ -371,6 +371,16 @@ app.post("/intake", async (c) => {
   await db(c).insert(t.intake).values(b).onConflictDoNothing();
   return c.json({ ok: true });
 });
+app.put("/intake/:id", async (c) => {
+  const b = await c.req.json<{ amount?: number; at?: number; date?: string }>();
+  if (b.amount != null && !(b.amount > 0 && b.amount <= 50)) return c.json({ error: "amount must be 0-50" }, 400);
+  const patch: Partial<typeof t.intake.$inferInsert> = {};
+  if (b.amount != null) patch.amount = b.amount;
+  if (b.at != null) patch.at = b.at;
+  if (b.date) patch.date = b.date;
+  await db(c).update(t.intake).set(patch).where(eq(t.intake.id, c.req.param("id")));
+  return c.json({ ok: true });
+});
 app.delete("/intake/:id", async (c) => {
   await db(c).delete(t.intake).where(eq(t.intake.id, c.req.param("id")));
   return c.json({ ok: true });

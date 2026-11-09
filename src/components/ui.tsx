@@ -94,7 +94,7 @@ export function NumInput({ value, onChange, placeholder, className }: { value: s
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value.replace(",", "."))}
       onFocus={(e) => e.target.select()}
-      className={cx("min-h-12 w-full min-w-0 rounded-xl bg-card2 px-2 text-center text-lg font-semibold num outline-none placeholder:text-faint focus:ring-2 focus:ring-acc", className)}
+      className={cx("min-h-12 min-w-0 rounded-xl bg-card2 px-2 text-center text-lg font-semibold num outline-none placeholder:text-faint focus:ring-2 focus:ring-acc", !/w-/.test(className ?? "") && "w-full", className)}
     />
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CalendarOff, CalendarRange, Dumbbell, Flame, FlaskConical, House, Lightbulb, Play, Plus, Scale, Target, Timer, TrendingUp } from "lucide-react";
+import { CalendarOff, CalendarRange, Dumbbell, Flame, FlaskConical, Footprints, House, Lightbulb, Play, Plus, Scale, Target, TrendingUp } from "lucide-react";
 import type { AppState, DashboardData, InsightsData, Lifts, ProgressData, SlotInfo } from "../../shared/api";
 import { recommend } from "../../shared/recommend";
 import { kg } from "../lib/util";
@@ -36,7 +36,7 @@ export default function Home() {
     <div>
       <PageHead icon={House} title="Home" sub={`${s.program.name} · v${s.program.version}`} />
 
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         {/* 1. The one main action */}
         <div className="md:col-span-2">
           {s.active && <ActiveCard a={s.active} />}
@@ -49,7 +49,7 @@ export default function Home() {
               <div className="mt-1 text-3xl font-bold">{next.dayName}</div>
               <div className="text-sm text-mute">{next.focus}</div>
               {dayPlan && (
-                <div className="mt-4 flex gap-2 overflow-hidden">
+                <div className="-mx-5 mt-4 flex gap-2 overflow-x-auto px-5 [scrollbar-width:none]">
                   {dayPlan.items.slice(0, 6).map((it, i) => {
                     const e = EXERCISES[it.ex];
                     const yt = Array.isArray(e.yt) ? e.yt[0] : e.yt;
@@ -113,7 +113,7 @@ export default function Home() {
         <div className="grid grid-cols-2 gap-3 md:col-span-3 md:grid-cols-4">
           <Stat icon={Flame} tone="warn" value={d?.streak ?? 0} label={`workouts in a row · best ${d?.bestStreak ?? 0}`} />
           <Stat icon={TrendingUp} tone="acc" value={d?.adherence != null ? `${d.adherence}%` : "—"} label="adherence (done ÷ planned)" />
-          <Stat icon={Timer} value={s.thisWeek.minutes} label="minutes trained · 7 days" />
+          <a href="#/cardio" className="block"><Stat icon={Footprints} tone="info" value={`${d?.cardioWeek?.sessions ?? 0}/3`} label={`cardio this week · ${d?.cardioWeek?.minutes ?? 0} min`} /></a>
           <CreatineTile d={d} onAdd={reloadD} />
         </div>
 

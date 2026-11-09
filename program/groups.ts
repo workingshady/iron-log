@@ -19,4 +19,7 @@ export const EX_GROUP: Record<string, Group> = {
   ab_wheel: "Core", hanging_knee_raise: "Core", hanging_leg_raise: "Core", hollow_hold: "Core", plank: "Core", dead_bug: "Core", cable_crunch: "Core", tuck_lsit: "Core",
   plate_pinch: "Forearms/Grip", dead_hang: "Forearms/Grip", wrist_curl: "Forearms/Grip", rev_wrist_curl: "Forearms/Grip", wrist_roller: "Forearms/Grip",
   neck: "Neck",
+  close_grip_bench: "Triceps", deficit_pushup: "Chest", neutral_pulldown: "Back", straight_arm_pulldown: "Back", db_pullover: "Back",
+  wide_cable_row: "Back", machine_row: "Back", lean_lateral: "Shoulders", cable_y_raise: "Shoulders", kelso_shrug: "Traps",
+  reverse_curl: "Forearms/Grip", leg_extension: "Quads", seated_leg_curl: "Hamstrings/Glutes",
 };

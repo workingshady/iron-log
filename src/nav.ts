@@ -1,5 +1,5 @@
 import {
-  BarChart3, BookOpen, CalendarDays, FlaskConical, History, House, LayoutGrid, NotebookPen, Ruler, Settings, Trophy, type LucideIcon,
+  BarChart3, BookOpen, Footprints, CalendarDays, FlaskConical, History, House, LayoutGrid, NotebookPen, Ruler, Settings, Trophy, type LucideIcon,
 } from "lucide-react";
 
 export const go = (path: string) => (location.hash = path);
@@ -21,6 +21,7 @@ export const MAIN: NavItem[] = [
 
 /** Secondary pages ("More" on phones, lower sidebar on desktop). */
 export const MORE: NavItem[] = [
+  { path: "/cardio", label: "Cardio", icon: Footprints, sub: "Treadmill intervals & hill walks — timer + tracker" },
   { path: "/creatine", label: "Creatine", icon: FlaskConical, sub: "Grams per day — aim for your daily target" },
   { path: "/body", label: "Body & habits", icon: Ruler, sub: "Weight, waist, sleep, protein, steps, water" },
   { path: "/tests", label: "Tests", icon: Trophy, sub: "Benchmarks: pull-ups, dips, hangs… compare over time" },

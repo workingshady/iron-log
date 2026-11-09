@@ -5,18 +5,18 @@ import { targetLabel, toItem } from "../../shared/plan";
 import { EXERCISES } from "../../program/exercises";
 import { DEFAULT_SWAP_NOTE, SWAP_REASONS, swapHint } from "../../program/swaps";
 import { cache, get, queue, track, uid } from "../lib/api";
-import { clock, cx, kg, niceDate, restLabel, roundTo, unlockAudio, vibrate } from "../lib/util";
+import { beep, clock, cx, kg, niceDate, restLabel, roundTo, unlockAudio, vibrate } from "../lib/util";
 import { Btn, Chips, Label, NumInput, Sheet, Thumb, scale } from "../components/ui";
 import { TechNote, InfoDot } from "../components/Terms";
 import { TERMS } from "../../program/learn";
-import { ArrowDown, ArrowLeftRight, ArrowUp, Check, ChevronLeft, Clock, Dumbbell, Equal, Flame, Layers, MessageSquare, MoreHorizontal, NotebookPen, PlayCircle, Plus, Repeat, Ruler, SkipForward, Sparkles, Timer, TrendingDown, TrendingUp, TriangleAlert, Trophy } from "lucide-react";
+import { ArrowDown, ArrowLeftRight, ArrowUp, Check, Hash, ChevronLeft, Clock, Dumbbell, Equal, Flame, Layers, MessageSquare, MoreHorizontal, NotebookPen, PlayCircle, Plus, Repeat, Ruler, SkipForward, Sparkles, Timer, TrendingDown, TrendingUp, TriangleAlert, Trophy } from "lucide-react";
 import { e1rm, isBarbell, plates, recommend, warmups, type ExHistory, type Rec, type RecKind } from "../../shared/recommend";
 import { CURRENT } from "../../program";
 import { HowTo } from "../components/HowTo";
 import { RestTimer, loadRest, saveRest, type Rest } from "../components/RestTimer";
 import { go } from "../nav";
 
-type Draft = { weight: string; reps: string; seconds: string; meters: string; assist: string; rir: string };
+type Draft = { weight: string; reps: string; seconds: string; meters: string; assist: string; rir: string; strict: string };
 const workSets = (sets: SetLog[], i: number) => sets.filter((s) => s.itemIdx === i && s.kind !== "W");
 
 export default function SessionScreen({ id }: { id: string }) {
@@ -28,7 +28,7 @@ export default function SessionScreen({ id }: { id: string }) {
     const r = loadRest();
     return r?.sessionId === id ? r : null;
   });
-  const [undo, setUndo] = useState<{ set: SetLog; pr: string | null } | null>(null);
+  const [undo, setUndo] = useState<{ set: SetLog; pr: string | null; warn?: boolean } | null>(null);
   const lastTap = useRef(0);
   const [sheet, setSheet] = useState<null | { k: "how" | "menu" | "swap"; i: number } | { k: "set"; s: SetLog } | { k: "finish" }>(null);
 
@@ -55,7 +55,7 @@ export default function SessionScreen({ id }: { id: string }) {
 
   useEffect(() => {
     if (!undo) return;
-    const t = setTimeout(() => setUndo(null), 6000);
+    const t = setTimeout(() => setUndo(null), undo.warn ? 9000 : 6000);
     return () => clearTimeout(t);
   }, [undo]);
 
@@ -119,7 +119,7 @@ export default function SessionScreen({ id }: { id: string }) {
     const prev = sets[sets.length - 1];
     const set: SetLog = {
       id: uid(), sessionId: id, exKey: it.ex, itemIdx: i, setNo: sets.filter((x) => x.itemIdx === i).length + 1, kind,
-      weightKg: weight, reps, seconds: n(d.seconds), meters: n(d.meters), assist: d.assist || null, rir: n(d.rir),
+      weightKg: weight, reps, seconds: n(d.seconds), meters: n(d.meters), assist: d.assist || null, rir: n(d.rir), strict: d.strict === "" ? null : Number(d.strict),
       restBeforeS: prev ? Math.round((t - prev.doneAt) / 1000) : null, doneAt: t, note: null, painArea: null, painLevel: null,
       swappedFrom: it.swappedFrom ?? null,
       suggested: JSON.stringify({ weightKg: recs[i].weightKg, reps: recs[i].reps, seconds: recs[i].seconds, kind: recs[i].kind }),
@@ -140,8 +140,16 @@ export default function SessionScreen({ id }: { id: string }) {
       }
       if (pr) set.pr = 1;
     }
+    // honesty nudge: stopped below the target while saying there were 2+ reps left
+    const bottom = it.reps == null ? null : Array.isArray(it.reps) ? it.reps[0] : it.reps;
+    let nudge: string | null = null;
+    if (kind === "N" && reps != null && bottom != null && reps < bottom && set.rir != null && set.rir >= 2) {
+      nudge = `Stopped at ${reps} with ${set.rir} left — target is ${bottom}+. Burn ≠ failure: next set push to ${bottom}.`;
+      track("early_stop", { ex: it.ex, reps, rir: set.rir, target: bottom }, id);
+    }
+    if (set.strict === 0) track("cheated_set", { ex: it.ex, reps }, id);
     putSet(set);
-    setUndo({ set, pr });
+    setUndo({ set, pr: pr ?? nudge, warn: !pr && !!nudge });
     if (pr) { track("pr", { ex: it.ex, text: pr }, id); vibrate([60, 40, 60]); }
     track("set_done", { ex: it.ex, i, setNo: set.setNo, kind, weight, reps, seconds: set.seconds, meters: set.meters, assist: set.assist, restBeforeS: set.restBeforeS }, id);
 
@@ -176,8 +184,13 @@ export default function SessionScreen({ id }: { id: string }) {
 
       <div className="space-y-2">
         {plan.map((it, i) => (
+          <div key={`${i}-${it.ex}`}>
+          {it.finisher && !plan[i - 1]?.finisher && (
+            <div className="mb-2 mt-5 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-mute">
+              <Flame size={13} className="text-warn" /> Finishers · small muscles, 5-10 min <span className="h-px flex-1 bg-line" />
+            </div>
+          )}
           <ExerciseCard
-            key={`${i}-${it.ex}`}
             i={i}
             it={it}
             sets={sets.filter((x) => x.itemIdx === i)}
@@ -197,6 +210,7 @@ export default function SessionScreen({ id }: { id: string }) {
             onHow={() => { setSheet({ k: "how", i }); track("video_open", { ex: it.ex }, id); }}
             onMenu={() => setSheet({ k: "menu", i })}
           />
+          </div>
         ))}
       </div>
 
@@ -207,8 +221,8 @@ export default function SessionScreen({ id }: { id: string }) {
 
       {undo && (
         <div className={cx("fixed inset-x-0 z-40 mx-auto flex max-w-lg justify-center px-4", rest && live ? "bottom-24" : "bottom-6")}>
-          <div className={cx("flex items-center gap-3 rounded-full px-4 py-2 text-sm shadow-lg", undo.pr ? "bg-warn text-black" : "bg-ink text-bg")}>
-            {undo.pr ? <><Trophy size={16} /> {undo.pr}</> : "Set logged"}
+          <div className={cx("flex items-center gap-3 px-4 py-2 text-sm shadow-lg", undo.warn ? "rounded-2xl bg-bad text-black" : "rounded-full", !undo.warn && (undo.pr ? "bg-warn text-black" : "bg-ink text-bg"))}>
+            {undo.warn ? <><TriangleAlert size={16} className="shrink-0" /> {undo.pr}</> : undo.pr ? <><Trophy size={16} /> {undo.pr}</> : "Set logged"}
             <button
               className="font-bold underline"
               onClick={() => { putSet({ ...undo.set, deleted: 1 }); track("set_undo", { id: undo.set.id, ex: undo.set.exKey }, id); setRest(null); setUndo(null); }}
@@ -407,7 +421,7 @@ function ExerciseCard({ i, it, sets, last, rec, live, feedback, open, onToggle, 
               {showWarm && (
                 <div className="mt-2 grid gap-1.5">
                   {warm.map((w, k) => (
-                    <button key={k} onClick={() => onLog({ ...d, weight: String(w.kg), reps: String(w.reps), rir: "" }, "W")} className="flex min-h-10 items-center gap-3 rounded-lg border border-dashed border-line px-3 text-left text-sm">
+                    <button key={k} onClick={() => onLog({ ...d, weight: String(w.kg), reps: String(w.reps), rir: "", strict: "" }, "W")} className="flex min-h-10 items-center gap-3 rounded-lg border border-dashed border-line px-3 text-left text-sm">
                       <span className="w-14 text-xs text-mute">warm-up</span>
                       <span className="flex-1 num">{kg(w.kg)} kg × {w.reps}</span>
                       {isBarbell(it.ex) && <span className="text-[11px] text-faint">{plateText(w.kg)}</span>}
@@ -427,6 +441,7 @@ function ExerciseCard({ i, it, sets, last, rec, live, feedback, open, onToggle, 
                 <span className="w-14 text-xs text-mute">{x.kind === "N" ? `Set ${sets.slice(0, k + 1).filter((y) => y.kind === "N").length}` : KIND_LABEL[x.kind]}</span>
                 <span className="flex-1 font-semibold num">{fmtSet(x)}</span>
                 {!!x.pr && <Trophy size={14} className="text-warn" />}
+                {x.strict === 0 && <span className="rounded bg-bad/20 px-1.5 text-[10px] text-bad">cheat</span>}
                 {x.rir != null && <span className="text-xs text-mute">RIR {x.rir}</span>}
                 {x.restBeforeS != null && k > 0 && <span className="text-xs text-faint">{clock(x.restBeforeS * 1000)}</span>}
                 {x.painLevel ? <TriangleAlert size={15} className="text-bad" /> : x.note ? <NotebookPen size={15} className="text-mute" /> : null}
@@ -506,6 +521,7 @@ function useDraft(it: PlanItem, sets: SetLog[], last: { sets: SetLog[] } | undef
       meters: v(prevHere?.meters ?? lastSame?.meters ?? it.meters),
       assist: prevHere?.assist ?? lastSame?.assist ?? "",
       rir: "",
+      strict: "",
     };
   }, [it, sets, last, rec]);
 }
@@ -521,7 +537,7 @@ function SetInput({ it, d, setD, n, total, onLog, hidden }: { it: PlanItem; d: D
   if (hidden) return null;
   const bump = (k: keyof Draft, by: number, min = 0) => setD({ ...d, [k]: String(Math.max(min, +(Number(d[k] || 0) + by).toFixed(2))) });
   const m = it.metric;
-  const ICON = { weight: Dumbbell, reps: Repeat, seconds: Timer, meters: Ruler, assist: Dumbbell, rir: Repeat } as const;
+  const ICON = { weight: Dumbbell, reps: Repeat, seconds: Timer, meters: Ruler, assist: Dumbbell, rir: Repeat, strict: Check } as const;
   const field = (k: keyof Draft, label: string, step: number, placeholder = "") => {
     const I = ICON[k];
     return (
@@ -583,7 +599,51 @@ function SetInput({ it, d, setD, n, total, onLog, hidden }: { it: PlanItem; d: D
           </div>
         </div>
       )}
+      {(m === "weight_reps" || m === "reps" || m === "assist_reps") && (
+        <RepCounter onCount={(r) => setD({ ...d, reps: String(r) })} />
+      )}
+      {showRir && (
+        <div className="mt-3 flex items-center gap-2">
+          <span className="text-[11px] text-mute">Form</span>
+          {[{ v: "1", l: "Strict" }, { v: "0", l: "Cheated / partial" }].map((o) => (
+            <button key={o.v} onClick={() => setD({ ...d, strict: d.strict === o.v ? "" : o.v })}
+              className={cx("h-10 flex-1 rounded-lg text-sm", d.strict === o.v ? (o.v === "1" ? "bg-acc font-semibold text-acc-ink" : "bg-bad font-semibold text-black") : "bg-card2 text-mute")}>
+              {o.l}
+            </button>
+          ))}
+        </div>
+      )}
       <Btn kind="primary" icon={Check} className="mt-3 w-full text-lg" onClick={onLog}>Log set {n}</Btn>
+    </div>
+  );
+}
+
+/** Never lose count: tap a big pad for every rep, or let it beep every 3 s (tempo) and count for you. */
+function RepCounter({ onCount }: { onCount: (r: number) => void }) {
+  const [open, setOpen] = useState(false);
+  const [count, setCount] = useState(0);
+  const [tempo, setTempo] = useState(false);
+  useEffect(() => {
+    if (!tempo) return;
+    const i = setInterval(() => { setCount((c) => c + 1); beep(); vibrate(40); }, 3000);
+    return () => clearInterval(i);
+  }, [tempo]);
+  if (!open) return (
+    <button onClick={() => { unlockAudio(); setOpen(true); setCount(0); }} className="mt-3 inline-flex items-center gap-1.5 text-xs text-info">
+      <Hash size={13} /> Count reps for me
+    </button>
+  );
+  return (
+    <div className="mt-3 rounded-xl bg-card2 p-2">
+      <button onClick={() => { setCount((c) => c + 1); vibrate(25); }} className="flex h-28 w-full flex-col items-center justify-center rounded-lg bg-card3 active:bg-acc/20" aria-label="Count one rep">
+        <span className="text-5xl font-bold num">{count}</span>
+        <span className="text-[11px] text-mute">tap every rep{tempo ? " · auto every 3 s" : ""}</span>
+      </button>
+      <div className="mt-2 grid grid-cols-3 gap-1.5 text-xs">
+        <button onClick={() => setCount((c) => Math.max(0, c - 1))} className="h-10 rounded-lg bg-card3">−1</button>
+        <button onClick={() => setTempo(!tempo)} className={cx("h-10 rounded-lg", tempo ? "bg-info text-black" : "bg-card3")}>{tempo ? "Stop beeper" : "Tempo 3 s"}</button>
+        <button onClick={() => { onCount(count); setTempo(false); setOpen(false); }} className="h-10 rounded-lg bg-acc font-semibold text-acc-ink">Use {count}</button>
+      </div>
     </div>
   );
 }

@@ -39,7 +39,7 @@ export function MuscleChart({ data }: { data: InsightsData["muscles"] }) {
     <div>
       <div className="mb-3 flex flex-wrap gap-1 text-xs">
         {data.weeks.map((x) => (
-          <button key={x.week} onClick={() => setWk(x.week)} className={cx("rounded-full px-3 py-1.5", x.week === w.week ? "bg-card3 text-ink" : "text-mute")}>Week {x.week}</button>
+          <button key={x.week} onClick={() => setWk(x.week)} className={cx("min-h-10 rounded-full px-3", x.week === w.week ? "bg-card3 text-ink" : "text-mute")}>Week {x.week}</button>
         ))}
       </div>
       <div className="space-y-1.5">

@@ -67,6 +67,7 @@ export interface SetLog {
   swappedFrom: string | null;
   suggested?: string | null;
   pr?: number;
+  strict?: number | null;
   deleted?: number;
 }
 
@@ -152,6 +153,14 @@ export interface DashboardData {
   adherence: number | null;
   creatine: { today: number; target: number; streak: number; days: Record<string, number> };
   body: { date: string; weightKg: number | null }[];
+  cardioDays: Record<string, number>;
+  cardioWeek: { sessions: number; minutes: number; kcal: number };
+}
+
+export interface CardioLog {
+  id: string; date: string; protocol: string; status: "done" | "partial" | "skipped";
+  startedAt: number | null; endedAt: number | null; minutes: number | null; distanceKm: number | null;
+  kcalMachine: number | null; kcalEst: number | null; rpe: number | null; speedAdj: number | null; note: string | null; sessionId: string | null; createdAt?: number;
 }
 
 export interface InsightsData {

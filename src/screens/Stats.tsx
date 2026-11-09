@@ -55,7 +55,7 @@ export default function Stats() {
         <Stat icon={Trophy} tone="acc" value={`${improving}/${data.exercises.length}`} label="exercises improving" />
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         {ins && (
           <>
             <Card title="Insights" icon={Lightbulb}><InsightList items={ins.insights} /></Card>
@@ -71,11 +71,11 @@ export default function Stats() {
                     <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
                       <div className="flex rounded-full bg-card2 p-0.5">
                         {(["done", "plan"] as const).map((m) => (
-                          <button key={m} onClick={() => setMapMode(m)} className={cx("rounded-full px-3 py-1.5", mapMode === m ? "bg-card3 text-ink" : "text-mute")}>{m === "done" ? "What you did" : "What the plan asks"}</button>
+                          <button key={m} onClick={() => setMapMode(m)} className={cx("inline-flex min-h-10 items-center rounded-full px-3.5", mapMode === m ? "bg-card3 text-ink" : "text-mute")}>{m === "done" ? "What you did" : "What the plan asks"}</button>
                         ))}
                       </div>
                       {weeks.map((n) => (
-                        <button key={n} onClick={() => setMapWeek(n)} className={cx("rounded-full px-3 py-1.5", n === wk ? "bg-card3 text-ink" : "text-mute")}>Week {n}</button>
+                        <button key={n} onClick={() => setMapWeek(n)} className={cx("inline-flex min-h-10 items-center rounded-full px-3.5", n === wk ? "bg-card3 text-ink" : "text-mute")}>Week {n}</button>
                       ))}
                     </div>
                     <div className="mx-auto max-w-md"><BodyMap exSets={mapMode === "done" ? done : planned} caption={mapMode === "done" ? `Logged hard sets, week ${wk}` : `Planned sets, week ${wk}`} /></div>
@@ -96,7 +96,7 @@ export default function Stats() {
         </Card>
 
         <Card title="Exercises — tap for the chart" icon={TrendingUp} className="md:col-span-2">
-          <div className="grid gap-1.5 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-1.5 md:grid-cols-2">
             {data.exercises.slice(0, all ? undefined : 10).map((e) => {
               const m = metricOf(e);
               const first = m.get(e.points[0]), last = m.get(e.points[e.points.length - 1]);
@@ -128,7 +128,7 @@ export default function Stats() {
 
         {lifts && Object.keys(lifts.best).length > 0 && (
           <Card title="Personal records (all time)" icon={Trophy} className="md:col-span-2">
-            <div className="grid gap-x-6 gap-y-1 text-sm md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-x-6 gap-y-1 text-sm md:grid-cols-2">
               {Object.entries(lifts.best)
                 .sort((a, b) => b[1].e1rm - a[1].e1rm || b[1].reps - a[1].reps)
                 .map(([k, b]) => (

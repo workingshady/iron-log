@@ -5,7 +5,7 @@ import { execSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 
 const where = process.argv.includes("--local") ? "--local" : "--remote";
-const tables = ["program_versions", "sessions", "sets", "events", "body", "tests", "journal", "settings", "intake", "feedback"];
+const tables = ["program_versions", "sessions", "sets", "events", "body", "tests", "journal", "settings", "intake", "feedback", "cardio"];
 const dir = `private/exports/${new Date().toISOString().slice(0, 10)}${where === "--local" ? "-local" : ""}`;
 mkdirSync(dir, { recursive: true });
 
@@ -50,6 +50,7 @@ const cre = {};
 for (const i of data.intake.filter((x) => x.item === "creatine")) cre[i.date] = (cre[i.date] ?? 0) + i.amount;
 lines.push("", "## Creatine (g/day)", ...Object.entries(cre).sort().map(([d, g]) => `- ${d}: ${g}`));
 lines.push("", "## Body", ...data.body.map((b) => `- ${b.date}: ${[b.weight_kg && b.weight_kg + "kg", b.waist_cm && "waist " + b.waist_cm, b.sleep_h && "sleep " + b.sleep_h + "h", b.protein_g && "protein " + b.protein_g + "g", b.energy && "energy " + b.energy].filter(Boolean).join(", ")}`));
+lines.push("", "## Cardio", ...data.cardio.map((c) => `- ${c.date} ${c.protocol} ${c.status}${c.minutes ? ` ${c.minutes} min` : ""}${c.kcal_machine ? ` ${c.kcal_machine} kcal (machine)` : c.kcal_est ? ` ~${c.kcal_est} kcal` : ""}${c.rpe ? ` RPE ${c.rpe}` : ""}${c.note ? ` "${c.note}"` : ""}`));
 lines.push("", "## Journal", ...data.journal.map((j) => `- ${j.date}${j.tags ? ` [${j.tags}]` : ""}: ${j.text}`));
 writeFileSync(`${dir}/summary.md`, lines.join("\n"));
 console.log(`\n→ ${dir}/summary.md`);

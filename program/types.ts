@@ -41,6 +41,8 @@ export interface Rx {
   tag?: string;
   /** Intensity technique / instruction, short. */
   tech?: string;
+  /** Small-muscle finisher (grip, wrist, neck, push-up burnout): shown in its own block at the end, not a main exercise. */
+  finisher?: boolean;
 }
 
 export interface DayPlan {

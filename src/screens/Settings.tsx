@@ -36,9 +36,9 @@ export default function Settings() {
   return (
     <div>
       <PageHead icon={Gear} title="Settings" sub="Schedule, targets, your data." />
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <Card title="Weekly schedule" icon={CalendarDays} className="md:col-span-2">
-          <div className="grid gap-2 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
             {Object.entries(s.schedules).map(([name, days]) => (
               <button key={name} onClick={() => set("schedule", name)} className={cx("rounded-xl border p-3 text-left", s.settings.schedule === name ? "border-acc bg-acc/5" : "border-line hover:bg-card2")}>
                 <div className="font-semibold">{name}</div>

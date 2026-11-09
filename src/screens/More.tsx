@@ -9,7 +9,7 @@ export default function More() {
       <div className="space-y-2">
         {MORE.map((m) => (
           <a key={m.path} href={`#${m.path}`} className="flex items-center gap-3 rounded-2xl bg-card p-4 hover:bg-card2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-card2"><m.icon size={20} className={m.path === "/creatine" ? "text-vio" : m.path === "/learn" ? "text-info" : "text-ink"} /></div>
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-card2"><m.icon size={20} className={m.path === "/creatine" ? "text-vio" : m.path === "/cardio" ? "text-info" : m.path === "/learn" ? "text-info" : "text-ink"} /></div>
             <div className="min-w-0 flex-1">
               <div className="font-semibold">{m.label}</div>
               <div className="text-xs text-mute">{m.sub}</div>

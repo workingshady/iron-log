@@ -7,7 +7,7 @@ import { EXCUSES } from "../shared/lists";
 export interface Insight { tone: "good" | "warn" | "bad" | "info"; title: string; text: string }
 
 type S = { id: string; date: string; week: number; status: string; excuse: string | null; startedAt: number | null; endedAt: number | null; readiness: string | null; rpe: number | null; plan: string };
-type X = { sessionId: string; exKey: string; itemIdx: number; kind: string; weightKg: number | null; reps: number | null; seconds: number | null; rir: number | null; restBeforeS: number | null; doneAt: number; painArea: string | null; painLevel: number | null; swappedFrom: string | null };
+type X = { sessionId: string; exKey: string; itemIdx: number; kind: string; weightKg: number | null; reps: number | null; seconds: number | null; rir: number | null; restBeforeS: number | null; doneAt: number; painArea: string | null; painLevel: number | null; swappedFrom: string | null; strict?: number | null; suggested?: string | null };
 type B = { date: string; weightKg: number | null; sleepH: number | null; proteinG: number | null };
 type I = { date: string; amount: number };
 
@@ -71,6 +71,14 @@ export function buildInsights(sess: S[], sets: X[], body: B[], intake: I[], creT
       out.push({ tone: a > 3 ? "warn" : "good", title: `Average RIR ${r1(a)}`, text: a > 3 ? "Most sets feel easy. Weights can go up." : a < 1 ? "You're near failure on most sets. Watch recovery." : "Effort is in the productive range (0-3 RIR)." });
     }
   }
+
+  // 2b. honesty: stopping early & cheating (the user's own known habits)
+  const tgtBottom = (x: X) => { try { const p = JSON.parse(x.suggested ?? "null"); return p?.reps ?? null; } catch { return null; } };
+  const early = work.filter((x) => x.reps != null && x.rir != null && x.rir >= 2 && tgtBottom(x) != null && x.reps < tgtBottom(x));
+  if (early.length) out.push({ tone: "warn", title: `Stopped early on ${early.length} set${early.length > 1 ? "s" : ""}`, text: "Below the target reps with 2+ left in the tank. The burn isn't failure — finish the set." });
+  const answered = work.filter((x) => x.strict != null);
+  const cheated = answered.filter((x) => x.strict === 0);
+  if (answered.length >= 5) out.push({ tone: cheated.length / answered.length > 0.15 ? "warn" : "good", title: `Strict form on ${Math.round(((answered.length - cheated.length) / answered.length) * 100)}% of sets`, text: cheated.length ? `${cheated.length} cheated set${cheated.length > 1 ? "s" : ""}. Lighten the weight a step and own every rep.` : "Clean reps — the numbers you log are real progress." });
 
   // 3. real rest vs planned
   const planRest = new Map<string, number[]>();

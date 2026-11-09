@@ -69,6 +69,8 @@ export const sets = sqliteTable(
     suggested: text("suggested"),
     /** 1 if this set was a personal record when logged. */
     pr: integer("pr").notNull().default(0),
+    /** Honest form check: 1 = strict, 0 = cheated / partial reps, null = not answered. */
+    strict: integer("strict"),
     deleted: integer("deleted").notNull().default(0),
     updatedAt: integer("updated_at").notNull(),
   },
@@ -87,6 +89,29 @@ export const feedback = sqliteTable(
     at: integer("at").notNull(),
   },
   (t) => [index("feedback_ex").on(t.exKey, t.at)],
+);
+
+/** Treadmill / cardio sessions (planned protocol + what was actually done). */
+export const cardio = sqliteTable(
+  "cardio",
+  {
+    id: text("id").primaryKey(),
+    date: text("date").notNull(),
+    protocol: text("protocol").notNull(), // key from program/cardio.ts
+    status: text("status").notNull(), // done | partial | skipped
+    startedAt: integer("started_at"),
+    endedAt: integer("ended_at"),
+    minutes: real("minutes"),
+    distanceKm: real("distance_km"), // from the treadmill screen (optional)
+    kcalMachine: integer("kcal_machine"), // treadmill's number (optional)
+    kcalEst: integer("kcal_est"), // app estimate (ACSM equations × bodyweight)
+    rpe: integer("rpe"), // 1-10
+    speedAdj: real("speed_adj"), // km/h added to run intervals (− = slower)
+    note: text("note"),
+    sessionId: text("session_id"), // lifting session it followed, if any
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [index("cardio_date").on(t.date)],
 );
 
 /** Raw click/interaction log: every tap that changes something. */

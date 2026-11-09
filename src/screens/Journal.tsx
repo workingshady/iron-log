@@ -32,7 +32,7 @@ export default function Journal() {
   return (
     <div>
       <PageHead icon={NotebookPen} title="Journal" sub="Your story in your own words: wins, struggles, pain, life stuff. The monthly review reads this for context." />
-      <div className="grid gap-4 md:grid-cols-[1fr_1.3fr]">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_1.3fr]">
         <div className="rounded-2xl bg-card p-4 md:self-start">
           <textarea value={text} onChange={(e) => setText(e.target.value)} rows={5} placeholder="e.g. Work was crazy this week, slept 5 h, still hit Pull day. Left shoulder better." className="w-full rounded-xl bg-card2 p-3 outline-none focus:ring-2 focus:ring-acc" />
           <div className="mt-3"><Chips small options={TAGS.map((t) => ({ id: t, label: t }))} value={tag} onChange={setTag} /></div>
@@ -48,7 +48,7 @@ export default function Journal() {
                   <span>{niceDate(j.date)}</span>
                   {j.tags && <span className="rounded-full bg-card2 px-2 py-0.5">{j.tags}</span>}
                   <span className="flex-1" />
-                  <button onClick={() => del(j.id)} className="text-faint hover:text-bad" aria-label="Delete"><Trash2 size={14} /></button>
+                  <button onClick={() => del(j.id)} className="-my-3 -mr-3 flex h-11 w-11 items-center justify-center text-faint hover:text-bad" aria-label="Delete"><Trash2 size={16} /></button>
                 </div>
                 <p className="whitespace-pre-wrap text-sm">{j.text}</p>
               </article>

@@ -376,18 +376,35 @@ app.delete("/intake/:id", async (c) => {
   return c.json({ ok: true });
 });
 
+// ---------------------------------------------------------------- cardio
+
+app.get("/cardio", async (c) => c.json(await db(c).select().from(t.cardio).orderBy(desc(t.cardio.date), desc(t.cardio.createdAt)).limit(200)));
+app.put("/cardio/:id", async (c) => {
+  const b = await c.req.json<Partial<typeof t.cardio.$inferInsert>>();
+  if (b.minutes != null && (b.minutes < 0 || b.minutes > 300)) return c.json({ error: "minutes 0-300" }, 400);
+  const row = { ...b, id: c.req.param("id"), date: b.date!, protocol: b.protocol!, status: b.status ?? "done", createdAt: b.createdAt ?? now() };
+  const { id: _i, ...upd } = row;
+  await db(c).insert(t.cardio).values(row).onConflictDoUpdate({ target: t.cardio.id, set: upd });
+  return c.json({ ok: true });
+});
+app.delete("/cardio/:id", async (c) => {
+  await db(c).delete(t.cardio).where(eq(t.cardio.id, c.req.param("id")));
+  return c.json({ ok: true });
+});
+
 // ---------------------------------------------------------------- dashboard
 
 app.get("/dashboard", async (c) => {
   const d = db(c);
   const today = c.req.query("today") ?? new Date().toISOString().slice(0, 10);
   const since = new Date(Date.parse(`${today}T12:00:00Z`) - 182 * 864e5).toISOString().slice(0, 10);
-  const [sess, setAgg, cre, bodyRows, settingsRows] = await Promise.all([
+  const [sess, setAgg, cre, bodyRows, settingsRows, car] = await Promise.all([
     d.select().from(t.sessions).where(sql`${t.sessions.date} >= ${since}`).orderBy(t.sessions.date, t.sessions.createdAt),
     d.select({ sessionId: t.sets.sessionId, n: sql<number>`count(*)` }).from(t.sets).where(and(eq(t.sets.deleted, 0), ne(t.sets.kind, "W"))).groupBy(t.sets.sessionId),
     d.select({ date: t.intake.date, g: sql<number>`sum(${t.intake.amount})` }).from(t.intake).where(and(eq(t.intake.item, "creatine"), sql`${t.intake.date} >= ${since}`)).groupBy(t.intake.date),
     d.select({ date: t.body.date, weightKg: t.body.weightKg }).from(t.body).where(sql`${t.body.date} >= ${since} and ${t.body.weightKg} is not null`).orderBy(t.body.date),
     d.select().from(t.settings),
+    d.select().from(t.cardio).where(sql`${t.cardio.date} >= ${since}`),
   ]);
   const setN = new Map(setAgg.map((a) => [a.sessionId, a.n]));
   const days: Record<string, { status: string; sets: number; minutes: number; names: string[] }> = {};
@@ -420,7 +437,10 @@ app.get("/dashboard", async (c) => {
     if ((creMap[day] ?? 0) >= target) creStreak++;
     else if (i > 0) break; // today not taken yet doesn't break the streak
   }
-  return c.json({ days, streak, bestStreak: best, adherence, creatine: { today: creMap[today] ?? 0, target, streak: creStreak, days: creMap }, body: bodyRows });
+  const weekAgo = new Date(Date.parse(`${today}T12:00:00Z`) - 6 * 864e5).toISOString().slice(0, 10);
+  const cardioDays = Object.fromEntries(car.filter((x) => x.status !== "skipped").map((x) => [x.date, Math.round(x.minutes ?? 0)]));
+  const cardioWeek = { sessions: car.filter((x) => x.date >= weekAgo && x.status !== "skipped").length, minutes: Math.round(car.filter((x) => x.date >= weekAgo && x.status !== "skipped").reduce((a, x) => a + (x.minutes ?? 0), 0)), kcal: car.filter((x) => x.date >= weekAgo).reduce((a, x) => a + (x.kcalMachine ?? x.kcalEst ?? 0), 0) };
+  return c.json({ days, cardioDays, cardioWeek, streak, bestStreak: best, adherence, creatine: { today: creMap[today] ?? 0, target, streak: creStreak, days: creMap }, body: bodyRows });
 });
 
 // ---------------------------------------------------------------- insights & muscle volume
@@ -447,7 +467,7 @@ app.post("/reset", async (c) => {
   const d = db(c);
   await d.batch([
     d.delete(t.sets), d.delete(t.sessions), d.delete(t.events), d.delete(t.body), d.delete(t.tests),
-    d.delete(t.journal), d.delete(t.intake), d.delete(t.settings), d.delete(t.programVersions), d.delete(t.feedback),
+    d.delete(t.journal), d.delete(t.intake), d.delete(t.settings), d.delete(t.programVersions), d.delete(t.feedback), d.delete(t.cardio),
   ]);
   return c.json({ ok: true });
 });
@@ -461,12 +481,12 @@ app.post("/logout", (c) => {
 
 app.get("/export", async (c) => {
   const d = db(c);
-  const [programVersions, sessions, sets, events, body, tests, journal, settings, intake, feedback] = await Promise.all([
+  const [programVersions, sessions, sets, events, body, tests, journal, settings, intake, feedback, cardio] = await Promise.all([
     d.select().from(t.programVersions), d.select().from(t.sessions), d.select().from(t.sets), d.select().from(t.events),
-    d.select().from(t.body), d.select().from(t.tests), d.select().from(t.journal), d.select().from(t.settings), d.select().from(t.intake), d.select().from(t.feedback),
+    d.select().from(t.body), d.select().from(t.tests), d.select().from(t.journal), d.select().from(t.settings), d.select().from(t.intake), d.select().from(t.feedback), d.select().from(t.cardio),
   ]);
   c.header("Content-Disposition", `attachment; filename="iron-log-${new Date().toISOString().slice(0, 10)}.json"`);
-  return c.json({ exportedAt: new Date().toISOString(), programVersions, sessions, sets, events, body, tests, journal, settings, intake, feedback });
+  return c.json({ exportedAt: new Date().toISOString(), programVersions, sessions, sets, events, body, tests, journal, settings, intake, feedback, cardio });
 });
 
 app.onError((err, c) => {

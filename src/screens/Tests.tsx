@@ -45,7 +45,7 @@ export default function Tests() {
       <PageHead icon={Trophy} title="Tests" sub="Max-effort benchmarks. Test once at the start and again on Week 4 · Day 6 (test day), then compare." />
       <p className="mb-4 text-sm text-mute">{done}/{st.tests.length} tested · type your result and tap ✓. Each save is dated so you can see progress.</p>
 
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         {st.tests.map((t) => {
           const hist = (data ?? []).filter((r) => r.testKey === t.key); // newest first
           const Icon = ICON[t.key] ?? Trophy;
@@ -82,7 +82,7 @@ export default function Tests() {
                   {hist.slice(0, 6).map((h) => (
                     <li key={h.id} className="inline-flex items-center gap-1.5 rounded-full bg-card2 py-1 pl-2.5 pr-1.5 text-xs num">
                       <b>{fmt(h.value, t.unit)}</b><span className="text-mute">{niceDate(h.date)}</span>
-                      <button onClick={() => del(h.id)} className="flex h-5 w-5 items-center justify-center rounded-full text-faint hover:text-bad" aria-label="Delete result"><Trash2 size={12} /></button>
+                      <button onClick={() => del(h.id)} className="-my-1 flex h-8 w-8 items-center justify-center rounded-full text-faint hover:text-bad" aria-label="Delete result"><Trash2 size={14} /></button>
                     </li>
                   ))}
                 </ul>

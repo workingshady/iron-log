@@ -65,7 +65,7 @@ export function Chips<T extends string | number>({ options, value, onChange, cle
           key={String(o.id)}
           type="button"
           onClick={() => onChange(value === o.id && clearable ? null : o.id)}
-          className={cx("inline-flex items-center gap-1.5 rounded-full border px-3 num", small ? "min-h-9 text-sm" : "min-h-11", value === o.id ? `${on} font-semibold` : "border-line text-ink hover:bg-card2")}
+          className={cx("inline-flex items-center gap-1.5 rounded-full border px-3 num", small ? "min-h-10 min-w-10 justify-center text-sm" : "min-h-11", value === o.id ? `${on} font-semibold` : "border-line text-ink hover:bg-card2")}
         >
           {o.icon && <o.icon size={15} />}
           {o.label}

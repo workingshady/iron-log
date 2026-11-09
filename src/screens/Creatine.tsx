@@ -42,7 +42,7 @@ export default function Creatine() {
     <div>
       <PageHead icon={FlaskConical} title="Creatine" sub={`Creatine monohydrate: ${target} g every day, any time. Consistency matters more than timing.`} />
 
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <Card className="md:col-span-2">
           <div className="flex items-center gap-5">
             <Ring pct={pct} ok={g >= target} />
@@ -66,7 +66,7 @@ export default function Creatine() {
                 <div key={r.id} className="flex items-center gap-3 rounded-lg bg-card2 px-3 py-2 text-sm">
                   <Check size={15} className="text-vio" />
                   <span className="flex-1 num">{r.amount} g · {new Date(r.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
-                  <button onClick={() => del(r.id)} className="text-faint hover:text-bad" aria-label="Delete"><Trash2 size={16} /></button>
+                  <button onClick={() => del(r.id)} className="-my-2 -mr-2 flex h-11 w-11 items-center justify-center text-faint hover:text-bad" aria-label="Delete"><Trash2 size={16} /></button>
                 </div>
               ))}
             </div>

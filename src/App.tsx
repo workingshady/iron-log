@@ -16,6 +16,7 @@ import Journal from "./screens/Journal";
 import Learn from "./screens/Learn";
 import Settings from "./screens/Settings";
 import More from "./screens/More";
+import Cardio from "./screens/Cardio";
 
 function useRoute() {
   const [h, setH] = useState(location.hash.slice(1) || "/");
@@ -29,7 +30,7 @@ function useRoute() {
 
 const PAGES: Record<string, () => React.ReactElement | null> = {
   "/": Home, "/plan": Plan, "/history": History, "/stats": Stats, "/body": Body, "/creatine": Creatine,
-  "/tests": Tests, "/journal": Journal, "/learn": Learn, "/settings": Settings, "/more": More,
+  "/tests": Tests, "/journal": Journal, "/learn": Learn, "/settings": Settings, "/more": More, "/cardio": Cardio,
 };
 
 export default function App() {
@@ -70,12 +71,12 @@ export default function App() {
       </aside>
 
       {pending > 0 && (
-        <div className="fixed right-3 top-3 z-40 inline-flex items-center gap-1.5 rounded-full bg-warn px-2.5 py-1 text-xs font-semibold text-black">
+        <div className="fixed right-3 top-[max(0.75rem,env(safe-area-inset-top))] z-40 inline-flex items-center gap-1.5 rounded-full bg-warn px-2.5 py-1 text-xs font-semibold text-black">
           <CloudOff size={13} /> {pending} waiting to sync
         </div>
       )}
 
-      <main className={cx("mx-auto px-4 pt-5 md:px-8 md:pt-8", inSession ? "max-w-2xl pb-40" : "max-w-5xl pb-28 md:pb-12")}>
+      <main className={cx("mx-auto px-4 pt-[calc(1.25rem+env(safe-area-inset-top))] md:px-8 md:pt-8", inSession ? "max-w-2xl pb-40" : "max-w-5xl pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-12")}>
         {inSession ? <SessionScreen key={route} id={route.slice(3)} /> : <Page />}
       </main>
 

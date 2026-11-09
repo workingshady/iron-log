@@ -84,6 +84,19 @@ export const EX_MUSCLES: Record<string, M> = {
   rev_wrist_curl: { p: ["forearm"] },
   wrist_roller: { p: ["forearm"] },
   neck: { p: ["neck"], s: ["trapezius"] },
+  close_grip_bench: { p: ["triceps", "chest"], s: ["front-deltoids"] },
+  deficit_pushup: { p: ["chest"], s: ["triceps", "front-deltoids", "abs"] },
+  neutral_pulldown: { p: ["upper-back"], s: ["biceps"] },
+  straight_arm_pulldown: { p: ["upper-back"], s: ["triceps"] },
+  db_pullover: { p: ["upper-back", "chest"], s: ["triceps"] },
+  wide_cable_row: { p: ["upper-back", "back-deltoids"], s: ["trapezius", "biceps"] },
+  machine_row: { p: ["upper-back"], s: ["back-deltoids", "biceps"] },
+  lean_lateral: { p: ["front-deltoids"] },
+  cable_y_raise: { p: ["front-deltoids"], s: ["trapezius"] },
+  kelso_shrug: { p: ["trapezius"], s: ["upper-back", "back-deltoids"] },
+  reverse_curl: { p: ["forearm"], s: ["biceps"] },
+  leg_extension: { p: ["quadriceps"] },
+  seated_leg_curl: { p: ["hamstring"] },
 };
 
 /** Fractional weekly sets per muscle from {exercise → sets}. */

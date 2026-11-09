@@ -1,13 +1,14 @@
 import { v1 } from "./versions/v1";
+import { v2 } from "./versions/v2";
 import { EXERCISES } from "./exercises";
 import { EX_MUSCLES } from "./muscles";
 import type { Program, Rx } from "./types";
 
 // ▶ The ONE line to change when a new program version is ready.
-export const CURRENT: Program = v1;
+export const CURRENT: Program = v2;
 
 // Every version ever used. Keep old ones so history stays readable.
-export const ALL_VERSIONS: Program[] = [v1];
+export const ALL_VERSIONS: Program[] = [v1, v2];
 
 export { EXERCISES };
 export * from "./types";
@@ -29,6 +30,7 @@ export function validate(p: Program): string[] {
   for (const e of Object.values(EXERCISES)) {
     (e.alts ?? []).forEach((a) => seen(a, `alts of ${e.key}`));
     if (!EX_MUSCLES[e.key]) errs.push(`${e.key}: missing in program/muscles.ts`);
+    if ((e.alts ?? []).length < 2) errs.push(`${e.key}: needs at least 2 alternatives`);
   }
   return errs;
 }

@@ -6,23 +6,24 @@ export interface Term {
   name: string;
   short: string; // one line, shown inline
   how?: string; // how to do it
+  example?: string;
   match: RegExp; // finds the term inside an exercise's technique text
 }
 
 export const TERMS: Term[] = [
-  { key: "rir", name: "RIR · Reps In Reserve", short: "How many more reps you could have done. RIR 2 = stop with 2 left. RIR 0 = failure.", match: /\bRIR\b/i },
-  { key: "superset", name: "Superset (A1 / A2)", short: "Do A1, then go straight to A2 with no rest. Rest after the pair, then repeat.", how: "Opposite muscles (chest/back, biceps/triceps), so neither gets much weaker and the session is faster.", match: /superset|\b[A-E][12]\b/i },
-  { key: "drop", name: "Drop set", short: "Last set to near-failure, cut the weight ~25-30% right away, do more reps to near-failure.", how: "Double drop = drop twice. Log the extra part with “+ Drop set”.", match: /drop/i },
-  { key: "restpause", name: "Rest-pause", short: "Last set to near-failure, rest 15-20 s, do more reps, repeat once.", how: "Log the extra reps with “+ Drop set” at the same weight, or write them in the set note.", match: /rest-pause/i },
-  { key: "myo", name: "Myo-reps", short: "1 set of 12-15 to near-failure, then mini-sets of 3-5 reps with 5 breaths of rest, 3-4 times.", match: /myo/i },
+  { key: "rir", name: "RIR · Reps In Reserve", short: "How many more reps you could have done. RIR 2 = stop with 2 left. RIR 0 = failure.", example: "60 kg × 8 @ RIR 2 → you stopped at 8 but could have done 10.", match: /\bRIR\b/i },
+  { key: "superset", name: "Superset (A1 / A2)", short: "Do A1, then go straight to A2 with no rest. Rest after the pair, then repeat.", how: "Opposite muscles (chest/back, biceps/triceps), so neither gets much weaker and the session is faster.", example: "A1 incline press 10 reps → straight to A2 row 10 reps → rest 1:45 → repeat.", match: /superset|\b[A-E][12]\b/i },
+  { key: "drop", name: "Drop set", short: "Last set to near-failure, cut the weight ~25-30% right away, do more reps to near-failure.", how: "Double drop = drop twice. Log the extra part with “+ Drop set”.", example: "Laterals 10 kg × 12 (nearly failed) → grab 7 kg → 8 more reps.", match: /drop/i },
+  { key: "restpause", name: "Rest-pause", short: "Last set to near-failure, rest 15-20 s, do more reps, repeat once.", how: "Log the extra reps with “+ Drop set” at the same weight, or write them in the set note.", example: "Incline 26 kg × 8 → rest 15 s → +3 reps → rest 15 s → +2 reps.", match: /rest-pause/i },
+  { key: "myo", name: "Myo-reps", short: "1 set of 12-15 to near-failure, then mini-sets of 3-5 reps with 5 breaths of rest, 3-4 times.", example: "Rear delts × 15 → 5 breaths → 4 → 5 breaths → 4 → 5 breaths → 3.", match: /myo/i },
   { key: "negative", name: "Negative", short: "Only the lowering part, slow (3-5 s). The main way to build your first pull-up or dip.", how: "Jump or step to the top, then lower under control. Count the seconds.", match: /negative|s down/i },
-  { key: "partials", name: "Lengthened partials", short: "After the last full rep, do half-reps in the stretched half until failure.", match: /partial/i },
+  { key: "partials", name: "Lengthened partials", short: "After the last full rep, do half-reps in the stretched half until failure.", example: "Calf raise: after the last full rep, 6-10 half-reps in the bottom stretch.", match: /partial/i },
   { key: "failure", name: "Failure set", short: "A set where you couldn't finish the last rep (RIR 0).", match: /failure/i },
   { key: "warmup", name: "Warm-up set", short: "Light set before working sets. Not counted in volume.", match: /warm-?up/i },
   { key: "max", name: "×max (AMRAP)", short: "As many good reps as possible, usually stopping at the target RIR.", match: /×max|max\b/i },
   { key: "deload", name: "Deload", short: "Easier week: about half the sets, same or lighter weight. You recover and come back stronger.", match: /deload/i },
   { key: "rpe", name: "RPE · session effort", short: "How hard the whole session felt, 1-10. 10 = could not have done more.", match: /\bRPE\b/i },
-  { key: "e1rm", name: "e1RM · estimated 1-rep max", short: "Your estimated best single from a set (weight × (1 + reps/30)). Good for spotting progress across rep ranges.", match: /e1RM/i },
+  { key: "e1rm", name: "e1RM · estimated 1-rep max", short: "Your estimated best single from a set (weight × (1 + reps/30)). Good for spotting progress across rep ranges.", example: "80 kg × 6 ≈ 96 kg est. max — beat it with 82.5 × 5 or 80 × 7.", match: /e1RM/i },
   { key: "volume", name: "Volume", short: "kg × reps added up (warm-ups excluded). More volume over weeks = more growth, up to a point.", match: /volume/i },
   { key: "hold", name: "Hold / top hold", short: "Pause at the hardest point (e.g. 2 s at the top of a shrug) before lowering.", match: /hold|squeeze|pause/i },
 ];
@@ -107,4 +108,53 @@ export const SAFETY = [
   "Never skip the wrist warm-up.",
   "Sharp joint pain = stop that exercise, swap it, log the pain. Muscle burn is fine.",
   "Injury or medical condition → check with a doctor or physio.",
+];
+
+
+/** How one training day flows, start to finish. */
+export const SESSION_FLOW: { step: string; what: string }[] = [
+  { step: "Check in", what: "Tap Start → rate sleep/energy (optional). The clock starts." },
+  { step: "Warm up", what: "8-10 min: light cardio, wrists, then the warm-up ramp shown on the first heavy lift." },
+  { step: "Main lifts", what: "Heavy compounds first, while fresh. Weight is pre-filled from your last session." },
+  { step: "Accessories", what: "Isolation work: laterals, curls, triceps — closer to failure." },
+  { step: "Finishers", what: "Small muscles last: grip, wrists, neck, push-up burnout (5-10 min)." },
+  { step: "Quick check", what: "After each exercise: how hard + joints (2 taps) → tunes next time." },
+  { step: "Finish", what: "Session effort 1-10 + a note. Then cardio if it's a cardio day." },
+];
+
+/** Rules that turn effort into growth — with do / don't examples. */
+export const GROW_RULES: { rule: string; why: string; good: string; bad: string }[] = [
+  { rule: "Count every rep — or let the app count", why: "Lost count = wrong numbers = wrong next weight.", good: "Use 'Count reps for me' and tap each rep.", bad: "'About 8… maybe 10.'" },
+  { rule: "Burn is not failure", why: "The last 3-5 reps before failure are the ones that grow muscle.", good: "Target 10-12: it burns at 8 → keep going to 10-12.", bad: "Stopping at 8 because it burns, with 3 reps left." },
+  { rule: "A rep counts only if it's strict", why: "Cheated reps move the weight, not the muscle.", good: "Full range, ~2 s down, no swinging. Tap 'Strict'.", bad: "Swinging curls, half-range laterals. If it happens, tap 'Cheated' — honesty fixes the plan." },
+  { rule: "Finish the plan, not the mood", why: "Volume across weeks is what adds muscle.", good: "Feeling done early? Do the remaining sets lighter — still count them.", bad: "Leaving after 3 exercises because 'the pump is there'." },
+  { rule: "Log the truth", why: "Recommendations and the monthly review are built from your logs.", good: "Logged 7 reps when you got 7.", bad: "Writing 10 because the target was 10." },
+];
+
+/** Pull-up roadmap without bands or an assisted machine. */
+export const PULLUP_ROADMAP: { stage: string; do: string; next: string }[] = [
+  { stage: "1 · Build the base (now)", do: "Heavy lat pulldowns + rows, dead hangs 30-45 s, scap pulls.", next: "Pulldown 8 reps at ~80% bodyweight and a 45 s hang." },
+  { stage: "2 · Negatives", do: "Add 3×3 slow negatives (jump up, 5 s down) at the start of Pull day.", next: "Each negative 8-10 s, controlled to the bottom." },
+  { stage: "3 · First reps", do: "5×1-2 strict pull-ups + one slow negative after each set.", next: "3 strict pull-ups in one set." },
+  { stage: "4 · Volume", do: "4 × (max − 1) strict, twice a week. Chin-ups are fine.", next: "8-10 strict pull-ups." },
+  { stage: "5 · Weighted", do: "Belt or dumbbell between the feet: 4×5, add 1.25-2.5 kg when all sets hit 5.", next: "+20 kg × 5 — strong wrestler level." },
+];
+
+/** Why v2 changed — each point backed by a source. */
+export const WHY_V2: { point: string; fix: string; ref: string; url: string }[] = [
+  { point: "v1 packed too many sets into single sessions (back ~36, delts ~30 planned per week in W3).", fix: "Cap ≈ 10-11 hard sets per muscle per session; spread weekly volume.", ref: "Remmert, Pelland et al. 2025 (preprint)", url: "https://sportrxiv.org/index.php/server/preprint/view/537" },
+  { point: "Lying leg curl.", fix: "Seated leg curl — 14% vs 9% hamstring growth.", ref: "Maeo et al. 2021", url: "https://mennohenselmans.com/these-are-the-best-exercises-to-build-muscle-science-based/" },
+  { point: "Not enough stretched-position work.", fix: "Overhead triceps, incline curls, pullovers, deep calves, lengthened partials.", ref: "Maeo 2022 (triceps 28.5% vs 19.6%); Pedrosa 2022", url: "https://biolayne.com/reps/issue-4/are-you-pressing-down-your-triceps-growth/" },
+  { point: "Intensity techniques everywhere in Week 3.", fix: "Only on the last set of isolation work; big lifts stay at RIR 1.", ref: "Drop-set review (Brookbush)", url: "https://brookbushinstitute.com/articles/drop-sets-comprehensive-systematic-review-and-training-recommendations" },
+  { point: "Relied on dips, pull-ups, bands your gym doesn't have.", fix: "Close-grip bench + push-ups; heavy pulldowns + hangs → pull-up roadmap.", ref: "Marines pull-up guide", url: "https://www.marines.mil/Portals/1/Docs/PullupTrainingGuide.pdf" },
+  { point: "No cardio plan.", fix: "3×/week after lifting, mostly incline walking, no hard runs before leg day.", ref: "Wilson 2012; Schumann 2023", url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC9474354" },
+  { point: "Weekly volume matters more than frequency.", fix: "Side delts ~14 sets/week over 3 days, back ~20, chest ~18.", ref: "Pelland et al. 2026 meta-regression", url: "https://sportrxiv.org/index.php/server/preprint/view/537" },
+];
+
+export const CARDIO_GUIDE: [string, string][] = [
+  ["When", "After lifting, or on separate days. Never hard intervals on or the day before leg day."],
+  ["How often", "About 3 sessions/week: 2 interval days + 1-2 hill walks. Rest-day walks are optional."],
+  ["Which kind", "Mostly incline walking — it interferes least with muscle gain. Short runs only inside intervals."],
+  ["Effort", "Intervals 8/10 (can't talk). Hill walk 6/10 (short sentences). Zone 2: 4-5/10 (full conversation)."],
+  ["Fat loss", "Comes from the calorie deficit. Cardio adds ~250-400 kcal per session; don't eat it back with junk."],
 ];

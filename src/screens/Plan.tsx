@@ -68,7 +68,7 @@ export default function Plan() {
                     {sl?.status === "skipped" && <Badge>skipped</Badge>}
                     {isNext && <Badge tone="info">next</Badge>}
                   </div>
-                  <div className="truncate text-xs text-mute">{d.focus} · {d.items.reduce((a, x) => a + x.sets, 0)} sets</div>
+                  <div className="truncate text-xs text-mute">{d.focus} · {d.items.filter((x) => !x.finisher).length} exercises · {d.items.filter((x) => !x.finisher).reduce((a, x) => a + x.sets, 0)} sets + finishers</div>
                 </div>
                 {sl && !s?.active && (
                   <Btn kind={isNext ? "primary" : "soft"} icon={Play} className="min-h-10 px-3 text-sm" onClick={() => setStart(sl)}>Start</Btn>
@@ -81,12 +81,13 @@ export default function Plan() {
                   const recText = rec.weightKg != null ? `${kg(rec.weightKg)} kg` : rec.seconds ? `${rec.seconds} s` : rec.reps && rec.kind !== "start" ? `${rec.reps} reps` : "";
                   const grouped = rx.tag && d.items[i + 1]?.tag?.[0] === rx.tag[0];
                   return (
-                    <li key={i} className={cx("flex items-center gap-3 px-4 py-2.5", grouped ? "pb-1" : "border-b border-line/60 last:border-0")}>
+                    <li key={i} className={cx("flex items-center gap-3 px-4 py-2.5", grouped ? "pb-1" : "border-b border-line/60 last:border-0", rx.finisher && "bg-card2/40", rx.finisher && !d.items[i - 1]?.finisher && "mt-1 border-t-2 border-t-warn/30")}>
                       <button onClick={() => setHow(item)} className="shrink-0" aria-label={`How to ${item.name}`}>
                         <Thumb yt={item.yt[0]} />
                       </button>
                       <div className="min-w-0 flex-1">
                         <button onClick={() => setHow(item)} className="block w-full truncate text-left text-sm font-semibold">
+                          {rx.finisher && <span className="mr-1.5 rounded bg-warn/15 px-1.5 text-[11px] text-warn">finisher</span>}
                           {rx.tag && <span className="mr-1.5 rounded bg-card3 px-1.5 text-[11px] text-mute">{rx.tag}</span>}
                           {item.name}
                         </button>

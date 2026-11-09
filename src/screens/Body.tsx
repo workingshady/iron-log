@@ -50,7 +50,7 @@ export default function Body() {
   return (
     <div>
       <PageHead icon={Ruler} title="Body & habits" sub="A quick daily check: weight (morning), waist, sleep, protein, steps, water. Fill in only what you know." />
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <Card>
           <input type="date" value={date} max={today()} onChange={(e) => setDate(e.target.value)} className="min-h-12 w-full rounded-xl bg-card2 px-3 outline-none" />
           <div className="mt-1 grid grid-cols-2 gap-x-2">

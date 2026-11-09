@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { CalendarDays, Check, Clock, Play } from "lucide-react";
-import type { AppState, PlanItem, SlotInfo } from "../../shared/api";
+import type { AppState, Lifts, PlanItem, SlotInfo } from "../../shared/api";
+import { recommend } from "../../shared/recommend";
+import { kg } from "../lib/util";
 import { CURRENT } from "../../program";
 import { targetLabel, toItem } from "../../shared/plan";
 import { useLoad } from "../lib/useLoad";
@@ -15,6 +17,7 @@ import { Activity, ChevronDown } from "lucide-react";
 
 export default function Plan() {
   const { data: s } = useLoad<AppState>("/state");
+  const { data: lifts } = useLoad<Lifts>("/lifts");
   const [wk, setWk] = useState<number | null>(null);
   const [how, setHow] = useState<PlanItem | null>(null);
   const [start, setStart] = useState<SlotInfo | null>(null);
@@ -36,6 +39,7 @@ export default function Plan() {
         ))}
       </div>
       <p className="mb-4 rounded-xl bg-info/10 px-4 py-3 text-sm text-info">{week.brief}</p>
+      <p className="-mt-2 mb-4 text-xs text-mute">→ = recommended weight from your last session (green = go up, blue = same / beat reps, amber = lighter). Empty until you've logged that exercise once.</p>
 
       <Card className="mb-4">
         <button onClick={() => setShowMap(!showMap)} className="flex w-full items-center gap-2 text-left text-sm font-semibold text-mute">
@@ -73,6 +77,8 @@ export default function Plan() {
               <ul>
                 {d.items.map((rx, i) => {
                   const item = toItem(rx.ex, rx);
+                  const rec = recommend(rx.ex, rx, lifts?.hist ?? {}, { deload: /deload/i.test(week.name), step: item.step });
+                  const recText = rec.weightKg != null ? `${kg(rec.weightKg)} kg` : rec.seconds ? `${rec.seconds} s` : rec.reps && rec.kind !== "start" ? `${rec.reps} reps` : "";
                   const grouped = rx.tag && d.items[i + 1]?.tag?.[0] === rx.tag[0];
                   return (
                     <li key={i} className={cx("flex items-center gap-3 px-4 py-2.5", grouped ? "pb-1" : "border-b border-line/60 last:border-0")}>
@@ -87,6 +93,7 @@ export default function Plan() {
                         <div className="flex flex-wrap items-center gap-x-3 text-xs text-mute num">
                           <span>{targetLabel(rx)}</span>
                           <span className="inline-flex items-center gap-1"><Clock size={11} />{restLabel(rx.rest)}</span>
+                          {recText && <span className={rec.kind === "up" ? "text-acc" : rec.kind === "down" ? "text-warn" : "text-info"} title={rec.why}>→ {recText}</span>}
                         </div>
                         {rx.tech && <TechNote text={rx.tech} />}
                       </div>

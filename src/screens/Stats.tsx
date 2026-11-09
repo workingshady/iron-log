@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Activity, AlertTriangle, BarChart3, CalendarOff, ChevronRight, Dumbbell, Lightbulb, Minus, TrendingDown, TrendingUp, Trophy } from "lucide-react";
-import type { InsightsData, ProgressData } from "../../shared/api";
+import type { InsightsData, Lifts, ProgressData } from "../../shared/api";
 import { InsightList, MuscleChart } from "../components/Insights";
 import { BodyMap } from "../components/BodyMap";
 import { CURRENT } from "../../program";
@@ -29,6 +29,7 @@ function metricOf(e: Ex) {
 export default function Stats() {
   const { data, error } = useLoad<ProgressData>("/progress");
   const { data: ins } = useLoad<InsightsData>(`/insights?today=${today()}`);
+  const { data: lifts } = useLoad<Lifts>("/lifts");
   const [sel, setSel] = useState<Ex | null>(null);
   const [wm, setWm] = useState<"sets" | "sessions" | "minutes" | "volume">("sets");
   const [all, setAll] = useState(false);
@@ -124,6 +125,24 @@ export default function Stats() {
             </button>
           )}
         </Card>
+
+        {lifts && Object.keys(lifts.best).length > 0 && (
+          <Card title="Personal records (all time)" icon={Trophy} className="md:col-span-2">
+            <div className="grid gap-x-6 gap-y-1 text-sm md:grid-cols-2">
+              {Object.entries(lifts.best)
+                .sort((a, b) => b[1].e1rm - a[1].e1rm || b[1].reps - a[1].reps)
+                .map(([k, b]) => (
+                  <div key={k} className="flex items-center justify-between border-b border-line/60 py-1.5">
+                    <span className="truncate text-mute">{EXERCISES[k]?.name ?? k}</span>
+                    <span className="num font-semibold">
+                      {b.e1rm ? `${b.e1rm} kg est. max` : b.seconds ? `${b.seconds} s` : b.reps ? `${b.reps} reps` : b.weightKg ? `${b.weightKg} kg` : "—"}
+                    </span>
+                  </div>
+                ))}
+            </div>
+            <p className="mt-2 text-xs text-mute">New records light up with a 🏆 while you train.</p>
+          </Card>
+        )}
 
         {data.excuses.length > 0 && (
           <Card title="Why sessions were missed" icon={CalendarOff}>

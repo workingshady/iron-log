@@ -5,16 +5,18 @@ import { targetLabel, toItem } from "../../shared/plan";
 import { EXERCISES } from "../../program/exercises";
 import { DEFAULT_SWAP_NOTE, SWAP_REASONS, swapHint } from "../../program/swaps";
 import { cache, get, queue, track, uid } from "../lib/api";
-import { clock, cx, kg, niceDate, restLabel, roundTo, unlockAudio } from "../lib/util";
+import { clock, cx, kg, niceDate, restLabel, roundTo, unlockAudio, vibrate } from "../lib/util";
 import { Btn, Chips, Label, NumInput, Sheet, Thumb, scale } from "../components/ui";
 import { TechNote, InfoDot } from "../components/Terms";
 import { TERMS } from "../../program/learn";
-import { ArrowDown, ArrowLeftRight, ArrowUp, Check, ChevronLeft, Clock, Dumbbell, Flame, Layers, MoreHorizontal, NotebookPen, PlayCircle, Plus, Repeat, Ruler, SkipForward, Timer, TriangleAlert } from "lucide-react";
+import { ArrowDown, ArrowLeftRight, ArrowUp, Check, ChevronLeft, Clock, Dumbbell, Equal, Flame, Layers, MessageSquare, MoreHorizontal, NotebookPen, PlayCircle, Plus, Repeat, Ruler, SkipForward, Sparkles, Timer, TrendingDown, TrendingUp, TriangleAlert, Trophy } from "lucide-react";
+import { e1rm, isBarbell, plates, recommend, warmups, type ExHistory, type Rec, type RecKind } from "../../shared/recommend";
+import { CURRENT } from "../../program";
 import { HowTo } from "../components/HowTo";
 import { RestTimer, loadRest, saveRest, type Rest } from "../components/RestTimer";
 import { go } from "../nav";
 
-type Draft = { weight: string; reps: string; seconds: string; meters: string; assist: string };
+type Draft = { weight: string; reps: string; seconds: string; meters: string; assist: string; rir: string };
 const workSets = (sets: SetLog[], i: number) => sets.filter((s) => s.itemIdx === i && s.kind !== "W");
 
 export default function SessionScreen({ id }: { id: string }) {
@@ -26,7 +28,7 @@ export default function SessionScreen({ id }: { id: string }) {
     const r = loadRest();
     return r?.sessionId === id ? r : null;
   });
-  const [undo, setUndo] = useState<SetLog | null>(null);
+  const [undo, setUndo] = useState<{ set: SetLog; pr: string | null } | null>(null);
   const lastTap = useRef(0);
   const [sheet, setSheet] = useState<null | { k: "how" | "menu" | "swap"; i: number } | { k: "set"; s: SetLog } | { k: "finish" }>(null);
 
@@ -40,7 +42,7 @@ export default function SessionScreen({ id }: { id: string }) {
           if (!loc) return srv;
           const m = new Map(srv.sets.map((s) => [s.id, s]));
           loc.sets.forEach((s) => m.set(s.id, s));
-          return { ...srv, session: { ...srv.session, plan: loc.session.plan.length ? loc.session.plan : srv.session.plan }, sets: [...m.values()].filter((s) => !s.deleted).sort((a, c) => a.doneAt - c.doneAt), last: { ...loc.last, ...srv.last } };
+          return { ...srv, session: { ...srv.session, plan: loc.session.plan.length ? loc.session.plan : srv.session.plan }, sets: [...m.values()].filter((s) => !s.deleted).sort((a, c) => a.doneAt - c.doneAt), last: { ...loc.last, ...srv.last }, feedback: { ...srv.feedback, ...(loc.feedback ?? {}) } };
         });
       })
       .catch((e) => setErr((e as Error).message));
@@ -93,6 +95,9 @@ export default function SessionScreen({ id }: { id: string }) {
 
   const plan = s.plan;
   const sets = b.sets;
+  const hist: Record<string, ExHistory | undefined> = b.last;
+  const deload = /deload/i.test(CURRENT.weeks.find((w) => w.n === s.week)?.name ?? "");
+  const recs = plan.map((it) => recommend(it.ex, it, hist, { deload, step: it.step }));
   const total = plan.filter((p) => !p.skipped).reduce((a, p) => a + p.sets, 0);
   const done = plan.reduce((a, p, i) => a + (p.skipped ? 0 : Math.min(p.sets, workSets(sets, i).length)), 0);
 
@@ -114,12 +119,30 @@ export default function SessionScreen({ id }: { id: string }) {
     const prev = sets[sets.length - 1];
     const set: SetLog = {
       id: uid(), sessionId: id, exKey: it.ex, itemIdx: i, setNo: sets.filter((x) => x.itemIdx === i).length + 1, kind,
-      weightKg: weight, reps, seconds: n(d.seconds), meters: n(d.meters), assist: d.assist || null, rir: null,
+      weightKg: weight, reps, seconds: n(d.seconds), meters: n(d.meters), assist: d.assist || null, rir: n(d.rir),
       restBeforeS: prev ? Math.round((t - prev.doneAt) / 1000) : null, doneAt: t, note: null, painArea: null, painLevel: null,
       swappedFrom: it.swappedFrom ?? null,
+      suggested: JSON.stringify({ weightKg: recs[i].weightKg, reps: recs[i].reps, seconds: recs[i].seconds, kind: recs[i].kind }),
     };
+    // live PR check vs all-time best (and earlier sets today)
+    let pr: string | null = null;
+    if (kind !== "W") {
+      const best = b!.best?.[it.ex];
+      const today = sets.filter((x) => x.exKey === it.ex && x.kind !== "W");
+      const bestE = Math.max(best?.e1rm ?? 0, ...today.map((x) => (x.weightKg && x.reps && x.reps <= 12 ? e1rm(x.weightKg, x.reps) : 0)));
+      const bestR = Math.max(best?.reps ?? 0, ...today.map((x) => x.reps ?? 0));
+      const bestS = Math.max(best?.seconds ?? 0, ...today.map((x) => x.seconds ?? 0));
+      const hasHistory = !!best || today.length > 0;
+      if (hasHistory) {
+        if (weight && reps && reps <= 12 && bestE > 0 && e1rm(weight, reps) > bestE + 0.05) pr = `New PR · est. max ${Math.round(e1rm(weight, reps) * 10) / 10} kg`;
+        else if (it.metric !== "weight_reps" && reps && bestR > 0 && reps > bestR) pr = `New PR · ${reps} reps`;
+        else if (set.seconds && bestS > 0 && set.seconds > bestS) pr = `New PR · ${set.seconds} s hold`;
+      }
+      if (pr) set.pr = 1;
+    }
     putSet(set);
-    setUndo(set);
+    setUndo({ set, pr });
+    if (pr) { track("pr", { ex: it.ex, text: pr }, id); vibrate([60, 40, 60]); }
     track("set_done", { ex: it.ex, i, setNo: set.setNo, kind, weight, reps, seconds: set.seconds, meters: set.meters, assist: set.assist, restBeforeS: set.restBeforeS }, id);
 
     const after = [...sets, set];
@@ -159,11 +182,18 @@ export default function SessionScreen({ id }: { id: string }) {
             it={it}
             sets={sets.filter((x) => x.itemIdx === i)}
             last={b.last[it.ex]}
+            rec={recs[i]}
+            live={live}
+            feedback={b.feedback?.[`${id}:${i}`]}
+            onFeedback={(f) => {
+              setB((x) => (x ? { ...x, feedback: { ...x.feedback, [`${id}:${i}`]: f } } : x));
+              queue("PUT", `/feedback/${id}:${i}`, { sessionId: id, exKey: it.ex, ...f });
+              track("ex_feedback", { i, ex: it.ex, ...f }, id);
+            }}
             open={open === i}
             onToggle={() => { setOpen(open === i ? -2 : i); track("ex_open", { i, ex: it.ex }, id); }}
             onLog={(d, kind) => logSet(i, d, kind)}
             onSet={(set) => setSheet({ k: "set", s: set })}
-            onRir={(set, rir) => { putSet({ ...set, rir }); track("set_rir", { id: set.id, rir }, id); }}
             onHow={() => { setSheet({ k: "how", i }); track("video_open", { ex: it.ex }, id); }}
             onMenu={() => setSheet({ k: "menu", i })}
           />
@@ -177,11 +207,11 @@ export default function SessionScreen({ id }: { id: string }) {
 
       {undo && (
         <div className={cx("fixed inset-x-0 z-40 mx-auto flex max-w-lg justify-center px-4", rest && live ? "bottom-24" : "bottom-6")}>
-          <div className="flex items-center gap-3 rounded-full bg-ink px-4 py-2 text-sm text-bg shadow-lg">
-            Set logged
+          <div className={cx("flex items-center gap-3 rounded-full px-4 py-2 text-sm shadow-lg", undo.pr ? "bg-warn text-black" : "bg-ink text-bg")}>
+            {undo.pr ? <><Trophy size={16} /> {undo.pr}</> : "Set logged"}
             <button
               className="font-bold underline"
-              onClick={() => { putSet({ ...undo, deleted: 1 }); track("set_undo", { id: undo.id, ex: undo.exKey }, id); setRest(null); setUndo(null); }}
+              onClick={() => { putSet({ ...undo.set, deleted: 1 }); track("set_undo", { id: undo.set.id, ex: undo.set.exKey }, id); setRest(null); setUndo(null); }}
             >
               Undo
             </button>
@@ -305,21 +335,31 @@ function fmtSet(x: Pick<SetLog, "weightKg" | "reps" | "seconds" | "meters" | "as
 
 // ---------------------------------------------------------------- exercise card
 
-function ExerciseCard({ i, it, sets, last, open, onToggle, onLog, onSet, onRir, onHow, onMenu }: {
-  i: number; it: PlanItem; sets: SetLog[]; last?: { date: string; sets: SetLog[] }; open: boolean;
-  onToggle: () => void; onLog: (d: Draft, k?: SetKind) => void; onSet: (s: SetLog) => void; onRir: (s: SetLog, r: number) => void;
-  onHow: () => void; onMenu: () => void;
+const REC_TONE: Record<RecKind, string> = { up: "text-acc", hold: "text-info", down: "text-warn", start: "text-mute", deload: "text-info", estimate: "text-info" };
+const REC_ICON: Record<RecKind, typeof TrendingUp> = { up: TrendingUp, hold: Equal, down: TrendingDown, start: Sparkles, deload: TrendingDown, estimate: Sparkles };
+const KIND_LABEL: Record<string, string> = { W: "warm-up", D: "drop", F: "failure", R: "rest-p." };
+
+function ExerciseCard({ i, it, sets, last, rec, live, feedback, open, onToggle, onLog, onSet, onFeedback, onHow, onMenu }: {
+  i: number; it: PlanItem; sets: SetLog[]; last?: { date: string; sets: SetLog[] }; rec: Rec; live: boolean;
+  feedback?: { effort: string | null; joints: string | null };
+  open: boolean; onToggle: () => void; onLog: (d: Draft, k?: SetKind) => void; onSet: (s: SetLog) => void;
+  onFeedback: (f: { effort: string | null; joints: string | null }) => void; onHow: () => void; onMenu: () => void;
 }) {
   const work = sets.filter((s) => s.kind !== "W");
   const complete = work.length >= it.sets;
-  const draft = useDraft(it, sets, last);
+  const draft = useDraft(it, sets, last, rec);
   const [d, setD] = useState<Draft>(draft);
+  const [showWarm, setShowWarm] = useState(false);
   const lastRef = useRef(sets.length);
   useEffect(() => {
     if (sets.length !== lastRef.current) { lastRef.current = sets.length; setD(draft); }
   }, [sets.length, draft]);
 
-  const needRir = sets.length > 0 && sets[sets.length - 1].rir == null && sets[sets.length - 1].reps != null;
+  const RecIcon = REC_ICON[rec.kind];
+  const recText = rec.weightKg != null ? `${kg(rec.weightKg)} kg${rec.reps ? ` × ${rec.reps}` : ""}` : rec.seconds ? `${rec.seconds} s` : rec.reps ? `${rec.reps} reps` : "";
+  const warm = it.metric === "weight_reps" && rec.weightKg && rec.weightKg >= 20 && (isBarbell(it.ex) || rec.weightKg >= 30) ? warmups(it.ex, rec.weightKg) : [];
+  const hasWarmLogged = sets.some((s) => s.kind === "W");
+  const remainingRows = Math.max(0, it.sets - work.length - 1);
 
   return (
     <section className={cx("rounded-2xl bg-card", it.skipped && "opacity-50", open && "ring-1 ring-line")}>
@@ -333,46 +373,84 @@ function ExerciseCard({ i, it, sets, last, open, onToggle, onLog, onSet, onRir, 
         <span className="min-w-0 flex-1">
           <span className={cx("block truncate font-semibold", it.skipped && "line-through")}>{it.name}</span>
           <span className="block truncate text-xs text-mute">
-            {targetLabel(it)} · <Clock size={10} className="inline" /> {restLabel(it.rest)}{it.swappedFrom ? ` · swapped from ${EXERCISES[it.swappedFrom]?.name ?? it.swappedFrom}` : ""}
+            {targetLabel(it)} · <Clock size={10} className="inline" /> {restLabel(it.rest)}
+            {!complete && recText && <span className={cx("ml-1", REC_TONE[rec.kind])}>· {recText}</span>}
           </span>
         </span>
         <span className="text-sm text-mute num">{work.length}/{it.sets}</span>
       </button>
 
+      {/* finished + closed: ask the quick check right on the card (until answered) */}
+      {complete && live && !open && !(feedback?.effort && feedback?.joints) && (
+        <div className="px-4 pb-4"><FeedbackRow value={feedback} onChange={onFeedback} compact /></div>
+      )}
+
       {open && !it.skipped && (
         <div className="px-4 pb-4">
-          {(it.tech || last || it.startKg) && (
-            <div className="mb-3 space-y-1 text-xs">
-              {it.tech && <TechNote text={it.tech} />}
-              {last && <div className="text-mute">Last ({niceDate(last.date)}): {last.sets.filter((x) => x.kind !== "W").map(fmtSet).join(" · ")}</div>}
-              {!last && it.startKg != null && <div className="text-mute">Suggested start ≈ {it.startKg} kg</div>}
+          {/* 1. what to do today: recommendation (why) + last time + technique */}
+          <div className="mb-3 space-y-1.5 rounded-xl bg-card2/60 p-3 text-xs">
+            <div className={cx("flex items-start gap-1.5", REC_TONE[rec.kind])}>
+              <RecIcon size={14} className="mt-0.5 shrink-0" />
+              <span><b>{recText ? `Today: ${recText}` : "Today"}</b> — {rec.why}</span>
+            </div>
+            {last && <div className="text-mute">Last time ({niceDate(last.date)}): {last.sets.filter((x) => x.kind !== "W").map(fmtSet).join(" · ")}</div>}
+            {it.swappedFrom && <div className="text-mute">Swapped from {EXERCISES[it.swappedFrom]?.name ?? it.swappedFrom}{it.swapReason ? ` (${it.swapReason})` : ""}</div>}
+            {it.tech && <TechNote text={it.tech} />}
+          </div>
+
+          {/* 2. optional warm-up ramp */}
+          {warm.length > 0 && !complete && work.length === 0 && (
+            <div className="mb-3">
+              <button onClick={() => setShowWarm(!showWarm)} className="inline-flex items-center gap-1.5 text-xs text-info">
+                <Flame size={13} /> {showWarm ? "Hide" : "Show"} warm-up sets ({warm.length}){hasWarmLogged ? " · some done" : ""}
+              </button>
+              {showWarm && (
+                <div className="mt-2 grid gap-1.5">
+                  {warm.map((w, k) => (
+                    <button key={k} onClick={() => onLog({ ...d, weight: String(w.kg), reps: String(w.reps), rir: "" }, "W")} className="flex min-h-10 items-center gap-3 rounded-lg border border-dashed border-line px-3 text-left text-sm">
+                      <span className="w-14 text-xs text-mute">warm-up</span>
+                      <span className="flex-1 num">{kg(w.kg)} kg × {w.reps}</span>
+                      {isBarbell(it.ex) && <span className="text-[11px] text-faint">{plateText(w.kg)}</span>}
+                      <Plus size={14} className="text-info" />
+                    </button>
+                  ))}
+                  <p className="text-[11px] text-faint">Tap a row after doing it to log it as a warm-up (not counted in volume).</p>
+                </div>
+              )}
             </div>
           )}
 
+          {/* 3. the sequence: done sets → current set → remaining sets */}
           <div className="space-y-1.5">
             {sets.map((x, k) => (
-              <div key={x.id}>
-                <button onClick={() => onSet(x)} className="flex min-h-11 w-full items-center gap-3 rounded-xl bg-card2 px-3 text-left">
-                  <span className="w-14 text-xs text-mute">{x.kind === "N" ? `Set ${sets.slice(0, k + 1).filter((y) => y.kind === "N").length}` : ({ W: "warm-up", D: "drop", F: "failure", R: "rest-p." } as Record<string, string>)[x.kind]}</span>
-                  <span className="flex-1 font-semibold num">{fmtSet(x)}</span>
-                  {x.rir != null && <span className="text-xs text-mute">RIR {x.rir}</span>}
-                  {x.restBeforeS != null && k > 0 && <span className="text-xs text-mute">{clock(x.restBeforeS * 1000)}</span>}
-                  {x.painLevel ? <TriangleAlert size={15} className="text-bad" /> : x.note ? <NotebookPen size={15} className="text-mute" /> : null}
-                </button>
-                {k === sets.length - 1 && needRir && (
-                  <div className="mt-1.5 flex items-center gap-1.5 pl-9">
-                    <span className="text-xs text-mute">RIR</span>
-                    {[0, 1, 2, 3, 4].map((r) => (
-                      <button key={r} onClick={() => onRir(x, r)} className="h-9 w-9 rounded-lg border border-line text-sm num">{r === 4 ? "4+" : r}</button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <button key={x.id} onClick={() => onSet(x)} className="flex min-h-11 w-full items-center gap-3 rounded-xl bg-card2 px-3 text-left">
+                <span className="w-14 text-xs text-mute">{x.kind === "N" ? `Set ${sets.slice(0, k + 1).filter((y) => y.kind === "N").length}` : KIND_LABEL[x.kind]}</span>
+                <span className="flex-1 font-semibold num">{fmtSet(x)}</span>
+                {!!x.pr && <Trophy size={14} className="text-warn" />}
+                {x.rir != null && <span className="text-xs text-mute">RIR {x.rir}</span>}
+                {x.restBeforeS != null && k > 0 && <span className="text-xs text-faint">{clock(x.restBeforeS * 1000)}</span>}
+                {x.painLevel ? <TriangleAlert size={15} className="text-bad" /> : x.note ? <NotebookPen size={15} className="text-mute" /> : null}
+              </button>
             ))}
           </div>
 
-          {!complete && <SetInput it={it} d={d} setD={setD} n={work.length + 1} onLog={() => onLog(d)} />}
+          {!complete && <SetInput it={it} d={d} setD={setD} n={work.length + 1} total={it.sets} onLog={() => onLog(d)} />}
 
+          {!complete && remainingRows > 0 && (
+            <div className="mt-1.5 space-y-1">
+              {Array.from({ length: remainingRows }, (_, k) => (
+                <div key={k} className="flex min-h-9 items-center gap-3 rounded-xl border border-dashed border-line/70 px-3 text-sm text-faint">
+                  <span className="w-14 text-xs">Set {work.length + 2 + k}</span>
+                  <span className="num">{recText || targetLabel({ ...it, sets: 1 })}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* 4. after the last set: quick RP-style check (feeds next time's recommendation) */}
+          {complete && live && <FeedbackRow value={feedback} onChange={onFeedback} />}
+
+          {/* 5. secondary actions */}
           <div className="mt-3 flex items-center gap-1.5 overflow-x-auto text-sm">
             <span className="shrink-0 text-xs text-faint">Extra:</span>
             {complete && <button onClick={() => onLog(d)} className="inline-flex min-h-10 shrink-0 items-center gap-1 rounded-lg bg-card2 px-2.5"><Plus size={14} />Set</button>}
@@ -384,32 +462,55 @@ function ExerciseCard({ i, it, sets, last, open, onToggle, onLog, onSet, onRir, 
             <button onClick={onHow} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-card2"><PlayCircle size={16} className="text-info" />How-to video</button>
             <button onClick={onMenu} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-card2"><MoreHorizontal size={16} />Swap · skip · more</button>
           </div>
-          {complete && <SetInput it={it} d={d} setD={setD} n={work.length + 1} hidden />}
+          {complete && <SetInput it={it} d={d} setD={setD} n={work.length + 1} total={it.sets} hidden />}
         </div>
       )}
     </section>
   );
 }
 
-function useDraft(it: PlanItem, sets: SetLog[], last?: { sets: SetLog[] }): Draft {
+function plateText(total: number) {
+  const p = plates(total);
+  if (!p) return "";
+  return p.length ? `per side: ${p.join(" + ")}` : "empty bar";
+}
+
+function FeedbackRow({ value, onChange, compact }: { value?: { effort: string | null; joints: string | null }; onChange: (f: { effort: string | null; joints: string | null }) => void; compact?: boolean }) {
+  const v = value ?? { effort: null, joints: null };
+  const E = [{ id: "easy", label: "Easy" }, { id: "right", label: "Just right" }, { id: "hard", label: "Hard" }, { id: "too_much", label: "Too much" }];
+  const J = [{ id: "fine", label: "Fine" }, { id: "achy", label: "Achy" }, { id: "pain", label: "Pain" }];
+  return (
+    <div className={cx("rounded-xl border border-line p-3", !compact && "mt-3")}>
+      <div className="mb-2 flex items-center gap-1.5 text-xs text-mute"><MessageSquare size={13} /> Done! Quick check (optional) — tunes next time's weight</div>
+      <div className="mb-1 text-[11px] text-faint">How hard was this exercise?</div>
+      <Chips small options={E} value={v.effort} onChange={(effort) => onChange({ ...v, effort })} />
+      <div className="mb-1 mt-2 text-[11px] text-faint">Joints?</div>
+      <Chips small tone={v.joints === "pain" ? "bad" : "acc"} options={J} value={v.joints} onChange={(joints) => onChange({ ...v, joints })} />
+    </div>
+  );
+}
+
+function useDraft(it: PlanItem, sets: SetLog[], last: { sets: SetLog[] } | undefined, rec: Rec): Draft {
   return useMemo(() => {
     const work = sets.filter((s) => s.kind !== "W");
     const prevHere = work[work.length - 1];
     const prevLast = last?.sets.filter((s) => s.kind !== "W");
-    const src = prevHere ?? prevLast?.[Math.min(work.length, (prevLast?.length ?? 1) - 1)];
-    const tReps = it.reps == null ? "" : Array.isArray(it.reps) ? it.reps[1] : it.reps;
+    const lastSame = prevLast?.[Math.min(work.length, (prevLast?.length ?? 1) - 1)];
+    const tReps = it.reps == null ? null : Array.isArray(it.reps) ? it.reps[1] : it.reps;
     const v = (x: number | null | undefined) => (x == null ? "" : String(x));
+    // priority: this session's previous set → recommendation → same set last time → plan target
     return {
-      weight: v(src?.weightKg ?? it.startKg ?? null),
-      reps: src?.reps != null ? String(src.reps) : String(tReps ?? ""),
-      seconds: src?.seconds != null ? String(src.seconds) : v(it.seconds),
-      meters: src?.meters != null ? String(src.meters) : v(it.meters),
-      assist: src?.assist ?? "",
+      weight: v(prevHere?.weightKg ?? rec.weightKg ?? lastSame?.weightKg ?? it.startKg ?? null),
+      reps: v(prevHere?.reps ?? rec.reps ?? lastSame?.reps ?? tReps),
+      seconds: v(prevHere?.seconds ?? rec.seconds ?? lastSame?.seconds ?? it.seconds),
+      meters: v(prevHere?.meters ?? lastSame?.meters ?? it.meters),
+      assist: prevHere?.assist ?? lastSame?.assist ?? "",
+      rir: "",
     };
-  }, [it, sets, last]);
+  }, [it, sets, last, rec]);
 }
 
-function SetInput({ it, d, setD, n, onLog, hidden }: { it: PlanItem; d: Draft; setD: (d: Draft) => void; n: number; onLog?: () => void; hidden?: boolean }) {
+function SetInput({ it, d, setD, n, total, onLog, hidden }: { it: PlanItem; d: Draft; setD: (d: Draft) => void; n: number; total: number; onLog?: () => void; hidden?: boolean }) {
   const [hold, setHold] = useState<number | null>(null);
   const [, tick] = useState(0);
   useEffect(() => {
@@ -420,25 +521,29 @@ function SetInput({ it, d, setD, n, onLog, hidden }: { it: PlanItem; d: Draft; s
   if (hidden) return null;
   const bump = (k: keyof Draft, by: number, min = 0) => setD({ ...d, [k]: String(Math.max(min, +(Number(d[k] || 0) + by).toFixed(2))) });
   const m = it.metric;
-
-  const ICON = { weight: Dumbbell, reps: Repeat, seconds: Timer, meters: Ruler, assist: Dumbbell } as const;
+  const ICON = { weight: Dumbbell, reps: Repeat, seconds: Timer, meters: Ruler, assist: Dumbbell, rir: Repeat } as const;
   const field = (k: keyof Draft, label: string, step: number, placeholder = "") => {
     const I = ICON[k];
     return (
-    <div className="min-w-0 flex-1">
-      <div className="mb-1 flex items-center justify-center gap-1 text-[11px] text-mute"><I size={12} />{label}</div>
-      <div className="flex items-center gap-1">
-        <button onClick={() => bump(k, -step)} className="h-12 w-10 shrink-0 rounded-xl bg-card2 text-xl" aria-label={`less ${label}`}>−</button>
-        <NumInput value={d[k]} onChange={(v) => setD({ ...d, [k]: v })} placeholder={placeholder} />
-        <button onClick={() => bump(k, step)} className="h-12 w-10 shrink-0 rounded-xl bg-card2 text-xl" aria-label={`more ${label}`}>+</button>
+      <div className="min-w-0 flex-1">
+        <div className="mb-1 flex items-center justify-center gap-1 text-[11px] text-mute"><I size={12} />{label}</div>
+        <div className="flex items-center gap-1">
+          <button onClick={() => bump(k, -step)} className="h-12 w-10 shrink-0 rounded-xl bg-card2 text-xl" aria-label={`less ${label}`}>−</button>
+          <NumInput value={d[k]} onChange={(v) => setD({ ...d, [k]: v })} placeholder={placeholder} />
+          <button onClick={() => bump(k, step)} className="h-12 w-10 shrink-0 rounded-xl bg-card2 text-xl" aria-label={`more ${label}`}>+</button>
+        </div>
       </div>
-    </div>
     );
   };
+  const showRir = m === "weight_reps" || m === "reps" || m === "assist_reps";
+  const pt = isBarbell(it.ex) && d.weight ? plateText(Number(d.weight)) : "";
 
   return (
-    <div className="mt-3 rounded-xl border border-line p-3">
-      <div className="mb-2 text-xs text-mute">Set {n}{it.perSide ? " · per side" : ""}</div>
+    <div className="mt-2 rounded-xl border border-acc/40 bg-acc/[0.03] p-3">
+      <div className="mb-2 flex items-center justify-between text-xs">
+        <span className="font-semibold text-ink">Set {n} of {total}{it.perSide ? " · per side" : ""}</span>
+        {pt && <span className="text-faint">{pt}</span>}
+      </div>
       <div className="flex gap-2">
         {m === "assist_reps" && (
           <div className="flex-1">
@@ -462,6 +567,21 @@ function SetInput({ it, d, setD, n, onLog, hidden }: { it: PlanItem; d: Draft; s
         >
           {hold != null ? `Stop · ${Math.round((Date.now() - hold) / 1000)} s` : "Start hold timer"}
         </button>
+      )}
+      {showRir && (
+        <div className="mt-3">
+          <div className="mb-1.5 flex items-center justify-between text-[11px] text-mute">
+            <span>Reps left in the tank? <span className="text-faint">(optional)</span></span>
+            {it.rir != null && <span>target RIR {Array.isArray(it.rir) ? it.rir.join("-") : it.rir}</span>}
+          </div>
+          <div className="grid grid-cols-5 gap-1.5">
+            {["0", "1", "2", "3", "4"].map((r) => (
+              <button key={r} onClick={() => setD({ ...d, rir: d.rir === r ? "" : r })} className={cx("h-10 rounded-lg text-sm num", d.rir === r ? "bg-ink font-bold text-bg" : "bg-card2 text-mute")}>
+                {r === "4" ? "4+" : r}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
       <Btn kind="primary" icon={Check} className="mt-3 w-full text-lg" onClick={onLog}>Log set {n}</Btn>
     </div>
@@ -615,6 +735,7 @@ function FinishSheet({ s, sets, elapsed, onClose, onSave, onDelete }: {
   const live = s.status === "active";
   const vol = sets.filter((x) => x.kind !== "W").reduce((a, x) => a + (x.weightKg ?? 0) * (x.reps ?? 0), 0);
   const pains = sets.filter((x) => x.painLevel).length;
+  const prs = sets.filter((x) => x.pr);
   const base = { rpe, bodyweight: bw ? Number(bw) : null, note: note || null };
   return (
     <Sheet open onClose={onClose} title={live ? "Finish workout" : "Session"}>
@@ -623,6 +744,12 @@ function FinishSheet({ s, sets, elapsed, onClose, onSave, onDelete }: {
         <div className="rounded-xl bg-card2 py-3"><div className="text-lg font-bold num">{sets.filter((x) => x.kind !== "W").length}</div><div className="text-[11px] text-mute">sets</div></div>
         <div className="rounded-xl bg-card2 py-3"><div className="text-lg font-bold num">{Math.round(vol)}</div><div className="text-[11px] text-mute">kg volume</div></div>
       </div>
+      {prs.length > 0 && (
+        <div className="mt-3 rounded-xl bg-warn/10 p-3 text-sm">
+          <div className="flex items-center gap-1.5 font-semibold text-warn"><Trophy size={15} /> {prs.length} personal record{prs.length > 1 ? "s" : ""}</div>
+          <ul className="mt-1 text-xs text-mute">{prs.map((x) => <li key={x.id}>{EXERCISES[x.exKey]?.name ?? x.exKey}: {fmtSet(x)}</li>)}</ul>
+        </div>
+      )}
       {pains > 0 && <p className="mt-3 text-sm text-bad">⚠ {pains} set(s) with pain logged</p>}
       <Label>How hard was the whole session? (1-10)</Label>
       <Chips small options={scale(1, 10)} value={rpe} onChange={setRpe} />

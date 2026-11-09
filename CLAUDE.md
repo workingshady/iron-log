@@ -7,14 +7,15 @@ Goals: muscle + strength, first strict pull-ups and dips, strong core, wrestler 
 - `worker/`: Hono API on Cloudflare Workers. `worker/db/schema.ts` = Drizzle schema for D1 (SQLite).
 - `src/`: React + Tailwind v4 mobile UI (Vite + `@cloudflare/vite-plugin`). Hash routes, no router lib.
 - `program/`: **the training plan as data.** `exercises.ts` (library + YouTube ids; check with `npx tsx scripts/check-videos.ts`), `versions/vN.ts` (plans), `swaps.ts` (alternative conversions), `groups.ts` (muscle group per exercise), `muscles.ts` (primary/secondary muscles per exercise for the body heatmap; secondary = ½ set), `learn.ts` (glossary, warm-up, levels, what-if, nutrition), `index.ts` (`CURRENT`).
-- `shared/`: types + pick-lists (excuses, set kinds, pain areas) used by both sides.
+- `shared/`: types + pick-lists (excuses, set kinds, pain areas) used by both sides. `shared/recommend.ts` = load recommendation rules (double progression + RIR + e1RM + deload + pain/feedback), warm-up ramp, plate math.
 - `private/`: git-ignored. Exports land in `private/exports/<date>/`.
 
 Commands: `npm run dev` · `npm run check` (validate program + types) · `npm run deploy` · `npm run export` (live DB → private/exports) · `npm run db:generate` then `db:migrate` / `db:migrate:remote` after schema edits.
 
 ## Data model (D1)
 - `sessions`: status `active|done|abandoned|missed|skipped`, kind `planned|picked|extra`. `plan` JSON = the exact plan used (swaps included). `readiness` JSON (sleep/energy/mood/stress/soreness 1-5), `rpe` 1-10, `excuse` id.
-- `sets`: kg/reps/seconds/meters/assist, `rir`, `kind` (N/W/D/F/R), `rest_before_s` (real rest), `done_at`, `note`, `pain_area`+`pain_level` (1-3), `swapped_from`, `deleted`.
+- `sets`: kg/reps/seconds/meters/assist, `rir`, `kind` (N/W/D/F/R), `rest_before_s` (real rest), `done_at`, `note`, `pain_area`+`pain_level` (1-3), `swapped_from`, `suggested` (JSON of the app's recommendation at log time: compare with actual to tune `shared/recommend.ts`), `pr` (1 = PR when logged), `deleted`.
+- `feedback`: per exercise per session (`id = sessionId:itemIdx`): `effort` easy|right|hard|too_much, `joints` fine|achy|pain (RP-style autoregulation).
 - `events`: every tap (`set_done`, `set_edit`, `set_undo`, `rest_start/adjust/skip/done`, `ex_swap` {from,to,reason}, `ex_skip`, `ex_move`, `video_open`, `session_*`…).
 - `body` (optional, any day), `tests`, `journal`, `intake` (creatine grams: item/amount/unit per entry), `settings` (schedule, creatineTarget), `program_versions` (a snapshot of each version used).
 - Derived: `/api/dashboard` (calendar, forgiving streak: planned-rest/sick misses don't break it, adherence, creatine), `/api/insights` (`worker/insights.ts` rules + sets per muscle group from `program/groups.ts`).

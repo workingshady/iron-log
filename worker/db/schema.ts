@@ -65,10 +65,28 @@ export const sets = sqliteTable(
     painArea: text("pain_area"),
     painLevel: integer("pain_level"), // 1 mild · 2 moderate · 3 sharp/stop
     swappedFrom: text("swapped_from"),
+    /** What the app recommended for this set (JSON {weightKg, reps, why}) — lets reviews check recommendation accuracy. */
+    suggested: text("suggested"),
+    /** 1 if this set was a personal record when logged. */
+    pr: integer("pr").notNull().default(0),
     deleted: integer("deleted").notNull().default(0),
     updatedAt: integer("updated_at").notNull(),
   },
   (t) => [index("sets_session").on(t.sessionId), index("sets_ex").on(t.exKey, t.doneAt)],
+);
+
+/** Per-exercise feedback after its last set (RP-style autoregulation). */
+export const feedback = sqliteTable(
+  "feedback",
+  {
+    id: text("id").primaryKey(), // `${sessionId}:${itemIdx}` — one per exercise per session
+    sessionId: text("session_id").notNull(),
+    exKey: text("ex_key").notNull(),
+    effort: text("effort"), // easy | right | hard | too_much
+    joints: text("joints"), // fine | achy | pain
+    at: integer("at").notNull(),
+  },
+  (t) => [index("feedback_ex").on(t.exKey, t.at)],
 );
 
 /** Raw click/interaction log: every tap that changes something. */

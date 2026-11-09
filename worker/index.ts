@@ -143,7 +143,10 @@ app.get("/sessions/:id", async (c) => {
       else if (cur.sets[0].sessionId === s.sessionId) cur.sets.unshift(s as SetLog);
     }
   }
-  return c.json({ session, sets, last } satisfies SessionBundle);
+  const lifts = await liftHistory(d, keys, id);
+  for (const k of keys) if (last[k] && lifts.hist[k]) Object.assign(last[k], { effort: lifts.hist[k].effort, joints: lifts.hist[k].joints });
+  const fb = await d.select().from(t.feedback).where(eq(t.feedback.sessionId, id));
+  return c.json({ session, sets, last, best: lifts.best, feedback: Object.fromEntries(fb.map((f) => [f.id, { effort: f.effort, joints: f.joints }])) } satisfies SessionBundle);
 });
 
 app.patch("/sessions/:id", async (c) => {
@@ -167,6 +170,45 @@ app.delete("/sessions/:id", async (c) => {
   const id = c.req.param("id");
   const d = db(c);
   await d.batch([d.delete(t.sets).where(eq(t.sets.sessionId, id)), d.delete(t.sessions).where(eq(t.sessions.id, id))]);
+  return c.json({ ok: true });
+});
+
+/** Most recent finished session per exercise (+ its feedback) and all-time bests. Used for recommendations and PRs. */
+async function liftHistory(d: DB, keys: string[] | null, excludeSession = "") {
+  const rows = await d.select({ s: t.sets, date: t.sessions.date })
+    .from(t.sets).innerJoin(t.sessions, eq(t.sets.sessionId, t.sessions.id))
+    .where(and(eq(t.sets.deleted, 0), ne(t.sets.sessionId, excludeSession), inArray(t.sessions.status, ["done", "abandoned"]), ...(keys ? [inArray(t.sets.exKey, keys.length ? keys : ["-"])] : [])))
+    .orderBy(desc(t.sets.doneAt));
+  const hist: Record<string, { date: string; sets: SetLog[]; effort?: string | null; joints?: string | null; sessionId: string }> = {};
+  const best: Record<string, { e1rm: number; weightKg: number; reps: number; seconds: number }> = {};
+  for (const { s, date } of rows) {
+    if (s.kind === "W") continue;
+    const h = hist[s.exKey];
+    if (!h) hist[s.exKey] = { date, sets: [s as SetLog], sessionId: s.sessionId };
+    else if (h.sessionId === s.sessionId) h.sets.unshift(s as SetLog);
+    const b = (best[s.exKey] ??= { e1rm: 0, weightKg: 0, reps: 0, seconds: 0 });
+    if (s.weightKg && s.reps && s.reps <= 12) b.e1rm = Math.max(b.e1rm, Math.round(s.weightKg * (1 + s.reps / 30) * 10) / 10);
+    b.weightKg = Math.max(b.weightKg, s.weightKg ?? 0);
+    b.reps = Math.max(b.reps, s.reps ?? 0);
+    b.seconds = Math.max(b.seconds, s.seconds ?? 0);
+  }
+  const sids = [...new Set(Object.values(hist).map((h) => h.sessionId))];
+  if (sids.length) {
+    const fb = await d.select().from(t.feedback).where(inArray(t.feedback.sessionId, sids));
+    for (const f of fb) {
+      const h = hist[f.exKey];
+      if (h && h.sessionId === f.sessionId) { h.effort = f.effort; h.joints = f.joints; }
+    }
+  }
+  return { hist, best };
+}
+
+app.get("/lifts", async (c) => c.json(await liftHistory(db(c), null)));
+
+app.put("/feedback/:id", async (c) => {
+  const b = await c.req.json<{ sessionId: string; exKey: string; effort?: string | null; joints?: string | null }>();
+  const row = { id: c.req.param("id"), sessionId: b.sessionId, exKey: b.exKey, effort: b.effort ?? null, joints: b.joints ?? null, at: now() };
+  await db(c).insert(t.feedback).values(row).onConflictDoUpdate({ target: t.feedback.id, set: { effort: row.effort, joints: row.joints, at: row.at } });
   return c.json({ ok: true });
 });
 
@@ -405,7 +447,7 @@ app.post("/reset", async (c) => {
   const d = db(c);
   await d.batch([
     d.delete(t.sets), d.delete(t.sessions), d.delete(t.events), d.delete(t.body), d.delete(t.tests),
-    d.delete(t.journal), d.delete(t.intake), d.delete(t.settings), d.delete(t.programVersions),
+    d.delete(t.journal), d.delete(t.intake), d.delete(t.settings), d.delete(t.programVersions), d.delete(t.feedback),
   ]);
   return c.json({ ok: true });
 });
@@ -419,12 +461,12 @@ app.post("/logout", (c) => {
 
 app.get("/export", async (c) => {
   const d = db(c);
-  const [programVersions, sessions, sets, events, body, tests, journal, settings, intake] = await Promise.all([
+  const [programVersions, sessions, sets, events, body, tests, journal, settings, intake, feedback] = await Promise.all([
     d.select().from(t.programVersions), d.select().from(t.sessions), d.select().from(t.sets), d.select().from(t.events),
-    d.select().from(t.body), d.select().from(t.tests), d.select().from(t.journal), d.select().from(t.settings), d.select().from(t.intake),
+    d.select().from(t.body), d.select().from(t.tests), d.select().from(t.journal), d.select().from(t.settings), d.select().from(t.intake), d.select().from(t.feedback),
   ]);
   c.header("Content-Disposition", `attachment; filename="iron-log-${new Date().toISOString().slice(0, 10)}.json"`);
-  return c.json({ exportedAt: new Date().toISOString(), programVersions, sessions, sets, events, body, tests, journal, settings, intake });
+  return c.json({ exportedAt: new Date().toISOString(), programVersions, sessions, sets, events, body, tests, journal, settings, intake, feedback });
 });
 
 app.onError((err, c) => {

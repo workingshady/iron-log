@@ -26,8 +26,24 @@ Your personal training tracker. It runs free on Cloudflare (Workers + D1). On yo
 
 **Colors mean one thing each:** green = done / main button · amber = in progress / tips · red = pain, missed, delete · blue = rest timer & explanations · violet = creatine.
 
+## Recommended weights (every set, every exercise)
+Each exercise shows **Today: 70 kg × 5** plus *why*, and the inputs are pre-filled with it:
+- **Green ↑**: you hit the top of the rep range on every set at the target RIR, so add one step (two if you said "Easy").
+- **Blue =**: same weight, beat last time by 1 rep.
+- **Amber ↓**: missed reps on 2+ sets, joint pain, or felt "Too much", so go one step lighter.
+- If the rep target changes between weeks (e.g. 8 → 6), the weight is recalculated from your estimated max at the target RIR.
+- **Deload week** = ~10% lighter.
+- **First time** on an exercise: no number yet ("pick a weight you could do 2-3 more reps with"), unless you've done a related lift (e.g. bench → dumbbell press estimate).
+
+You'll also see them on **Plan** (→ next to each exercise) and on **Home** (Today's targets).
+
 ## Inside a workout
 - **Tap an exercise** to open or close it. After each set, the app moves you to the right place: superset partners alternate A1 → A2 → A1, then it goes to the next exercise.
+- **The order for each set:** check the suggested kg/reps (already filled in) → do the set → tap **reps left in the tank** (RIR, optional) → **Log set**. Faded rows below show the sets still to come.
+- **Warm-up sets** (heavy lifts): "Show warm-up sets" gives a ramp (bar → 50% → 70% → 85%). Tap each after doing it.
+- **Plates per side** appear for barbell lifts (20 kg bar).
+- **🏆 PR**: beat your best estimated max, reps or hold time, and it lights up. PRs are listed when you finish and in Stats.
+- **Quick check** after the last set of each exercise: how hard (Easy / Just right / Hard / Too much) and joints (Fine / Achy / Pain). Optional, two taps. It tunes next time's weight.
 - **Tap a logged set** to edit everything about it: kg, reps, seconds, set type (warm-up / normal / drop / failure / rest-pause), RIR, quick tags, a free **note**, and **pain** (area + mild/moderate/sharp). You can delete it here too.
 - **Undo**: right after logging, an "Undo" button shows for 6 seconds.
 - **Extra: Set / Drop set / Warm-up**: log sets beyond the plan. Tap ⓘ to see what a drop set is. Warm-ups don't count toward volume.

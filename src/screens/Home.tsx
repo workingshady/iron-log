@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { CalendarOff, CalendarRange, Dumbbell, Flame, FlaskConical, House, Lightbulb, Play, Plus, Scale, Target, Timer, TrendingUp } from "lucide-react";
-import type { AppState, DashboardData, InsightsData, ProgressData, SlotInfo } from "../../shared/api";
+import type { AppState, DashboardData, InsightsData, Lifts, ProgressData, SlotInfo } from "../../shared/api";
+import { recommend } from "../../shared/recommend";
+import { kg } from "../lib/util";
 import { InsightList } from "../components/Insights";
 import { CURRENT } from "../../program";
 import { EXERCISES } from "../../program/exercises";
@@ -17,6 +19,7 @@ export default function Home() {
   const { data: d, reload: reloadD } = useLoad<DashboardData>(`/dashboard?today=${today()}`);
   const { data: p } = useLoad<ProgressData>("/progress");
   const { data: ins } = useLoad<InsightsData>(`/insights?today=${today()}`);
+  const { data: lifts } = useLoad<Lifts>("/lifts");
   const [sheet, setSheet] = useState<null | "start" | "missed" | "pick">(null);
   const [target, setTarget] = useState<SlotInfo | null>(null);
 
@@ -60,6 +63,22 @@ export default function Home() {
                   {dayPlan.items.length > 6 && <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-card2 text-sm text-mute">+{dayPlan.items.length - 6}</div>}
                 </div>
               )}
+              {dayPlan && lifts && (() => {
+                const deload = /deload/i.test(week?.name ?? "");
+                const key = dayPlan.items.filter((it) => EXERCISES[it.ex]?.metric === "weight_reps").slice(0, 3)
+                  .map((it) => ({ it, r: recommend(it.ex, it, lifts.hist, { deload }) })).filter((x) => x.r.weightKg != null);
+                return key.length ? (
+                  <div className="mt-4 rounded-xl bg-card2 p-3">
+                    <div className="mb-1.5 text-[11px] uppercase tracking-wide text-mute">Today's targets</div>
+                    {key.map(({ it, r }) => (
+                      <div key={it.ex} className="flex items-center justify-between py-0.5 text-sm">
+                        <span className="truncate">{EXERCISES[it.ex].name}</span>
+                        <span className={cx("num font-semibold", r.kind === "up" ? "text-acc" : r.kind === "down" ? "text-warn" : "text-ink")}>{kg(r.weightKg)} kg × {r.reps}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null;
+              })()}
               {!s.active && (
                 <Btn kind="primary" icon={Play} className="mt-5 w-full text-lg" onClick={() => { setTarget(next); setSheet("start"); }}>
                   Start workout

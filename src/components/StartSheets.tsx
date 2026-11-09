@@ -42,7 +42,7 @@ export function StartSheet({ open, slot, kind, onClose }: { open: boolean; slot:
         id, programVersionId: programVersionId(CURRENT), week: slot!.week, dayKey: slot!.dayKey, dayName: plan.name, status: "active", kind,
         date: body.date, startedAt, endedAt: null, plan: plan.items, readiness: body.readiness, rpe: null, bodyweight: null, excuse: null, note: null,
       };
-      cache.set(`bundle_${id}`, { session, sets: [], last: {} } satisfies SessionBundle);
+      cache.set(`bundle_${id}`, { session, sets: [], last: {}, best: {}, feedback: {} } satisfies SessionBundle);
     }
     track("session_start", { week: slot!.week, dayKey: slot!.dayKey, kind, readiness: r }, id);
     setBusy(false);

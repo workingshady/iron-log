@@ -65,7 +65,15 @@ export interface SetLog {
   painArea: string | null;
   painLevel: number | null;
   swappedFrom: string | null;
+  suggested?: string | null;
+  pr?: number;
   deleted?: number;
+}
+
+export interface Best { e1rm: number; weightKg: number; reps: number; seconds: number }
+export interface Lifts {
+  hist: Record<string, { date: string; sets: SetLog[]; effort?: string | null; joints?: string | null; sessionId: string }>;
+  best: Record<string, Best>;
 }
 
 export interface SlotInfo {
@@ -93,7 +101,11 @@ export interface SessionBundle {
   session: Session;
   sets: SetLog[];
   /** Previous performance per exercise key (most recent finished session). */
-  last: Record<string, { date: string; sets: SetLog[] }>;
+  last: Record<string, { date: string; sets: SetLog[]; effort?: string | null; joints?: string | null }>;
+  /** All-time bests per exercise (excluding this session) — for live PR detection. */
+  best: Record<string, Best>;
+  /** This session's per-exercise feedback, keyed `${sessionId}:${itemIdx}`. */
+  feedback: Record<string, { effort: string | null; joints: string | null }>;
 }
 
 export interface HistoryRow {

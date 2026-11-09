@@ -6,6 +6,7 @@ import type { Env } from "./env";
 import { login, requireAuth } from "./auth";
 import { CURRENT, EXERCISES, programVersionId } from "../program";
 import { buildPlan } from "../shared/plan";
+import { buildInsights, muscleSets } from "./insights";
 import type {
   AppState, HistoryRow, PlanItem, ProgressData, ProgressPoint, Session, SessionBundle, SetLog, SlotInfo,
 } from "../shared/api";
@@ -315,16 +316,115 @@ app.delete("/journal/:id", async (c) => {
   return c.json({ ok: true });
 });
 
+// ---------------------------------------------------------------- intake (creatine…)
+
+app.get("/intake", async (c) => {
+  const item = c.req.query("item") ?? "creatine";
+  const since = c.req.query("since") ?? "0000";
+  return c.json(await db(c).select().from(t.intake).where(and(eq(t.intake.item, item), sql`${t.intake.date} >= ${since}`)).orderBy(desc(t.intake.at)));
+});
+app.post("/intake", async (c) => {
+  const b = await c.req.json<typeof t.intake.$inferInsert>();
+  if (!(b.amount > 0 && b.amount <= 50)) return c.json({ error: "amount must be 0-50" }, 400);
+  await db(c).insert(t.intake).values(b).onConflictDoNothing();
+  return c.json({ ok: true });
+});
+app.delete("/intake/:id", async (c) => {
+  await db(c).delete(t.intake).where(eq(t.intake.id, c.req.param("id")));
+  return c.json({ ok: true });
+});
+
+// ---------------------------------------------------------------- dashboard
+
+app.get("/dashboard", async (c) => {
+  const d = db(c);
+  const today = c.req.query("today") ?? new Date().toISOString().slice(0, 10);
+  const since = new Date(Date.parse(`${today}T12:00:00Z`) - 182 * 864e5).toISOString().slice(0, 10);
+  const [sess, setAgg, cre, bodyRows, settingsRows] = await Promise.all([
+    d.select().from(t.sessions).where(sql`${t.sessions.date} >= ${since}`).orderBy(t.sessions.date, t.sessions.createdAt),
+    d.select({ sessionId: t.sets.sessionId, n: sql<number>`count(*)` }).from(t.sets).where(and(eq(t.sets.deleted, 0), ne(t.sets.kind, "W"))).groupBy(t.sets.sessionId),
+    d.select({ date: t.intake.date, g: sql<number>`sum(${t.intake.amount})` }).from(t.intake).where(and(eq(t.intake.item, "creatine"), sql`${t.intake.date} >= ${since}`)).groupBy(t.intake.date),
+    d.select({ date: t.body.date, weightKg: t.body.weightKg }).from(t.body).where(sql`${t.body.date} >= ${since} and ${t.body.weightKg} is not null`).orderBy(t.body.date),
+    d.select().from(t.settings),
+  ]);
+  const setN = new Map(setAgg.map((a) => [a.sessionId, a.n]));
+  const days: Record<string, { status: string; sets: number; minutes: number; names: string[] }> = {};
+  const rank = { done: 4, abandoned: 3, active: 2, missed: 1, skipped: 1 } as Record<string, number>;
+  for (const r of sess) {
+    const x = (days[r.date] ??= { status: "", sets: 0, minutes: 0, names: [] });
+    if ((rank[r.status] ?? 0) > (rank[x.status] ?? 0)) x.status = r.status;
+    x.sets += setN.get(r.id) ?? 0;
+    if (r.startedAt && r.endedAt) x.minutes += Math.round((r.endedAt - r.startedAt) / 60000);
+    x.names.push(r.status === "missed" || r.status === "skipped" ? `${r.dayName} (missed)` : r.dayName);
+  }
+  // Forgiving streak: finished workouts in a row. Planned rest and sickness don't break it
+  // (harsh resets make people quit — keep loss aversion, add grace). Adherence % never resets.
+  let streak = 0, best = 0, run = 0, done = 0, missed = 0;
+  for (const r of sess) {
+    if (r.status === "done") { run++; done++; best = Math.max(best, run); }
+    else if (r.status === "missed" || r.status === "skipped") {
+      missed++;
+      if (r.excuse !== "planned" && r.excuse !== "sick") run = 0;
+    }
+  }
+  streak = run;
+  const adherence = done + missed ? Math.round((done / (done + missed)) * 100) : null;
+  const settings = Object.fromEntries(settingsRows.map((r) => [r.key, r.value]));
+  const target = Number(settings.creatineTarget ?? 5);
+  const creMap = Object.fromEntries(cre.map((x) => [x.date, Math.round(x.g * 10) / 10]));
+  let creStreak = 0;
+  for (let i = 0; i < 400; i++) {
+    const day = new Date(Date.parse(`${today}T12:00:00Z`) - i * 864e5).toISOString().slice(0, 10);
+    if ((creMap[day] ?? 0) >= target) creStreak++;
+    else if (i > 0) break; // today not taken yet doesn't break the streak
+  }
+  return c.json({ days, streak, bestStreak: best, adherence, creatine: { today: creMap[today] ?? 0, target, streak: creStreak, days: creMap }, body: bodyRows });
+});
+
+// ---------------------------------------------------------------- insights & muscle volume
+
+app.get("/insights", async (c) => {
+  const d = db(c);
+  const today = c.req.query("today") ?? new Date().toISOString().slice(0, 10);
+  const [sess, sets, body, intake, st] = await Promise.all([
+    d.select().from(t.sessions), d.select().from(t.sets).where(eq(t.sets.deleted, 0)), d.select().from(t.body),
+    d.select().from(t.intake).where(eq(t.intake.item, "creatine")), d.select().from(t.settings).where(eq(t.settings.key, "creatineTarget")),
+  ]);
+  return c.json({
+    insights: buildInsights(sess, sets, body, intake, Number(st[0]?.value ?? 5), today),
+    muscles: muscleSets(sess.filter((s) => s.status !== "missed"), sets),
+  });
+});
+
+// ---------------------------------------------------------------- reset & logout
+
+/** Wipe ALL tracked data. Body must be {confirm: "DELETE"}. Program versions are re-created automatically. */
+app.post("/reset", async (c) => {
+  const { confirm } = await c.req.json<{ confirm?: string }>();
+  if (confirm !== "DELETE") return c.json({ error: 'Send {"confirm":"DELETE"}' }, 400);
+  const d = db(c);
+  await d.batch([
+    d.delete(t.sets), d.delete(t.sessions), d.delete(t.events), d.delete(t.body), d.delete(t.tests),
+    d.delete(t.journal), d.delete(t.intake), d.delete(t.settings), d.delete(t.programVersions),
+  ]);
+  return c.json({ ok: true });
+});
+
+app.post("/logout", (c) => {
+  c.header("Set-Cookie", "il_auth=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax");
+  return c.json({ ok: true });
+});
+
 // ---------------------------------------------------------------- export (backup / analysis)
 
 app.get("/export", async (c) => {
   const d = db(c);
-  const [programVersions, sessions, sets, events, body, tests, journal, settings] = await Promise.all([
+  const [programVersions, sessions, sets, events, body, tests, journal, settings, intake] = await Promise.all([
     d.select().from(t.programVersions), d.select().from(t.sessions), d.select().from(t.sets), d.select().from(t.events),
-    d.select().from(t.body), d.select().from(t.tests), d.select().from(t.journal), d.select().from(t.settings),
+    d.select().from(t.body), d.select().from(t.tests), d.select().from(t.journal), d.select().from(t.settings), d.select().from(t.intake),
   ]);
   c.header("Content-Disposition", `attachment; filename="iron-log-${new Date().toISOString().slice(0, 10)}.json"`);
-  return c.json({ exportedAt: new Date().toISOString(), programVersions, sessions, sets, events, body, tests, journal, settings });
+  return c.json({ exportedAt: new Date().toISOString(), programVersions, sessions, sets, events, body, tests, journal, settings, intake });
 });
 
 app.onError((err, c) => {

@@ -60,14 +60,14 @@ export function RestTimer({ rest, setRest }: { rest: Rest | null; setRest: (r: R
   };
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-card safe-b">
+    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-card safe-b md:left-60">
       <div className="h-1 bg-line">
-        <div className={cx("h-1 transition-[width]", over ? "bg-acc" : "bg-ink")} style={{ width: `${pct}%` }} />
+        <div className={cx("h-1 transition-[width]", over ? "bg-acc" : "bg-info")} style={{ width: `${pct}%` }} />
       </div>
       <div className="mx-auto flex max-w-lg items-center gap-2 px-4 py-3">
         <div className="min-w-0 flex-1">
-          <div className={cx("text-3xl font-bold num", over && "text-acc")}>{over ? `GO +${clock(-left)}` : clock(left)}</div>
-          <div className="truncate text-xs text-mute">Next: {rest.next}</div>
+          <div className={cx("text-3xl font-bold num", over ? "text-acc" : "text-info")}>{over ? `GO · +${clock(-left)}` : clock(left)}</div>
+          <div className="truncate text-xs text-mute">Resting · next: {rest.next}</div>
         </div>
         <button onClick={() => adjust(-15)} className="h-12 w-12 rounded-xl bg-card2 text-sm font-semibold">−15</button>
         <button onClick={() => adjust(15)} className="h-12 w-12 rounded-xl bg-card2 text-sm font-semibold">+15</button>

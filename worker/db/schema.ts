@@ -120,6 +120,20 @@ export const journal = sqliteTable("journal", {
   createdAt: integer("created_at").notNull(),
 });
 
+/** Daily intake log (creatine grams, and anything else later: protein shakes, caffeine…). */
+export const intake = sqliteTable(
+  "intake",
+  {
+    id: text("id").primaryKey(),
+    date: text("date").notNull(),
+    item: text("item").notNull(), // "creatine"
+    amount: real("amount").notNull(),
+    unit: text("unit").notNull(), // "g"
+    at: integer("at").notNull(),
+  },
+  (t) => [index("intake_date").on(t.item, t.date)],
+);
+
 /** Key/value settings (schedule choice, unit prefs). */
 export const settings = sqliteTable("settings", {
   key: text("key").primaryKey(),

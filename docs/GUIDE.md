@@ -9,23 +9,31 @@ Your personal training tracker. It runs free on Cloudflare (Workers + D1). On yo
 4. After each set, tap the **RIR** you had left (0 = failure, 4+ = easy). This is optional but very useful for the review.
 5. **Finish** → rate the session 1-10 → add a note → done.
 
-## Every screen
+## Every screen (phone: bottom bar + More · PC: left sidebar)
 
-| Screen | What it does |
+| Page | What it's for |
 |---|---|
-| **Today** | Next session in program order · Start · **Can't train** (log an excuse) · **Other day** (pick any session) · this week's dots · 7-day stats |
-| **Workout** | Exercises in order · set logging · rest timer · swaps · notes · pain · how-to videos |
-| **History** | Every session, missed day and excuse, grouped by week. Tap a session to view or edit it. |
-| **Progress** | Workouts, adherence %, hard sets/week, per-exercise trend (est. 1-rep max, best hold, best reps), missed-day reasons, pain log |
-| **Me** | **Body** (weight, waist, sleep, protein, steps, water, creatine, energy) · **Tests** (pull-ups, hangs, dips…) · **Story** (free journal) · **Plan** (schedule A/B, rules, version, download all data) |
+| **Home** | Dashboard: next workout (with exercise thumbnails), this week, streak, adherence %, minutes, creatine today, training calendar (heatmap), insights, sets/week, bodyweight trend |
+| **Plan** | The whole month: Week 1-4 tabs, every day and exercise with thumbnails, targets, rest, technique (ⓘ explains words like "drop set"). Start any day from here. |
+| **History** | Calendar + every workout and missed day (with the reason). Filter all / workouts / missed. Tap a workout to see or edit it. |
+| **Stats** | "Am I getting stronger?" Insights, hard sets per muscle vs the 10-20 target, per-week bars, per-exercise trend (tap for chart + table), missed-day reasons, pain log |
+| **Creatine** | Daily grams: one tap for 3/5/10 g, progress ring, streak, calendar |
+| **Body & habits** | Weight, waist, sleep, protein, steps, water, energy. **Not daily**: fill only what you know, whenever (weekly weigh-in is enough). |
+| **Tests** | Max-effort benchmarks (pull-ups, dips, hangs…). Test at the start and on Week 4 · Day 6. |
+| **Journal** | Your story in your own words (wins, struggles, pain, life). The monthly review reads it for context. |
+| **Learn** | Words & set types, warm-up checklist, pull-up/dip levels, "what if…", nutrition, safety |
+| **Settings** | Schedule A/B, creatine target, download all data, log out, **Reset (delete everything)** |
+
+**Colors mean one thing each:** green = done / main button · amber = in progress / tips · red = pain, missed, delete · blue = rest timer & explanations · violet = creatine.
 
 ## Inside a workout
 - **Tap an exercise** to open or close it. After each set, the app moves you to the right place: superset partners alternate A1 → A2 → A1, then it goes to the next exercise.
 - **Tap a logged set** to edit everything about it: kg, reps, seconds, set type (warm-up / normal / drop / failure / rest-pause), RIR, quick tags, a free **note**, and **pain** (area + mild/moderate/sharp). You can delete it here too.
 - **Undo**: right after logging, an "Undo" button shows for 6 seconds.
-- **+ Drop / + Warm-up / + Set**: extra sets. Warm-ups don't count toward volume.
-- **▶ How**: muscles, form cues and the YouTube video (it only loads when you tap it), plus a YouTube search link.
-- **⋯ menu**: swap for an alternative · ±1 planned set · move up/down · skip the exercise today.
+- **Extra: Set / Drop set / Warm-up**: log sets beyond the plan. Tap ⓘ to see what a drop set is. Warm-ups don't count toward volume.
+- **How-to video**: muscles, form cues and the YouTube video (it only loads when you tap it), plus a YouTube search link.
+- **Swap · skip · more**: swap for an alternative · ±1 planned set · move up/down · skip the exercise today.
+- Orange technique text with ⓘ (e.g. "Last set: drop set") → tap it for a plain explanation.
 - **Holds** (dead hang, hollow, plates): tap **⏱ Time the hold** to start, and tap again to stop. The seconds fill in.
 - **Bands / assisted**: type the band colour or assist kg in the left box.
 
@@ -51,6 +59,9 @@ Your personal training tracker. It runs free on Cloudflare (Workers + D1). On yo
 
 ## What gets recorded
 Every session (start/end time, readiness, RPE, bodyweight, note), every set (kg, reps, seconds, meters, band, RIR, set type, real rest taken, time, note, pain, swap), every missed day + reason, body logs, tests, journal, and an **event log of every tap** (set done/edit/delete/undo, rest start/adjust/skip, swaps, skips, video opens, …).
+
+## Testing first, then a clean start
+Play with the app as much as you like. When you're ready to track for real: **Settings → Reset**, type `DELETE`, confirm. Every record is wiped from the database (and this device's cache). Your program stays.
 
 ## Monthly loop with Claude
 1. Train for 1-4 weeks.

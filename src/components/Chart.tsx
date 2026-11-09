@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useWidth } from "../lib/useWidth";
 
 // Single-series charts: one accent colour, 2px line, 8px markers, recessive axes,
 // tap/hover shows the exact value (no numbers on every point). Tables sit beside them.
@@ -7,8 +8,9 @@ type P = { x: string; y: number; label?: string };
 
 export function LineChart({ points, unit, height = 140 }: { points: P[]; unit: string; height?: number }) {
   const [hi, setHi] = useState<number | null>(null);
-  if (points.length === 0) return null;
-  const W = 320, H = height, pad = { l: 8, r: 8, t: 12, b: 18 };
+  const [ref, W] = useWidth<HTMLDivElement>();
+  if (points.length === 0) return <div ref={ref} />;
+  const H = height, pad = { l: 8, r: 8, t: 12, b: 18 };
   const ys = points.map((p) => p.y);
   let lo = Math.min(...ys), hiY = Math.max(...ys);
   if (lo === hiY) { lo -= 1; hiY += 1; }
@@ -24,14 +26,16 @@ export function LineChart({ points, unit, height = 140 }: { points: P[]; unit: s
     setHi(best);
   };
   return (
-    <div>
+    <div ref={ref}>
       <div className="mb-1 flex items-baseline justify-between text-sm">
-        <span className="font-semibold num">{points[sel].label ?? `${points[sel].y} ${unit}`}</span>
+        <span className="font-semibold num">{points[sel].label ?? `${Math.round(points[sel].y * 10) / 10} ${unit}`}</span>
         <span className="text-xs text-mute">{points[sel].x}</span>
       </div>
       <svg
         viewBox={`0 0 ${W} ${H}`}
-        className="w-full touch-none select-none"
+        width={W}
+        height={H}
+        className="block touch-none select-none"
         onPointerMove={(e) => pick(e.clientX, e.currentTarget)}
         onPointerDown={(e) => pick(e.clientX, e.currentTarget)}
         onPointerLeave={() => setHi(null)}
@@ -59,7 +63,7 @@ export function Bars({ data, unit }: { data: P[]; unit: string }) {
   return (
     <div>
       <div className="mb-1 flex items-baseline justify-between text-sm">
-        <span className="font-semibold num">{data[sel].y} {unit}</span>
+        <span className="font-semibold num">{Math.round(data[sel].y).toLocaleString()} {unit}</span>
         <span className="text-xs text-mute">{data[sel].x}</span>
       </div>
       <div className="flex h-24 items-end gap-0.5" onPointerLeave={() => setHi(null)}>

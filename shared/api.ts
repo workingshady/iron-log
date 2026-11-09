@@ -132,3 +132,17 @@ export interface ProgressData {
   excuses: { excuse: string; n: number }[];
   pains: { date: string; exKey: string; area: string | null; level: number | null; note: string | null }[];
 }
+
+export interface DashboardData {
+  days: Record<string, { status: string; sets: number; minutes: number; names: string[] }>;
+  streak: number;
+  bestStreak: number;
+  adherence: number | null;
+  creatine: { today: number; target: number; streak: number; days: Record<string, number> };
+  body: { date: string; weightKg: number | null }[];
+}
+
+export interface InsightsData {
+  insights: { tone: "good" | "warn" | "bad" | "info"; title: string; text: string }[];
+  muscles: { groups: readonly string[]; weeks: { week: number; sets: Record<string, number> }[] };
+}

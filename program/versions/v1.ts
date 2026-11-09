@@ -38,7 +38,7 @@ export const v1: Program = {
     {
       n: 1, name: "Re-entry", brief: "RIR 3. No drop sets. Find your working weights and write them all down.",
       days: [
-        day("D1", "Push", "Heavy chest + dip builder · do the Day-1 tests first", [
+        day("D1", "Push", "Heavy chest + dip builder", [
           rx("bench", "3x6", { rir: 3, rest: 150 }),
           rx("db_ohp", "3x8", { rir: 3, rest: 120 }),
           rx("dip_hold", "2x20s", { rest: 60 }),
@@ -270,7 +270,7 @@ export const v1: Program = {
           rx("wrist_curl", "2x15", { rest: 0, tag: "E1" }),
           rx("rev_wrist_curl", "2x15", { rest: 45, tag: "E2" }),
         ]),
-        day("D6", "Shoulders + Arms", "TEST DAY first (warm-up → tests → this list)", [
+        day("D6", "Shoulders + Arms", "Test day: warm-up → tests (More → Tests) → this list", [
           rx("ohp", "2x6", { rir: 3, rest: 150 }),
           rx("cable_lateral", "2x15", { rest: 60 }),
           rx("rear_delt_fly", "2x15", { rest: 60 }),

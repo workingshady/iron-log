@@ -6,7 +6,7 @@ Goals: muscle + strength, first strict pull-ups and dips, strong core, wrestler 
 ## Stack (all Cloudflare free tier)
 - `worker/`: Hono API on Cloudflare Workers. `worker/db/schema.ts` = Drizzle schema for D1 (SQLite).
 - `src/`: React + Tailwind v4 mobile UI (Vite + `@cloudflare/vite-plugin`). Hash routes, no router lib.
-- `program/`: **the training plan as data.** `exercises.ts` (library), `versions/vN.ts` (plans), `swaps.ts` (alternative conversions), `index.ts` (`CURRENT`).
+- `program/`: **the training plan as data.** `exercises.ts` (library + YouTube ids; check with `npx tsx scripts/check-videos.ts`), `versions/vN.ts` (plans), `swaps.ts` (alternative conversions), `groups.ts` (muscle group per exercise), `learn.ts` (glossary, warm-up, levels, what-if, nutrition), `index.ts` (`CURRENT`).
 - `shared/`: types + pick-lists (excuses, set kinds, pain areas) used by both sides.
 - `private/`: git-ignored. Exports land in `private/exports/<date>/`.
 
@@ -16,7 +16,8 @@ Commands: `npm run dev` · `npm run check` (validate program + types) · `npm ru
 - `sessions`: status `active|done|abandoned|missed|skipped`, kind `planned|picked|extra`. `plan` JSON = the exact plan used (swaps included). `readiness` JSON (sleep/energy/mood/stress/soreness 1-5), `rpe` 1-10, `excuse` id.
 - `sets`: kg/reps/seconds/meters/assist, `rir`, `kind` (N/W/D/F/R), `rest_before_s` (real rest), `done_at`, `note`, `pain_area`+`pain_level` (1-3), `swapped_from`, `deleted`.
 - `events`: every tap (`set_done`, `set_edit`, `set_undo`, `rest_start/adjust/skip/done`, `ex_swap` {from,to,reason}, `ex_skip`, `ex_move`, `video_open`, `session_*`…).
-- `body`, `tests`, `journal`, `settings`, `program_versions` (a snapshot of each version used).
+- `body` (optional, any day), `tests`, `journal`, `intake` (creatine grams: item/amount/unit per entry), `settings` (schedule, creatineTarget), `program_versions` (a snapshot of each version used).
+- Derived: `/api/dashboard` (calendar, forgiving streak: planned-rest/sick misses don't break it, adherence, creatine), `/api/insights` (`worker/insights.ts` rules + sets per muscle group from `program/groups.ts`).
 - Plan position = the first (week, day) in `program.order` with no `done`/`skipped` session for this program id. `missed` does **not** advance it.
 
 ## Review workflow (when asked to analyse data / make the next version)
@@ -32,6 +33,9 @@ Commands: `npm run dev` · `npm run check` (validate program + types) · `npm ru
 3. Make the new version: copy `program/versions/vN.ts` → `vN+1.ts`, bump `version` (minor for tweaks, major for a new block), and write `changelog` in 1-2 lines. Add it to `ALL_VERSIONS` and set `CURRENT`. A new program id starts the plan position from Week 1. The same id with a new version keeps the position.
 4. Add a section to `program/CHANGELOG.md`: what changed and **why (with the data that showed it)**.
 5. `npm run check` → `npm run deploy` → commit.
+
+## UI principles in use
+Gestalt grouping (one card = one topic, labels next to values), one meaning per color (green done/primary, amber in-progress/tips, red pain/missed/destructive, blue rest/info, violet creatine), dark grey surfaces stepping lighter for depth, one primary action per screen (Hick), ≥44px targets with the main button low (Fitts), details in sheets (progressive disclosure), a forgiving streak plus adherence % that never resets.
 
 ## Rules for code changes
 - Keep the UI decluttered: one primary action per screen, details behind a tap (sheets), no walls of text.

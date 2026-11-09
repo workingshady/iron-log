@@ -6,10 +6,13 @@ import { EXERCISES } from "../../program/exercises";
 import { DEFAULT_SWAP_NOTE, SWAP_REASONS, swapHint } from "../../program/swaps";
 import { cache, get, queue, track, uid } from "../lib/api";
 import { clock, cx, kg, niceDate, restLabel, roundTo, unlockAudio } from "../lib/util";
-import { Btn, Chips, Label, NumInput, Sheet, scale } from "../components/ui";
+import { Btn, Chips, Label, NumInput, Sheet, Thumb, scale } from "../components/ui";
+import { TechNote, InfoDot } from "../components/Terms";
+import { TERMS } from "../../program/learn";
+import { ArrowDown, ArrowLeftRight, ArrowUp, Check, ChevronLeft, Clock, Dumbbell, Flame, Layers, MoreHorizontal, NotebookPen, PlayCircle, Plus, Repeat, Ruler, SkipForward, Timer, TriangleAlert } from "lucide-react";
 import { HowTo } from "../components/HowTo";
 import { RestTimer, loadRest, saveRest, type Rest } from "../components/RestTimer";
-import { go } from "../App";
+import { go } from "../nav";
 
 type Draft = { weight: string; reps: string; seconds: string; meters: string; assist: string };
 const workSets = (sets: SetLog[], i: number) => sets.filter((s) => s.itemIdx === i && s.kind !== "W");
@@ -133,12 +136,12 @@ export default function SessionScreen({ id }: { id: string }) {
 
   return (
     <div>
-      <header className="sticky top-0 z-30 -mx-4 mb-3 border-b border-line bg-bg/95 px-4 pb-3 pt-2 backdrop-blur">
+      <header className="sticky top-0 z-30 -mx-4 mb-3 border-b border-line bg-bg/95 px-4 pb-3 pt-2 backdrop-blur md:-mx-8 md:px-8">
         <div className="flex items-center gap-3">
-          <button onClick={() => go(live ? "/" : "/history")} className="h-10 w-10 rounded-full bg-card2 text-lg" aria-label="Back">‹</button>
+          <button onClick={() => go(live ? "/" : "/history")} className="flex h-10 w-10 items-center justify-center rounded-full bg-card2" aria-label="Back"><ChevronLeft size={20} /></button>
           <div className="min-w-0 flex-1">
             <div className="truncate font-semibold">W{s.week} · {s.dayName}{s.kind === "extra" && " (extra)"}</div>
-            <div className="text-xs text-mute">{live ? "Live" : `${s.status} · ${niceDate(s.date)}`} · {done}/{total} sets</div>
+            <div className="flex items-center gap-1.5 text-xs text-mute">{live ? <span className="inline-flex items-center gap-1 text-warn"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-warn" />live</span> : `${s.status} · ${niceDate(s.date)}`} · {done}/{total} sets</div>
           </div>
           <Elapsed from={s.startedAt} to={live ? null : s.endedAt} />
           <Btn kind={live ? "primary" : "soft"} className="min-h-10 px-3 text-sm" onClick={() => setSheet({ k: "finish" })}>
@@ -168,7 +171,7 @@ export default function SessionScreen({ id }: { id: string }) {
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-2">
-        <Btn kind="soft" onClick={() => setSheet({ k: "swap", i: -1 })}>+ Exercise</Btn>
+        <Btn kind="soft" icon={Plus} onClick={() => setSheet({ k: "swap", i: -1 })}>Add exercise</Btn>
         <Btn kind={live ? "primary" : "soft"} onClick={() => setSheet({ k: "finish" })}>{live ? "Finish workout" : "Edit session"}</Btn>
       </div>
 
@@ -321,13 +324,16 @@ function ExerciseCard({ i, it, sets, last, open, onToggle, onLog, onSet, onRir, 
   return (
     <section className={cx("rounded-2xl bg-card", it.skipped && "opacity-50", open && "ring-1 ring-line")}>
       <button onClick={onToggle} className="flex w-full items-center gap-3 p-4 text-left">
-        <span className={cx("flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold", complete ? "bg-acc text-acc-ink" : "bg-card2 text-mute")}>
-          {complete ? "✓" : it.tag ?? i + 1}
+        <span className="relative shrink-0">
+          <Thumb yt={it.yt[0]} className={cx("h-11 w-16", complete && "opacity-50")} />
+          <span className={cx("absolute -left-1.5 -top-1.5 flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-[11px] font-bold ring-2 ring-card", complete ? "bg-acc text-acc-ink" : "bg-card3 text-ink")}>
+            {complete ? <Check size={13} strokeWidth={3} /> : it.tag ?? i + 1}
+          </span>
         </span>
         <span className="min-w-0 flex-1">
           <span className={cx("block truncate font-semibold", it.skipped && "line-through")}>{it.name}</span>
           <span className="block truncate text-xs text-mute">
-            {targetLabel(it)} · rest {restLabel(it.rest)}{it.swappedFrom ? ` · swapped from ${EXERCISES[it.swappedFrom]?.name ?? it.swappedFrom}` : ""}
+            {targetLabel(it)} · <Clock size={10} className="inline" /> {restLabel(it.rest)}{it.swappedFrom ? ` · swapped from ${EXERCISES[it.swappedFrom]?.name ?? it.swappedFrom}` : ""}
           </span>
         </span>
         <span className="text-sm text-mute num">{work.length}/{it.sets}</span>
@@ -337,7 +343,7 @@ function ExerciseCard({ i, it, sets, last, open, onToggle, onLog, onSet, onRir, 
         <div className="px-4 pb-4">
           {(it.tech || last || it.startKg) && (
             <div className="mb-3 space-y-1 text-xs">
-              {it.tech && <div className="text-warn">{it.tech}</div>}
+              {it.tech && <TechNote text={it.tech} />}
               {last && <div className="text-mute">Last ({niceDate(last.date)}): {last.sets.filter((x) => x.kind !== "W").map(fmtSet).join(" · ")}</div>}
               {!last && it.startKg != null && <div className="text-mute">Suggested start ≈ {it.startKg} kg</div>}
             </div>
@@ -347,11 +353,11 @@ function ExerciseCard({ i, it, sets, last, open, onToggle, onLog, onSet, onRir, 
             {sets.map((x, k) => (
               <div key={x.id}>
                 <button onClick={() => onSet(x)} className="flex min-h-11 w-full items-center gap-3 rounded-xl bg-card2 px-3 text-left">
-                  <span className="w-6 text-xs text-mute">{x.kind === "N" ? k + 1 : x.kind}</span>
+                  <span className="w-14 text-xs text-mute">{x.kind === "N" ? `Set ${sets.slice(0, k + 1).filter((y) => y.kind === "N").length}` : ({ W: "warm-up", D: "drop", F: "failure", R: "rest-p." } as Record<string, string>)[x.kind]}</span>
                   <span className="flex-1 font-semibold num">{fmtSet(x)}</span>
                   {x.rir != null && <span className="text-xs text-mute">RIR {x.rir}</span>}
                   {x.restBeforeS != null && k > 0 && <span className="text-xs text-mute">{clock(x.restBeforeS * 1000)}</span>}
-                  {(x.note || x.painLevel) && <span className={x.painLevel ? "text-bad" : "text-mute"}>{x.painLevel ? "⚠" : "✎"}</span>}
+                  {x.painLevel ? <TriangleAlert size={15} className="text-bad" /> : x.note ? <NotebookPen size={15} className="text-mute" /> : null}
                 </button>
                 {k === sets.length - 1 && needRir && (
                   <div className="mt-1.5 flex items-center gap-1.5 pl-9">
@@ -367,13 +373,16 @@ function ExerciseCard({ i, it, sets, last, open, onToggle, onLog, onSet, onRir, 
 
           {!complete && <SetInput it={it} d={d} setD={setD} n={work.length + 1} onLog={() => onLog(d)} />}
 
-          <div className="mt-3 flex flex-wrap gap-2 text-sm">
-            {complete && <button onClick={() => onLog(d)} className="min-h-10 rounded-lg bg-card2 px-3">+ Set</button>}
-            <button onClick={() => onLog(d, "D")} className="min-h-10 rounded-lg bg-card2 px-3">+ Drop</button>
-            <button onClick={() => onLog(d, "W")} className="min-h-10 rounded-lg bg-card2 px-3">+ Warm-up</button>
-            <span className="flex-1" />
-            <button onClick={onHow} className="min-h-10 rounded-lg bg-card2 px-3">▶ How</button>
-            <button onClick={onMenu} className="min-h-10 rounded-lg bg-card2 px-3" aria-label="More">⋯</button>
+          <div className="mt-3 flex items-center gap-1.5 overflow-x-auto text-sm">
+            <span className="shrink-0 text-xs text-faint">Extra:</span>
+            {complete && <button onClick={() => onLog(d)} className="inline-flex min-h-10 shrink-0 items-center gap-1 rounded-lg bg-card2 px-2.5"><Plus size={14} />Set</button>}
+            <button onClick={() => onLog(d, "D")} className="inline-flex min-h-10 shrink-0 items-center gap-1 rounded-lg bg-card2 px-2.5"><Layers size={14} />Drop set</button>
+            <button onClick={() => onLog(d, "W")} className="inline-flex min-h-10 shrink-0 items-center gap-1 rounded-lg bg-card2 px-2.5"><Flame size={14} />Warm-up</button>
+            <InfoDot term={TERMS.find((t) => t.key === "drop")!} />
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+            <button onClick={onHow} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-card2"><PlayCircle size={16} className="text-info" />How-to video</button>
+            <button onClick={onMenu} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-card2"><MoreHorizontal size={16} />Swap · skip · more</button>
           </div>
           {complete && <SetInput it={it} d={d} setD={setD} n={work.length + 1} hidden />}
         </div>
@@ -412,16 +421,20 @@ function SetInput({ it, d, setD, n, onLog, hidden }: { it: PlanItem; d: Draft; s
   const bump = (k: keyof Draft, by: number, min = 0) => setD({ ...d, [k]: String(Math.max(min, +(Number(d[k] || 0) + by).toFixed(2))) });
   const m = it.metric;
 
-  const field = (k: keyof Draft, label: string, step: number, placeholder = "") => (
-    <div className="flex-1">
-      <div className="mb-1 text-center text-[11px] text-mute">{label}</div>
+  const ICON = { weight: Dumbbell, reps: Repeat, seconds: Timer, meters: Ruler, assist: Dumbbell } as const;
+  const field = (k: keyof Draft, label: string, step: number, placeholder = "") => {
+    const I = ICON[k];
+    return (
+    <div className="min-w-0 flex-1">
+      <div className="mb-1 flex items-center justify-center gap-1 text-[11px] text-mute"><I size={12} />{label}</div>
       <div className="flex items-center gap-1">
         <button onClick={() => bump(k, -step)} className="h-12 w-10 shrink-0 rounded-xl bg-card2 text-xl" aria-label={`less ${label}`}>−</button>
         <NumInput value={d[k]} onChange={(v) => setD({ ...d, [k]: v })} placeholder={placeholder} />
         <button onClick={() => bump(k, step)} className="h-12 w-10 shrink-0 rounded-xl bg-card2 text-xl" aria-label={`more ${label}`}>+</button>
       </div>
     </div>
-  );
+    );
+  };
 
   return (
     <div className="mt-3 rounded-xl border border-line p-3">
@@ -447,10 +460,10 @@ function SetInput({ it, d, setD, n, onLog, hidden }: { it: PlanItem; d: Draft; s
           }}
           className={cx("mt-2 min-h-11 w-full rounded-xl text-sm font-semibold", hold != null ? "bg-warn text-black" : "bg-card2")}
         >
-          {hold != null ? `Stop hold · ${Math.round((Date.now() - hold) / 1000)}s` : "⏱ Time the hold"}
+          {hold != null ? `Stop · ${Math.round((Date.now() - hold) / 1000)} s` : "Start hold timer"}
         </button>
       )}
-      <Btn kind="primary" className="mt-3 w-full text-lg" onClick={onLog}>✓ Log set</Btn>
+      <Btn kind="primary" icon={Check} className="mt-3 w-full text-lg" onClick={onLog}>Log set {n}</Btn>
     </div>
   );
 }
@@ -466,14 +479,14 @@ function ItemMenu({ it, i, n, onClose, onSwap, onPlan }: {
   return (
     <Sheet open onClose={onClose} title={it.name}>
       <div className="grid gap-2">
-        <Btn kind="soft" onClick={onSwap}>⇄ Swap for alternative</Btn>
+        <Btn kind="soft" icon={ArrowLeftRight} onClick={onSwap}>Swap for an alternative</Btn>
         <div className="grid grid-cols-2 gap-2">
           <Btn kind="soft" onClick={() => edit((x) => ({ ...x, sets: x.sets + 1 }), "ex_add_set")}>+1 planned set</Btn>
           <Btn kind="soft" disabled={it.sets <= 1} onClick={() => edit((x) => ({ ...x, sets: x.sets - 1 }), "ex_remove_set")}>−1 planned set</Btn>
-          <Btn kind="soft" disabled={i === 0} onClick={() => move(-1)}>↑ Move up</Btn>
-          <Btn kind="soft" disabled={i === n - 1} onClick={() => move(1)}>↓ Move down</Btn>
+          <Btn kind="soft" icon={ArrowUp} disabled={i === 0} onClick={() => move(-1)}>Move up</Btn>
+          <Btn kind="soft" icon={ArrowDown} disabled={i === n - 1} onClick={() => move(1)}>Move down</Btn>
         </div>
-        <Btn kind={it.skipped ? "soft" : "danger"} onClick={() => edit((x) => ({ ...x, skipped: !x.skipped }), it.skipped ? "ex_unskip" : "ex_skip")}>
+        <Btn kind={it.skipped ? "soft" : "danger"} icon={SkipForward} onClick={() => edit((x) => ({ ...x, skipped: !x.skipped }), it.skipped ? "ex_unskip" : "ex_skip")}>
           {it.skipped ? "Un-skip exercise" : "Skip exercise today"}
         </Btn>
       </div>
@@ -516,10 +529,13 @@ function SwapSheet({ it, lastWeight, sessionId, onClose, onPick }: {
               const h = origin ? swapHint(origin, a.key) : {};
               const sk = h.ratio && lastWeight ? roundTo(lastWeight * h.ratio, EXERCISES[a.key]?.step ?? 2.5) : null;
               return (
-                <button key={a.key} onClick={() => pick(a.key)} className="rounded-xl bg-card2 p-3 text-left">
+                <button key={a.key} onClick={() => pick(a.key)} className="flex items-center gap-3 rounded-xl bg-card2 p-2.5 text-left hover:bg-card3">
+                  <Thumb yt={(() => { const y = EXERCISES[a.key]?.yt; return Array.isArray(y) ? y[0] : y; })()} />
+                  <div className="min-w-0 flex-1">
                   <div className="font-semibold">{a.name}</div>
                   <div className="text-xs text-mute">
                     {[sk != null && `start ≈ ${sk} kg`, h.reps && `reps ${Array.isArray(h.reps) ? h.reps.join("-") : h.reps}`, h.note].filter(Boolean).join(" · ") || "same sets · reps · RIR"}
+                  </div>
                   </div>
                 </button>
               );
@@ -533,8 +549,9 @@ function SwapSheet({ it, lastWeight, sessionId, onClose, onPick }: {
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search exercises" className="mt-3 min-h-12 w-full rounded-xl bg-card2 px-3 outline-none focus:ring-2 focus:ring-acc" />
           <div className="mt-2 grid gap-1">
             {list.map((e) => (
-              <button key={e.key} onClick={() => pick(e.key)} className="rounded-lg px-2 py-2.5 text-left hover:bg-card2">
-                {e.name} <span className="text-xs text-mute">· {e.muscles}</span>
+              <button key={e.key} onClick={() => pick(e.key)} className="flex items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-card2">
+                <Thumb yt={Array.isArray(e.yt) ? e.yt[0] : e.yt} className="h-9 w-12" />
+                <span className="min-w-0 flex-1 truncate">{e.name} <span className="text-xs text-mute">· {e.muscles}</span></span>
               </button>
             ))}
           </div>

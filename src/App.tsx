@@ -1,31 +1,36 @@
 import { useEffect, useState } from "react";
+import { CloudOff } from "lucide-react";
 import { get, onPending, Unauthorized } from "./lib/api";
 import { cx } from "./lib/util";
+import { MAIN, MORE, MORE_TAB } from "./nav";
 import Login from "./screens/Login";
-import Today from "./screens/Today";
+import Home from "./screens/Home";
+import Plan from "./screens/Plan";
 import SessionScreen from "./screens/Session";
 import History from "./screens/History";
-import Progress from "./screens/Progress";
-import Me from "./screens/Me";
+import Stats from "./screens/Stats";
+import Body from "./screens/Body";
+import Creatine from "./screens/Creatine";
+import Tests from "./screens/Tests";
+import Journal from "./screens/Journal";
+import Learn from "./screens/Learn";
+import Settings from "./screens/Settings";
+import More from "./screens/More";
 
-// Hash routes: #/ · #/s/<id> · #/history · #/progress · #/me
 function useRoute() {
   const [h, setH] = useState(location.hash.slice(1) || "/");
   useEffect(() => {
-    const f = () => setH(location.hash.slice(1) || "/");
+    const f = () => { setH(location.hash.slice(1) || "/"); window.scrollTo(0, 0); };
     window.addEventListener("hashchange", f);
     return () => window.removeEventListener("hashchange", f);
   }, []);
   return h;
 }
-export const go = (path: string) => (location.hash = path);
 
-const TABS = [
-  { path: "/", label: "Today", icon: "M3 12l9-8 9 8M5 10v10h14V10" },
-  { path: "/history", label: "History", icon: "M12 8v4l3 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z" },
-  { path: "/progress", label: "Progress", icon: "M4 19V9M10 19V5M16 19v-7M22 19H2" },
-  { path: "/me", label: "Me", icon: "M12 12a4 4 0 100-8 4 4 0 000 8zM4 21a8 8 0 0116 0" },
-];
+const PAGES: Record<string, () => React.ReactElement | null> = {
+  "/": Home, "/plan": Plan, "/history": History, "/stats": Stats, "/body": Body, "/creatine": Creatine,
+  "/tests": Tests, "/journal": Journal, "/learn": Learn, "/settings": Settings, "/more": More,
+};
 
 export default function App() {
   const route = useRoute();
@@ -35,46 +40,78 @@ export default function App() {
   useEffect(() => {
     get("/me").then(() => setAuth("in")).catch((e) => setAuth(e instanceof Unauthorized ? "out" : "in"));
   }, []);
-  useEffect(() => onPending(setPending), []);
+  // show the "waiting to sync" badge only if writes stay stuck (offline / >6 s), not for normal in-flight saves
+  const [raw, setRaw] = useState(0);
+  useEffect(() => onPending(setRaw), []);
+  useEffect(() => {
+    if (!raw) { setPending(0); return; }
+    if (!navigator.onLine) { setPending(raw); return; }
+    const t = setTimeout(() => setPending(raw), 6000);
+    return () => clearTimeout(t);
+  }, [raw]);
 
   if (auth === "checking") return null;
   if (auth === "out") return <Login onIn={() => setAuth("in")} />;
 
   const inSession = route.startsWith("/s/");
+  const Page = PAGES[route] ?? Home;
+  const isMore = MORE.some((m) => m.path === route) || route === "/more";
+
   return (
-    <div className="mx-auto min-h-dvh max-w-lg">
+    <div className="min-h-dvh md:pl-60">
+      {/* Desktop sidebar */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-line bg-bg px-3 py-5 md:flex">
+        <a href="#/" className="mb-6 flex items-center gap-2 px-2 text-lg font-bold">
+          <img src="/icon.svg" alt="" className="h-8 w-8" /> Iron Log
+        </a>
+        <NavList items={MAIN} route={route} />
+        <div className="mx-2 my-4 h-px bg-line" />
+        <NavList items={MORE} route={route} />
+      </aside>
+
       {pending > 0 && (
-        <div className="fixed right-3 top-3 z-40 rounded-full bg-warn px-2.5 py-1 text-xs font-semibold text-black">
-          {pending} unsynced
+        <div className="fixed right-3 top-3 z-40 inline-flex items-center gap-1.5 rounded-full bg-warn px-2.5 py-1 text-xs font-semibold text-black">
+          <CloudOff size={13} /> {pending} waiting to sync
         </div>
       )}
-      <main className={cx("px-4 pt-4", inSession ? "pb-40" : "pb-28")}>
-        {inSession ? (
-          <SessionScreen key={route} id={route.slice(3)} />
-        ) : route === "/history" ? (
-          <History />
-        ) : route === "/progress" ? (
-          <Progress />
-        ) : route === "/me" ? (
-          <Me />
-        ) : (
-          <Today />
-        )}
+
+      <main className={cx("mx-auto px-4 pt-5 md:px-8 md:pt-8", inSession ? "max-w-2xl pb-40" : "max-w-5xl pb-28 md:pb-12")}>
+        {inSession ? <SessionScreen key={route} id={route.slice(3)} /> : <Page />}
       </main>
+
+      {/* Phone bottom bar */}
       {!inSession && (
-        <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg/95 backdrop-blur safe-b">
+        <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg/95 backdrop-blur safe-b md:hidden">
           <div className="mx-auto flex max-w-lg">
-            {TABS.map((t) => (
-              <a key={t.path} href={`#${t.path}`} className={cx("flex flex-1 flex-col items-center gap-1 py-2.5 text-xs", route === t.path ? "text-acc" : "text-mute")}>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d={t.icon} />
-                </svg>
-                {t.label}
-              </a>
-            ))}
+            {[...MAIN, MORE_TAB].map((t) => {
+              const on = t === MORE_TAB ? isMore : route === t.path;
+              return (
+                <a key={t.path} href={`#${t.path}`} className={cx("flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px]", on ? "text-acc" : "text-mute")}>
+                  <t.icon size={22} strokeWidth={on ? 2.4 : 1.8} />
+                  {t.label}
+                </a>
+              );
+            })}
           </div>
         </nav>
       )}
     </div>
+  );
+}
+
+function NavList({ items, route }: { items: typeof MAIN; route: string }) {
+  return (
+    <nav className="flex flex-col gap-0.5">
+      {items.map((t) => (
+        <a
+          key={t.path}
+          href={`#${t.path}`}
+          className={cx("flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm", route === t.path ? "bg-card2 font-semibold text-ink" : "text-mute hover:bg-card hover:text-ink")}
+        >
+          <t.icon size={18} className={route === t.path ? "text-acc" : ""} />
+          {t.label}
+        </a>
+      ))}
+    </nav>
   );
 }

@@ -1,0 +1,2 @@
+# Copy to .dev.vars for local dev. Production: `npx wrangler secret put APP_PASSCODE`
+APP_PASSCODE=1234

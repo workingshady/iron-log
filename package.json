@@ -1,0 +1,41 @@
+{
+  "name": "iron-log",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "npm run build && vite preview",
+    "deploy": "npm run build && wrangler deploy",
+    "check": "tsx scripts/check-program.ts && tsc -b",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "wrangler d1 migrations apply iron-log --local",
+    "db:migrate:remote": "wrangler d1 migrations apply iron-log --remote",
+    "export": "node scripts/export.mjs",
+    "export:local": "node scripts/export.mjs --local",
+    "cf-typegen": "wrangler types"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.4",
+    "hono": "^4.13.17",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.67.0",
+    "@cloudflare/workers-types": "^5.20261109.1",
+    "@tailwindcss/vite": "^4.3.5",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "drizzle-kit": "^0.31.11",
+    "tailwindcss": "^4.3.5",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.7",
+    "wrangler": "^4.158.0"
+  },
+  "description": "Personal training tracker (Cloudflare Workers + D1). Program lives in /program.",
+  "type": "module"
+}

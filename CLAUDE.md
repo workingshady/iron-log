@@ -1,0 +1,41 @@
+# Iron Log: notes for Claude
+
+Personal training tracker for Shady (Cairo, UTC+3, Fri-Sat weekend; ~174 cm, ~80 kg, returning after a break).
+Goals: muscle + strength, first strict pull-ups and dips, strong core, wrestler traps/neck/forearms/grip, healthy wrists.
+
+## Stack (all Cloudflare free tier)
+- `worker/`: Hono API on Cloudflare Workers. `worker/db/schema.ts` = Drizzle schema for D1 (SQLite).
+- `src/`: React + Tailwind v4 mobile UI (Vite + `@cloudflare/vite-plugin`). Hash routes, no router lib.
+- `program/`: **the training plan as data.** `exercises.ts` (library), `versions/vN.ts` (plans), `swaps.ts` (alternative conversions), `index.ts` (`CURRENT`).
+- `shared/`: types + pick-lists (excuses, set kinds, pain areas) used by both sides.
+- `private/`: git-ignored. Exports land in `private/exports/<date>/`.
+
+Commands: `npm run dev` · `npm run check` (validate program + types) · `npm run deploy` · `npm run export` (live DB → private/exports) · `npm run db:generate` then `db:migrate` / `db:migrate:remote` after schema edits.
+
+## Data model (D1)
+- `sessions`: status `active|done|abandoned|missed|skipped`, kind `planned|picked|extra`. `plan` JSON = the exact plan used (swaps included). `readiness` JSON (sleep/energy/mood/stress/soreness 1-5), `rpe` 1-10, `excuse` id.
+- `sets`: kg/reps/seconds/meters/assist, `rir`, `kind` (N/W/D/F/R), `rest_before_s` (real rest), `done_at`, `note`, `pain_area`+`pain_level` (1-3), `swapped_from`, `deleted`.
+- `events`: every tap (`set_done`, `set_edit`, `set_undo`, `rest_start/adjust/skip/done`, `ex_swap` {from,to,reason}, `ex_skip`, `ex_move`, `video_open`, `session_*`…).
+- `body`, `tests`, `journal`, `settings`, `program_versions` (a snapshot of each version used).
+- Plan position = the first (week, day) in `program.order` with no `done`/`skipped` session for this program id. `missed` does **not** advance it.
+
+## Review workflow (when asked to analyse data / make the next version)
+1. `npm run export`, then read `private/exports/<latest>/summary.md` first, then the JSON as needed.
+2. Look at the following, per exercise and per week:
+   - **Progression:** hit the top of the rep range at the target RIR → raise load (+2.5 kg upper / +5 kg lower, or the next DB step). Stalled 2+ sessions → change rep range or variation.
+   - **Effort accuracy:** logged RIR vs the target. Constantly easier → raise targets. RIR 0 everywhere → too much.
+   - **Recovery:** readiness trends, session RPE, sleep/body logs, duration creep, real rest vs prescribed.
+   - **Adherence:** missed/skipped + excuse patterns (e.g. Thursdays always missed → move days or shorten that session).
+   - **Pain & swaps:** repeated pain areas or swaps on one lift → replace it, lower volume, or change grip/ROM. Take pain seriously; sharp (3) = remove the movement.
+   - **Pull-up / dip level** from tests and sets → apply the level table (0 / 1-3 / 4-7 / 8+) from the original plan.
+   - **Journal:** life context explains bad weeks. Don't punish a stressful week.
+3. Make the new version: copy `program/versions/vN.ts` → `vN+1.ts`, bump `version` (minor for tweaks, major for a new block), and write `changelog` in 1-2 lines. Add it to `ALL_VERSIONS` and set `CURRENT`. A new program id starts the plan position from Week 1. The same id with a new version keeps the position.
+4. Add a section to `program/CHANGELOG.md`: what changed and **why (with the data that showed it)**.
+5. `npm run check` → `npm run deploy` → commit.
+
+## Rules for code changes
+- Keep the UI decluttered: one primary action per screen, details behind a tap (sheets), no walls of text.
+- Big touch targets (≥44px), numbers in tabular figures, dark theme tokens in `src/index.css`.
+- Never break offline logging: all writes go through `queue()` in `src/lib/api.ts` with client-generated ids.
+- Don't rename stored ids (exercise keys, excuse ids, set kinds). Add new ones instead.
+- Commits: no Co-Authored-By trailer. Never commit `private/` or `docs/superpowers/`.

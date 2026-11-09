@@ -120,19 +120,35 @@ if (typeof window !== "undefined") {
 
 // ---------------------------------------------------------------- small cache (works offline mid-session)
 
+// Cached screens are tagged with the build id: after a deploy, data cached by an older
+// app version is ignored (old shapes crashed new screens → white page). The outbox is never touched.
+declare const __BUILD__: string;
+const BUILD = typeof __BUILD__ !== "undefined" ? __BUILD__ : "dev";
 export const cache = {
   get<T>(k: string): T | null {
     try {
-      return JSON.parse(localStorage.getItem(`il_c_${k}`) ?? "null");
+      const raw = JSON.parse(localStorage.getItem(`il_c_${k}`) ?? "null");
+      return raw && raw.__b === BUILD ? (raw.v as T) : null;
     } catch {
       return null;
     }
   },
   set(k: string, v: unknown) {
     try {
-      localStorage.setItem(`il_c_${k}`, JSON.stringify(v));
+      localStorage.setItem(`il_c_${k}`, JSON.stringify({ __b: BUILD, v }));
     } catch {
-      /* ignore */
+      /* storage full: drop old screen caches and retry once */
+      clearScreenCache();
+      try { localStorage.setItem(`il_c_${k}`, JSON.stringify({ __b: BUILD, v })); } catch { /* give up */ }
     }
   },
 };
+
+/** Remove cached screen data (keeps unsynced writes in the outbox). */
+export function clearScreenCache() {
+  try {
+    Object.keys(localStorage).filter((k) => k.startsWith("il_c_")).forEach((k) => localStorage.removeItem(k));
+  } catch {
+    /* ignore */
+  }
+}

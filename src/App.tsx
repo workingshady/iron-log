@@ -17,6 +17,7 @@ import Learn from "./screens/Learn";
 import Settings from "./screens/Settings";
 import More from "./screens/More";
 import Cardio from "./screens/Cardio";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 function useRoute() {
   const [h, setH] = useState(location.hash.slice(1) || "/");
@@ -77,7 +78,7 @@ export default function App() {
       )}
 
       <main className={cx("mx-auto px-4 pt-[calc(1.25rem+env(safe-area-inset-top))] md:px-8 md:pt-8", inSession ? "max-w-2xl pb-40" : "max-w-5xl pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-12")}>
-        {inSession ? <SessionScreen key={route} id={route.slice(3)} /> : <Page />}
+        <ErrorBoundary resetKey={route}>{inSession ? <SessionScreen key={route} id={route.slice(3)} /> : <Page />}</ErrorBoundary>
       </main>
 
       {/* Phone bottom bar */}

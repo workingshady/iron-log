@@ -41,7 +41,7 @@ export default function Cardio() {
 
   // which day is it? a lifting session done today wins; else the weekly schedule; else "rest"
   const todays = hist?.find((h) => h.date === today() && (h.status === "done" || h.status === "active"));
-  const sched = st?.settings.schedule ? st.schedules[st.settings.schedule] : null;
+  const sched = st?.settings?.schedule ? st.schedules[st.settings.schedule] : null;
   const dayKey = todays?.dayKey ?? (sched ? sched[new Date().getDay()] : null) ?? "rest";
   const plan = CARDIO_PLAN[dayKey === "rest" ? "rest" : dayKey] ?? null;
   const proto = PROTOCOLS[pick ?? plan?.key ?? "hill_walk30"];
@@ -83,8 +83,8 @@ export default function Cardio() {
         {/* week */}
         <div className="grid content-start gap-3">
           <Card title="This week" icon={Flame}>
-            <div className="text-3xl font-bold num">{dash?.cardioWeek.sessions ?? 0}<span className="text-base text-mute"> / 3 sessions</span></div>
-            <div className="text-sm text-mute num">{dash?.cardioWeek.minutes ?? 0} min · ~{dash?.cardioWeek.kcal ?? 0} kcal</div>
+            <div className="text-3xl font-bold num">{dash?.cardioWeek?.sessions ?? 0}<span className="text-base text-mute"> / 3 sessions</span></div>
+            <div className="text-sm text-mute num">{dash?.cardioWeek?.minutes ?? 0} min · ~{dash?.cardioWeek?.kcal ?? 0} kcal</div>
             <WeekDots days={dash?.cardioDays ?? {}} />
           </Card>
           <Card title="Where cardio goes" icon={Timer}>

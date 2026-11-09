@@ -1,5 +1,5 @@
 // Offline app shell. API calls are never cached here (the app's outbox handles them).
-const C = "iron-log-v1";
+const C = "iron-log-v2";
 self.addEventListener("install", (e) => { self.skipWaiting(); e.waitUntil(caches.open(C).then((c) => c.addAll(["/", "/icon.svg", "/manifest.webmanifest"]))); });
 self.addEventListener("activate", (e) => e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== C).map((k) => caches.delete(k)))).then(() => self.clients.claim())));
 self.addEventListener("fetch", (e) => {

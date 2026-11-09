@@ -148,7 +148,7 @@ export default function Home() {
 }
 
 function CreatineTile({ d, onAdd }: { d: DashboardData | null; onAdd: () => void }) {
-  const g = d?.creatine.today ?? 0, t = d?.creatine.target ?? 5;
+  const g = d?.creatine?.today ?? 0, t = d?.creatine?.target ?? 5;
   const ok = g >= t;
   return (
     <div className="rounded-2xl bg-card p-4">
@@ -164,7 +164,7 @@ function CreatineTile({ d, onAdd }: { d: DashboardData | null; onAdd: () => void
         )}
       </div>
       <div className="mt-2 text-2xl font-bold num">{g}<span className="text-sm text-mute"> / {t} g</span></div>
-      <a href="#/creatine" className="text-xs text-mute underline decoration-line">creatine today{d?.creatine.streak ? ` · ${d.creatine.streak}-day streak` : ""}</a>
+      <a href="#/creatine" className="text-xs text-mute underline decoration-line">creatine today{d?.creatine?.streak ? ` · ${d.creatine.streak}-day streak` : ""}</a>
     </div>
   );
 }

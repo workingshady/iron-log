@@ -14,7 +14,31 @@
     <title>Iron Log</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"><p id="boot" style="font:16px system-ui;color:#9b9ba6;text-align:center;padding-top:40vh;background:#111113;margin:0;min-height:100vh">Loading Iron Log…</p></div>
+    <script>
+      // Safety net: if the app can't start (script error before React mounts), show the error and a
+      // one-tap fix instead of a white page. The fix clears cached screens + the offline shell, not unsynced logs.
+      function ilReset() {
+        try {
+          Object.keys(localStorage).forEach(function (k) { if (k.indexOf("il_c_") === 0) localStorage.removeItem(k); });
+        } catch (x) {}
+        try {
+          if (navigator.serviceWorker) navigator.serviceWorker.getRegistrations().then(function (rs) { rs.forEach(function (x) { x.unregister(); }); });
+          if (window.caches) caches.keys().then(function (ks) { ks.forEach(function (k) { caches.delete(k); }); });
+        } catch (x) {}
+        setTimeout(function () { location.reload(); }, 400);
+      }
+      window.addEventListener("error", function (e) {
+        var r = document.getElementById("root");
+        if (!r || r.querySelector("main") || !document.getElementById("boot")) return;
+        var msg = String((e && e.message) || "unknown error").replace(/</g, "&lt;");
+        r.innerHTML =
+          '<div style="font:15px system-ui;color:#f3f3f5;background:#111113;min-height:100vh;padding:24px">' +
+          "<b>Iron Log couldn't start.</b>" +
+          '<p style="color:#9b9ba6">' + msg + "</p>" +
+          '<button onclick="ilReset()" style="margin-top:12px;padding:14px 18px;border-radius:12px;border:0;background:#c8f560;font-weight:700">Fix &amp; reload</button></div>';
+      });
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

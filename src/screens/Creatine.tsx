@@ -14,7 +14,7 @@ export default function Creatine() {
   const { data: rows, reload, setData } = useLoad<Row[]>("/intake?item=creatine");
   const [custom, setCustom] = useState("");
   const [editing, setEditing] = useState<Row | null>(null);
-  const target = d?.creatine.target ?? 5;
+  const target = d?.creatine?.target ?? 5;
   const todays = (rows ?? []).filter((r) => r.date === today());
   const g = Math.round(todays.reduce((a, r) => a + r.amount, 0) * 10) / 10;
   const pct = Math.min(100, (g / target) * 100);
@@ -79,12 +79,12 @@ export default function Creatine() {
         </Card>
 
         <div className="grid grid-cols-2 gap-3 md:grid-cols-1">
-          <Stat icon={Flame} tone="vio" value={d?.creatine.streak ?? 0} label={`days in a row at ${target} g+`} />
+          <Stat icon={Flame} tone="vio" value={d?.creatine?.streak ?? 0} label={`days in a row at ${target} g+`} />
           <Stat icon={CalendarRange} tone="vio" value={[...byDay.values()].filter((x) => x >= target).length} label="days on target (all time)" />
         </div>
 
         <Card title="Creatine calendar" icon={CalendarRange} className="md:col-span-3">
-          <Heatmap mode="creatine" grams={d?.creatine.days} target={target} />
+          <Heatmap mode="creatine" grams={d?.creatine?.days} target={target} />
         </Card>
 
         <Card title="Recent days" className="md:col-span-3">

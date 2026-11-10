@@ -10,3 +10,5 @@ dist/
 # Private, never committed: data exports, personal notes, setup secrets
 private/
 docs/superpowers/
+
+.claude/worktrees/

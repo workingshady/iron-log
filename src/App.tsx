@@ -14,6 +14,7 @@ import Creatine from "./screens/Creatine";
 import Tests from "./screens/Tests";
 import Journal from "./screens/Journal";
 import Extras from "./screens/Extras";
+import Library from "./screens/Library";
 import Learn from "./screens/Learn";
 import Settings from "./screens/Settings";
 import More from "./screens/More";
@@ -32,7 +33,7 @@ function useRoute() {
 
 const PAGES: Record<string, () => React.ReactElement | null> = {
   "/": Home, "/plan": Plan, "/history": History, "/stats": Stats, "/body": Body, "/creatine": Creatine,
-  "/tests": Tests, "/journal": Journal, "/notes": Journal, "/extra": Extras, "/learn": Learn, "/settings": Settings, "/more": More, "/cardio": Cardio,
+  "/tests": Tests, "/journal": Journal, "/notes": Journal, "/extra": Extras, "/library": Library, "/learn": Learn, "/settings": Settings, "/more": More, "/cardio": Cardio,
 };
 
 export default function App() {

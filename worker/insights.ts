@@ -88,7 +88,7 @@ export function buildInsights(sess: S[], sets: X[], body: B[], intake: I[], creT
 
   // 2c. what your NOTES say (keyword groups — read every note, find repeats)
   const NOTE_RULES: { re: RegExp; tone: Insight["tone"]; title: string; fix: string }[] = [
-    { re: new RegExp(`pump|${TOPICS.tight.source}`, "i"), tone: "warn", title: "Tightness / stiffness", fix: "Warm that area up (light sets + band work) and start the exercise 1 step lighter. Pain that stays → swap the exercise." },
+    { re: new RegExp(`pump|${TOPICS.tight.source}`, "i"), tone: "warn", title: "Tightness / stiffness", fix: "Warm that area up (2-3 light ramp-up sets) and start the exercise 1 step lighter. Pain that stays → swap the exercise." },
     { re: new RegExp(`hurn|${TOPICS.pain.source}`, "i"), tone: "bad", title: "Pain words in notes", fix: "Log it with the Pain chip too (area + level) so the app lowers the weight next time." },
     { re: new RegExp(`estimate is [0-9]|${TOPICS.count.source}`, "i"), tone: "warn", title: "Lost count of reps", fix: "Use 'Count reps for me' (tap per rep or 3 s tempo beeper) — numbers drive the next weight." },
     { re: new RegExp(`use my back|${TOPICS.cheat.source}`, "i"), tone: "warn", title: "Cheated reps", fix: "Tap 'Cheated / partial' on that set — it's then ignored for weight decisions. Next time: one step lighter, strict." },

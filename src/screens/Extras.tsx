@@ -91,7 +91,7 @@ export default function Extras() {
               <div key={w.w} title={`${w.w}: ${w.n} done${w.skipped ? ", skipped" : ""}`} className={cx("h-6 rounded-md", w.n >= TARGET ? "bg-acc" : w.n === 1 ? "bg-acc/45" : w.skipped ? "bg-bad/30" : "bg-card3", w.w === thisWeek && "ring-2 ring-info")} />
             ))}
           </div>
-          <div className="mt-1 flex gap-3 text-[10px] text-faint"><span>■ 2×</span><span className="text-acc/70">■ 1×</span><span className="text-bad/70">■ skipped</span></div>
+          <div className="mt-1 flex gap-3 text-[10px] text-faint"><span className="text-acc">■ 2×</span><span className="text-acc/70">■ 1×</span><span className="text-bad/70">■ skipped</span></div>
         </div>
       </section>
 

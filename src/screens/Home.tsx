@@ -126,7 +126,7 @@ export default function Home() {
           <QuickCreatine d={d} />
           <a href="#/cardio" className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-2xl bg-card text-xs"><Footprints size={18} className="text-info" />Cardio</a>
           <a href="#/body" className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-2xl bg-card text-xs"><Scale size={18} className="text-mute" />Weigh in</a>
-          <a href="#/plan" className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-2xl bg-card text-xs"><Dumbbell size={18} className="text-vio" />Grip & Wrist</a>
+          <a href="#/extra" className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-2xl bg-card text-xs"><Dumbbell size={18} className="text-vio" />Grip & Wrist</a>
         </div>
 
         {/* 3. Key numbers */}

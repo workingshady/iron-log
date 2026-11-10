@@ -8,7 +8,8 @@ import { targetLabel, toItem } from "../../shared/plan";
 import { useLoad } from "../lib/useLoad";
 import { cx, kg, restLabel } from "../lib/util";
 import { Badge, Btn, Card, PageHead, Sheet, Thumb } from "../components/ui";
-import { HowTo } from "../components/HowTo";
+import { ExerciseSheet } from "../components/ExerciseSheet";
+import { EX_GROUP } from "../../program/groups";
 import { TechNote } from "../components/Terms";
 import { StartSheet } from "../components/StartSheets";
 import { BodyMap } from "../components/BodyMap";
@@ -26,6 +27,7 @@ export default function Plan() {
   const [start, setStart] = useState<SlotInfo | null>(null);
   const [showMap, setShowMap] = useState(false);
   const [legend, setLegend] = useState(false);
+  const [view, setView] = useState<"days" | "weeks">("days");
   const curWeek = wk ?? s?.next?.week ?? 1;
   const week = CURRENT.weeks.find((w) => w.n === curWeek)!;
   const slot = (key: string) => s?.slots.find((x) => x.week === curWeek && x.dayKey === key);
@@ -38,6 +40,52 @@ export default function Plan() {
 
       <div className="mb-3"><WeekPlanner /></div>
 
+      {/* view switch */}
+      <div className="mb-2 grid grid-cols-2 gap-1 rounded-xl bg-card p-1 text-sm">
+        <button onClick={() => setView("days")} className={cx("min-h-10 rounded-lg", view === "days" ? "bg-card3 font-semibold" : "text-mute")}>This week's days</button>
+        <button onClick={() => setView("weeks")} className={cx("min-h-10 rounded-lg", view === "weeks" ? "bg-card3 font-semibold" : "text-mute")}>4-week progression</button>
+      </div>
+
+      {view === "weeks" && (
+        <div className="space-y-3">
+          {CURRENT.order.map((key) => {
+            const dayAt = (n: number) => CURRENT.weeks.find((w) => w.n === n)?.days.find((d) => d.key === key);
+            const base = dayAt(1)!;
+            const exs = [...new Set(CURRENT.weeks.flatMap((w) => w.days.find((d) => d.key === key)?.items.map((x) => x.ex) ?? []))];
+            return (
+              <section key={key} className="overflow-hidden rounded-2xl bg-card">
+                <div className="px-4 pt-3 font-bold">{base.name} <span className="text-xs font-normal text-mute">· {base.focus}</span></div>
+                <div className="overflow-x-auto px-2 pb-3">
+                  <table className="mt-2 w-full min-w-[340px] text-xs num">
+                    <thead>
+                      <tr className="text-mute">
+                        <th className="px-2 py-1 text-left font-normal">Exercise</th>
+                        {CURRENT.weeks.map((w) => <th key={w.n} className={cx("px-1 py-1 font-normal", w.n === curWeek && "text-info")}>W{w.n}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {exs.map((ex) => (
+                        <tr key={ex} className="border-t border-line/60">
+                          <td className="max-w-[9rem] truncate px-2 py-1.5 text-left">
+                            <button onClick={() => { const rx = base.items.find((x) => x.ex === ex) ?? dayAt(curWeek)?.items.find((x) => x.ex === ex); if (rx) setHow(toItem(ex, rx)); }} className="truncate text-left underline decoration-line underline-offset-2">{toItem(ex, { sets: 1, rest: 0 }).name}</button>
+                          </td>
+                          {CURRENT.weeks.map((w) => {
+                            const rx = dayAt(w.n)?.items.find((x) => x.ex === ex);
+                            return <td key={w.n} className={cx("px-1 py-1.5 text-center", w.n === curWeek && "bg-info/10 text-ink", !rx && "text-faint")}>{rx ? targetLabel({ ...rx, rir: undefined }) : "—"}</td>;
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            );
+          })}
+          <p className="text-xs text-mute">Sets × reps per week. Week 3 is the hardest, Week 4 is the deload. Tap an exercise for video, cues, your setup and history.</p>
+        </div>
+      )}
+
+      {view === "days" && (<>
       {/* weeks */}
       <div className="mb-3 grid grid-cols-4 gap-1 rounded-xl bg-card p-1">
         {CURRENT.weeks.map((w) => (
@@ -70,6 +118,13 @@ export default function Plan() {
                     {isNext && <Badge tone="info">next</Badge>}
                   </div>
                   <div className="text-xs text-mute">{d.focus}</div>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {(() => {
+                      const m = new Map<string, number>();
+                      main.forEach((x) => { const g = EX_GROUP[x.ex]; if (g) m.set(g, (m.get(g) ?? 0) + x.sets); });
+                      return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([g, n]) => <span key={g} className="rounded-full bg-card2 px-2 py-0.5 text-[10px] text-mute num">{g} {n}</span>);
+                    })()}
+                  </div>
                   <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-mute num">
                     <span>{main.length} exercises</span>
                     <span>{main.reduce((a, x) => a + x.sets, 0)} sets</span>
@@ -134,6 +189,8 @@ export default function Plan() {
         })}
       </div>
 
+      </>)}
+
       {/* optional extras */}
       {(week.extras ?? []).map((x) => (
         <section key={x.key} className="mt-3 rounded-2xl border border-dashed border-vio/40 bg-card p-4">
@@ -184,7 +241,7 @@ export default function Plan() {
         </ul>
       </Sheet>
 
-      {how && <HowTo item={how} open onClose={() => setHow(null)} />}
+      {how && <ExerciseSheet item={how} onClose={() => setHow(null)} />}
       <StartSheet open={!!start} slot={start} kind={start?.dayKey.startsWith("X") ? "extra" : start && !(s?.next?.week === start.week && s?.next?.dayKey === start.dayKey) ? (start.status === "open" ? "picked" : "extra") : "planned"} onClose={() => setStart(null)} />
     </div>
   );

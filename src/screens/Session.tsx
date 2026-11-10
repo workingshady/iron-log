@@ -9,13 +9,15 @@ import { beep, clock, cx, kg, niceDate, restLabel, roundTo, unlockAudio, vibrate
 import { Btn, Chips, Label, NumInput, Sheet, Thumb, scale } from "../components/ui";
 import { TechNote, InfoDot } from "../components/Terms";
 import { TERMS } from "../../program/learn";
-import { ArrowDown, ArrowLeftRight, ArrowUp, Check, Hash, ChevronLeft, Clock, Dumbbell, Equal, Flame, Layers, MessageSquare, MoreHorizontal, NotebookPen, PlayCircle, Plus, Repeat, Ruler, SkipForward, Sparkles, Timer, TrendingDown, TrendingUp, TriangleAlert, Trophy } from "lucide-react";
+import { ArrowDown, ArrowLeftRight, ArrowUp, Check, Hash, Mic, ChevronLeft, Clock, Dumbbell, Equal, Flame, Layers, MessageSquare, MoreHorizontal, NotebookPen, PlayCircle, Plus, Repeat, Ruler, SkipForward, Sparkles, Timer, TrendingDown, TrendingUp, TriangleAlert, Trophy } from "lucide-react";
 import { e1rm, isBarbell, plates, recommend, warmups, type ExHistory, type Rec, type RecKind } from "../../shared/recommend";
 import { CURRENT } from "../../program";
 import { barOf, barsFrom, basisFor, kgHelp, kgLabel, loadOf, shownKg, type Bars } from "../../shared/load";
 import type { AppState } from "../../shared/api";
 import { useLoad } from "../lib/useLoad";
-import { HowTo } from "../components/HowTo";
+import { ExerciseSheet, SetupNote } from "../components/ExerciseSheet";
+import { totalKg } from "../../shared/load";
+import { ListOrdered } from "lucide-react";
 import { RestTimer, loadRest, saveRest, type Rest } from "../components/RestTimer";
 import { go } from "../nav";
 
@@ -35,7 +37,7 @@ export default function SessionScreen({ id }: { id: string }) {
   const bars = barsFrom(appState?.settings);
   const [undo, setUndo] = useState<{ set: SetLog; pr: string | null; warn?: boolean } | null>(null);
   const lastTap = useRef(0);
-  const [sheet, setSheet] = useState<null | { k: "how" | "menu" | "swap"; i: number } | { k: "set"; s: SetLog } | { k: "finish" }>(null);
+  const [sheet, setSheet] = useState<null | { k: "how" | "menu" | "swap"; i: number } | { k: "set"; s: SetLog } | { k: "finish" } | { k: "log" }>(null);
 
   const setRest = (r: Rest | null) => { saveRest(r); setRestState(r); };
 
@@ -187,16 +189,33 @@ export default function SessionScreen({ id }: { id: string }) {
             <div className="flex items-center gap-1.5 text-xs text-mute">{live ? <span className="inline-flex items-center gap-1 text-warn"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-warn" />live</span> : `${s.status} · ${niceDate(s.date)}`} · {done}/{total} sets</div>
           </div>
           <Elapsed from={s.startedAt} to={live ? null : s.endedAt} />
+          <button onClick={() => setSheet({ k: "log" })} className="flex h-10 w-10 items-center justify-center rounded-full bg-card2" aria-label="Session log"><ListOrdered size={18} /></button>
           <Btn kind={live ? "primary" : "soft"} className="min-h-10 px-3 text-sm" onClick={() => setSheet({ k: "finish" })}>
             {live ? "Finish" : "Edit"}
           </Btn>
         </div>
         <div className="mt-2 h-1 rounded bg-line"><div className="h-1 rounded bg-acc transition-all" style={{ width: `${total ? (done / total) * 100 : 0}%` }} /></div>
+        {/* exercise strip: see everything at a glance, tap to jump */}
+        <div className="-mx-4 mt-2 flex gap-1.5 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] md:-mx-8 md:px-8">
+          {plan.map((it, i) => {
+            const n = workSets(sets, i).length;
+            const full = !it.skipped && n >= it.sets;
+            return (
+              <button key={i} onClick={() => { setOpen(i); setTimeout(() => document.getElementById(`ex-${i}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 50); }}
+                className={cx("shrink-0 rounded-full px-2.5 py-1 text-[11px] num", it.skipped ? "bg-card2 text-faint line-through" : full ? "bg-acc/15 text-acc" : open === i ? "bg-ink text-bg" : n > 0 ? "bg-info/15 text-info" : "bg-card2 text-mute")}>
+                {it.tag ?? i + 1} {it.name.split(" ").slice(0, 2).join(" ")} {n}/{it.sets}
+              </button>
+            );
+          })}
+        </div>
       </header>
 
       <div className="space-y-2">
         {plan.map((it, i) => (
-          <div key={`${i}-${it.ex}`}>
+          <div key={`${i}-${it.ex}`} id={`ex-${i}`} className={cx("scroll-mt-36", it.tag && plan[i - 1]?.tag?.[0] === it.tag[0] && "-mt-1 border-l-2 border-info/50 pl-2", it.tag && plan[i + 1]?.tag?.[0] === it.tag[0] && plan[i - 1]?.tag?.[0] !== it.tag[0] && "border-l-2 border-info/50 pl-2")}>
+          {it.tag && plan[i + 1]?.tag?.[0] === it.tag[0] && plan[i - 1]?.tag?.[0] !== it.tag[0] && (
+            <div className="mb-1 mt-3 text-[11px] font-semibold uppercase tracking-wide text-info">Superset {it.tag[0]} · do {it.tag[0]}1 then {it.tag[0]}2 back-to-back, rest after the pair</div>
+          )}
           {it.finisher && !plan[i - 1]?.finisher && (
             <div className="mb-2 mt-5 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-mute">
               <Flame size={13} className="text-warn" /> Finishers · small muscles, 5-10 min <span className="h-px flex-1 bg-line" />
@@ -248,7 +267,8 @@ export default function SessionScreen({ id }: { id: string }) {
 
       {live && <RestTimer rest={rest} setRest={setRest} />}
 
-      {sheet?.k === "how" && <HowTo item={plan[sheet.i]} open onClose={() => setSheet(null)} />}
+      {sheet?.k === "how" && <ExerciseSheet item={plan[sheet.i]} onClose={() => setSheet(null)} onSwap={live ? () => setSheet({ k: "swap", i: sheet.i }) : undefined} />}
+      {sheet?.k === "log" && <SessionLog plan={plan} sets={sets} onClose={() => setSheet(null)} onSet={(x) => setSheet({ k: "set", s: x })} />}
       {sheet?.k === "menu" && (
         <ItemMenu
           it={plan[sheet.i]} i={sheet.i} n={plan.length}
@@ -289,7 +309,7 @@ export default function SessionScreen({ id }: { id: string }) {
       )}
       {sheet?.k === "finish" && (
         <FinishSheet
-          s={s} sets={sets} elapsed={elapsed}
+          s={s} sets={sets} last={b.last} elapsed={elapsed}
           onClose={() => setSheet(null)}
           onSave={(p, leave) => {
             patchSession(p);
@@ -402,8 +422,9 @@ function ExerciseCard({ i, it, sets, last, rec, live, bars, feedback, open, onTo
         <span className="min-w-0 flex-1">
           <span className={cx("block truncate font-semibold", it.skipped && "line-through")}>{it.name}</span>
           <span className="block truncate text-xs text-mute">
+            {complete && !open ? <span className="text-acc">{work.map((x) => fmtSet(x)).join(" · ")}</span> : <>
             {targetLabel(it)} · <Clock size={10} className="inline" /> {restLabel(it.rest)}
-            {!complete && recText && <span className={cx("ml-1", REC_TONE[rec.kind])}>· {recText}</span>}
+            {!complete && recText && <span className={cx("ml-1", REC_TONE[rec.kind])}>· {recText}</span>}</>}
           </span>
         </span>
         <span className="text-sm text-mute num">{work.length}/{it.sets}</span>
@@ -425,6 +446,7 @@ function ExerciseCard({ i, it, sets, last, rec, live, bars, feedback, open, onTo
             {last && <div className="text-mute">Last time ({niceDate(last.date)}): {last.sets.filter((x) => x.kind !== "W").map(fmtSet).join(" · ")}</div>}
             {it.swappedFrom && <div className="text-mute">Swapped from {EXERCISES[it.swappedFrom]?.name ?? it.swappedFrom}{it.swapReason ? ` (${it.swapReason})` : ""}</div>}
             {it.tech && <TechNote text={it.tech} />}
+            <SetupNote exKey={it.ex} compact />
           </div>
 
           {/* 2. optional warm-up ramp */}
@@ -747,9 +769,20 @@ function SetInput({ it, d, setD, n, total, bars, onLog, hidden }: { it: PlanItem
         </div>
       )}
       {noteOpen || d.note ? (
-        <textarea value={d.note} onChange={(e) => setD({ ...d, note: e.target.value })} rows={2} placeholder="Note for this set (e.g. shoulder tight, lost count, bar slipped)" className="mt-3 w-full rounded-xl bg-card2 p-2.5 text-sm outline-none focus:ring-2 focus:ring-acc" />
+        <div className="mt-3">
+          <div className="flex gap-1.5">
+            <textarea value={d.note} onChange={(e) => setD({ ...d, note: e.target.value })} rows={2} placeholder="Note for this set (e.g. shoulder tight, lost count, bar slipped)" className="min-w-0 flex-1 rounded-xl bg-card2 p-2.5 text-sm outline-none focus:ring-2 focus:ring-acc" />
+            <VoiceButton onText={(t) => setD({ ...d, note: [d.note, t].filter(Boolean).join(" ") })} />
+          </div>
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {QUICK_NOTES.map((q) => (
+              <button key={q.t} onClick={() => setD({ ...d, note: d.note.includes(q.t) ? d.note : [d.note, q.t].filter(Boolean).join(" · "), strict: q.cheat ? "0" : d.strict })}
+                className={cx("min-h-8 rounded-full border px-2.5 text-[11px]", d.note.includes(q.t) ? "border-acc text-acc" : "border-line text-mute")}>{q.t}</button>
+            ))}
+          </div>
+        </div>
       ) : (
-        <button onClick={() => setNoteOpen(true)} className="mt-3 inline-flex items-center gap-1.5 text-xs text-info"><NotebookPen size={13} /> Add a note</button>
+        <button onClick={() => setNoteOpen(true)} className="mt-3 inline-flex min-h-9 items-center gap-1.5 text-xs text-info"><NotebookPen size={13} /> Add a note (tap tags or speak)</button>
       )}
       <Btn kind="primary" icon={Check} className="mt-3 w-full text-lg" onClick={onLog}>Log set {n}</Btn>
     </div>
@@ -924,14 +957,20 @@ function SetSheet({ set, onClose, onSave }: { set: SetLog; onClose: () => void; 
   );
 }
 
-function FinishSheet({ s, sets, elapsed, onClose, onSave, onDelete }: {
-  s: Session; sets: SetLog[]; elapsed: number; onClose: () => void; onSave: (p: Partial<Session>, leave: boolean) => void; onDelete: () => void;
+function FinishSheet({ s, sets, last, elapsed, onClose, onSave, onDelete }: {
+  s: Session; sets: SetLog[]; last: SessionBundle["last"]; elapsed: number; onClose: () => void; onSave: (p: Partial<Session>, leave: boolean) => void; onDelete: () => void;
 }) {
+  // vs last time: per exercise, best estimated max today vs last session
+  const cmp = [...new Set(sets.filter((x) => x.kind === "N").map((x) => x.exKey))].map((ex) => {
+    const est = (l: SetLog[]) => Math.max(0, ...l.filter((x) => x.kind === "N" && x.strict !== 0).map((x) => { const w = shownKg(x); return w && x.reps ? e1rm(w, x.reps) : x.reps ?? x.seconds ?? 0; }));
+    const now = est(sets.filter((x) => x.exKey === ex)), before = last?.[ex] ? est(last[ex].sets) : null;
+    return { ex, now, before, diff: before ? Math.round(((now - before) / before) * 100) : null };
+  }).filter((x) => x.before != null);
   const [rpe, setRpe] = useState<number | null>(s.rpe);
   const [bw, setBw] = useState(s.bodyweight != null ? String(s.bodyweight) : "");
   const [note, setNote] = useState(s.note ?? "");
   const live = s.status === "active";
-  const vol = sets.filter((x) => x.kind !== "W").reduce((a, x) => a + (x.weightKg ?? 0) * (x.reps ?? 0), 0);
+  const vol = sets.filter((x) => x.kind !== "W").reduce((a, x) => a + totalKg(x) * (x.reps ?? 0), 0);
   const pains = sets.filter((x) => x.painLevel).length;
   const prs = sets.filter((x) => x.pr);
   const base = { rpe, bodyweight: bw ? Number(bw) : null, note: note || null };
@@ -942,6 +981,14 @@ function FinishSheet({ s, sets, elapsed, onClose, onSave, onDelete }: {
         <div className="rounded-xl bg-card2 py-3"><div className="text-lg font-bold num">{sets.filter((x) => x.kind !== "W").length}</div><div className="text-[11px] text-mute">sets</div></div>
         <div className="rounded-xl bg-card2 py-3"><div className="text-lg font-bold num">{Math.round(vol)}</div><div className="text-[11px] text-mute">kg volume</div></div>
       </div>
+      {cmp.length > 0 && (
+        <div className="mt-3 rounded-xl bg-card2 p-3 text-sm">
+          <div className="font-semibold">vs last time · {cmp.filter((c) => (c.diff ?? 0) > 0).length}/{cmp.length} exercises stronger</div>
+          <ul className="mt-1 space-y-0.5 text-xs">
+            {cmp.map((c) => <li key={c.ex} className="flex justify-between"><span className="text-mute">{EXERCISES[c.ex]?.name ?? c.ex}</span><span className={cx("num", (c.diff ?? 0) > 0 ? "text-acc" : (c.diff ?? 0) < 0 ? "text-warn" : "text-mute")}>{(c.diff ?? 0) > 0 ? "+" : ""}{c.diff}%</span></li>)}
+          </ul>
+        </div>
+      )}
       {prs.length > 0 && (
         <div className="mt-3 rounded-xl bg-warn/10 p-3 text-sm">
           <div className="flex items-center gap-1.5 font-semibold text-warn"><Trophy size={15} /> {prs.length} personal record{prs.length > 1 ? "s" : ""}</div>
@@ -973,6 +1020,64 @@ function FinishSheet({ s, sets, elapsed, onClose, onSave, onDelete }: {
         )}
         <Btn kind="danger" onClick={onDelete}>Delete session</Btn>
       </div>
+    </Sheet>
+  );
+}
+
+
+const QUICK_NOTES: { t: string; cheat?: boolean }[] = [
+  { t: "felt strong" }, { t: "easy" }, { t: "hard" }, { t: "tight" }, { t: "pain" }, { t: "lost count" },
+  { t: "cheated reps", cheat: true }, { t: "grip failed" }, { t: "bar slipped" }, { t: "no spotter" }, { t: "machine busy" },
+];
+
+/** Speak a note (Chrome on Android uses Google's speech engine). Falls back to the keyboard mic. */
+function VoiceButton({ onText }: { onText: (t: string) => void }) {
+  const [on, setOn] = useState(false);
+  type SR = { lang: string; interimResults: boolean; onresult: (e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void; onend: () => void; onerror: () => void; start: () => void };
+  const Ctor = (window as unknown as { SpeechRecognition?: new () => SR; webkitSpeechRecognition?: new () => SR }).SpeechRecognition ?? (window as unknown as { webkitSpeechRecognition?: new () => SR }).webkitSpeechRecognition;
+  if (!Ctor) return null;
+  return (
+    <button
+      onClick={() => {
+        try {
+          const r = new Ctor();
+          r.lang = navigator.language || "en-US";
+          r.interimResults = false;
+          r.onresult = (e) => onText(Array.from(e.results).map((x) => x[0].transcript).join(" "));
+          r.onend = () => setOn(false);
+          r.onerror = () => { setOn(false); alert("Voice didn't work here — use the mic on your keyboard instead."); };
+          setOn(true);
+          r.start();
+        } catch { setOn(false); }
+      }}
+      className={cx("flex w-11 shrink-0 items-center justify-center rounded-xl", on ? "animate-pulse bg-bad text-black" : "bg-card2 text-info")}
+      aria-label="Speak a note"
+    >
+      <Mic size={18} />
+    </button>
+  );
+}
+
+/** Everything logged this session, in order, with time, rest and notes — tap to edit. */
+function SessionLog({ plan, sets, onClose, onSet }: { plan: PlanItem[]; sets: SetLog[]; onClose: () => void; onSet: (s: SetLog) => void }) {
+  const KIND: Record<string, string> = { N: "", W: "warm-up", D: "drop", F: "failure", R: "rest-pause" };
+  return (
+    <Sheet open onClose={onClose} title={`Session log · ${sets.length} set${sets.length === 1 ? "" : "s"}`} icon={ListOrdered}>
+      {!sets.length && <p className="text-sm text-mute">Nothing logged yet.</p>}
+      <ol className="space-y-1">
+        {sets.map((x, k) => (
+          <li key={x.id}>
+            <button onClick={() => onSet(x)} className="flex w-full items-start gap-3 rounded-lg px-1 py-1.5 text-left hover:bg-card2">
+              <span className="w-12 shrink-0 text-[11px] text-mute num">{new Date(x.doneAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</span>
+              <span className="min-w-0 flex-1 text-sm">
+                <span className="font-semibold">{plan[x.itemIdx]?.name ?? x.exKey}</span>{KIND[x.kind] ? <span className="text-xs text-info"> · {KIND[x.kind]}</span> : null}
+                <span className="block text-xs text-mute num">{fmtSet(x)}{x.rir != null ? ` · RIR ${x.rir}` : ""}{x.strict === 0 ? " · cheated" : ""}{k > 0 && x.restBeforeS != null ? ` · rested ${clock(x.restBeforeS * 1000)}` : ""}</span>
+                {x.note && <span className="block text-xs text-ink/80">“{x.note}”</span>}
+              </span>
+            </button>
+          </li>
+        ))}
+      </ol>
     </Sheet>
   );
 }

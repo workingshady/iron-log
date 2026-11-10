@@ -39,7 +39,8 @@ export async function seedDev(d: DB, today: string, real?: DB): Promise<number> 
       const e = EXERCISES[it.ex];
       const prog = 1 + (20 - back) * 0.006;
       const top = Array.isArray(it.reps) ? it.reps[1] : it.reps ?? 10;
-      const base = STARTER[it.ex] ? r((90 * STARTER[it.ex] * 0.9 / (1 + (top + 2) / 30)) * prog, isPair(it.ex) ? 2.5 : e.step ?? 2.5) : null;
+      const ratio = it.ex === "bench" ? 1 : STARTER[it.ex];
+      const base = ratio ? r((90 * ratio * 0.9 / (1 + (top + 2) / 30)) * prog, isPair(it.ex) ? 2.5 : e.step ?? 2.5) : null;
       for (let k = 1; k <= it.sets; k++) {
         time += (k === 1 && idx === 0 ? 60 : it.rest + 45) * 1000;
         const reps = e.metric === "time" || e.metric === "distance" ? null : Math.max(1, top - (k === it.sets ? 2 : k > 1 ? 1 : 0));

@@ -102,6 +102,18 @@ Log in with the **DEV passcode** instead of yours → an orange "DEV MODE" bar, 
 - Orange technique text with ⓘ (e.g. "Last set: drop set") → tap it for a plain explanation.
 - **Holds** (dead hang, hollow, plates): tap **⏱ Time the hold** to start, and tap again to stop. The seconds fill in.
 - **Bands / assisted**: type the band colour or assist kg in the left box.
+- **Exercise strip** (top, under the timer): every exercise with done/total. Tap one to jump to it. Green = done, amber = started.
+- **Supersets** are framed together with a label ("Superset A · do A1 then A2 back-to-back, rest after the pair").
+- **Session log** (the list icon next to the timer): every set in the order you did it, with time, kind, RIR, rest and note. Tap a row to edit it.
+- **Your setup** (📍): seat height, pin, grip, saved per exercise and shown every session. Edit it on the card or in the exercise sheet.
+- **Notes, fast**: tap a tag chip (e.g. "lost count", "cheated reps", "too heavy") or the 🎤 to speak (Chrome on Android). "Cheated reps" also marks the set as not strict.
+- **Finished cards** collapse to a one-line summary (e.g. "75×6 · 75×6 · 75×5").
+- **Finish screen** compares each exercise with last time and shows how many got stronger.
+
+## Plan screen
+- **This week's days**: each day with its muscle-group chips (sets per group). Tap a day to see the exercises.
+- **4-week progression**: one table per day, exercises × W1-W4 (sets × reps), with the current week highlighted. Week 3 is the hardest, Week 4 is the deload.
+- **Tap any exercise** for its sheet: video, cues, your setup note, the **next** recommended weight, your **best** and last-time sets, where it appears in the program each week, and the alternatives.
 
 ## Swapping exercises
 ⋯ → **Swap**. Pick **why** (equipment busy, pain, …), then the alternative. The app:

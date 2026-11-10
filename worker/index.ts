@@ -120,13 +120,13 @@ app.post("/sessions", async (c) => {
 
 /** Log a missed day (excuse). Does NOT advance the plan — the same session stays next. */
 app.post("/missed", async (c) => {
-  const b = await c.req.json<{ id: string; week: number; dayKey: string; date: string; excuse: string; note?: string; tz: string; skip?: boolean }>();
+  const b = await c.req.json<{ id: string; week: number; dayKey: string; date: string; excuse: string; note?: string; tz: string; skip?: boolean; kind?: "planned" | "extra" }>();
   const d = db(c);
   const pv = await ensureVersion(d);
   const plan = buildPlan(CURRENT, b.week, b.dayKey);
   await d.insert(t.sessions).values({
     id: b.id, programVersionId: pv, week: b.week, dayKey: b.dayKey, dayName: plan.name, status: b.skip ? "skipped" : "missed",
-    kind: "planned", date: b.date, plan: "[]", excuse: b.excuse, note: b.note ?? null, tz: b.tz, createdAt: now(), updatedAt: now(),
+    kind: b.kind === "extra" ? "extra" : "planned", date: b.date, plan: "[]", excuse: b.excuse, note: b.note ?? null, tz: b.tz, createdAt: now(), updatedAt: now(),
   }).onConflictDoNothing();
   return c.json({ ok: true });
 });

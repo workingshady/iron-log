@@ -37,7 +37,7 @@ const D1: E[] = [
   { ex: "close_grip_bench", s: ["2x8", "3x8", "3x6-8", "2x8"], rest: 120, heavy: true, t: "Safety pins or spotter · stop 1-2 reps early · elbows tucked" },
   { ex: "db_lateral", s: ["3x12-15", "4x12-15", "4x12-15", "2x15"], rest: 60, t: "Lead with elbows, 2 s down", t3: "Last set: lengthened partials" },
   { ex: "db_ohp", s: ["3x8-10", "3x8-10", "3x8-10", "2x8"], rest: 120, t: "Strict reps only — no bouncing" },
-  { ex: "oh_tri_ext", s: ["3x10-12", "3x10-12", "3x10-12", "2x12"], rest: 75, t: "Rope or 1 dumbbell · elbows forward · stop where the shoulder feels tight", t3: "Last set: drop set" },
+  { ex: "oh_tri_ext", s: ["3x10-12", "3x10-12", "3x10-12", "2x12"], rest: 75, t: "Rope or 1 dumbbell · elbows forward · stop where the shoulder feels tight", t3: "Last set: drop set (−20-25%)" },
   { ex: "deficit_pushup", s: ["1xmax", "2xmax", "2xmax", "1xmax"], rest: 60, fin: true, t: "Burnout: strict, stop 1 rep before form breaks" },
 ];
 
@@ -45,9 +45,9 @@ const D2: E[] = [
   { ex: "pulldown", s: ["3x6-8", "4x6-8", "4x5-7", "2x8"], rest: 150, heavy: true, t: "Pull-up builder: heavy, full stretch at top, chest to bar" },
   { ex: "machine_row", s: ["3x6-8", "3x6-8", "3x6-8", "2x8"], rest: 150, heavy: true, t: "Heavy, chest on pad — spares the lower back before Legs" },
   { ex: "neutral_pulldown", s: ["2x10-12", "3x10-12", "3x10-12", "2x10"], rest: 90, t: "3 s down", t3: "Last set: lengthened partials" },
-  { ex: "face_pull", s: ["3x15", "3x15", "3x15-20", "2x15"], rest: 60, t: "Pull to eyes, thumbs back", t3: "Last set: drop set" },
+  { ex: "face_pull", s: ["3x15", "3x15", "3x15-20", "2x15"], rest: 60, t: "Pull to eyes, thumbs back", t3: "Last set: drop set (−20-25%)" },
   { ex: "bb_shrug", s: ["3x10-12", "3x10-12", "4x8-12", "2x12"], rest: 90, t: "Straight up, hold 2 s" },
-  { ex: "incline_curl", s: ["3x10-12", "3x10-12", "3x10-12", "2x12"], rest: 75, t: "Arms hang behind you", t3: "Last set: drop set" },
+  { ex: "incline_curl", s: ["3x10-12", "3x10-12", "3x10-12", "2x12"], rest: 75, t: "Arms hang behind you", t3: "Last set: drop set (−20-25%)" },
   { ex: "dead_hang", s: ["2x30s", "3x30s", "3x40s", "2x30s"], rest: 60, fin: true, t: "Pull-up base & grip · no straps" },
   { ex: "neck", s: ["1x15", "2x15", "2x20", "1x15"], rest: 60, fin: true, t: "Light & slow · flex / ext / sides" },
 ];
@@ -55,9 +55,9 @@ const D2: E[] = [
 const D3: E[] = [
   { ex: "squat", s: ["3x5-6", "4x5-6", "4x4-6", "2x5"], rest: 180, heavy: true, t: "Brace, 2 s down, full depth" },
   { ex: "rdl", s: ["3x6-8", "3x6-8", "3x6-8", "2x8"], rest: 150, heavy: true, t: "Deep hamstring stretch, flat back" },
-  { ex: "leg_press", s: ["2x10-12", "3x10-12", "3x10-12", "2x12"], rest: 120, t3: "Last set: drop set" },
+  { ex: "leg_press", s: ["2x10-12", "3x10-12", "3x10-12", "2x12"], rest: 120, t: "Full depth, knees track toes" },
   { ex: "seated_leg_curl", s: ["3x10-12", "3x10-12", "4x10-12", "2x12"], rest: 90, t: "Lean forward, 3 s down", t3: "Last set: lengthened partials" },
-  { ex: "leg_extension", s: ["2x12-15", "2x12-15", "3x12-15", "1x15"], rest: 60, t3: "Last set: lengthened partials" },
+  { ex: "leg_extension", s: ["2x12-15", "2x12-15", "3x12-15", "1x15"], rest: 60, t3: "Last set: drop set (pin −20-25%)" },
   { ex: "standing_calf", s: ["3x10-12", "4x10-12", "4x10-12", "2x12"], rest: 60, t: "2 s pause in the stretch", t3: "Last set: lengthened partials" },
   { ex: "db_lateral", s: ["2x15-20", "3x15-20", "3x15-20", "1x15"], rest: 45, t: "Delts 3rd hit of the week", t3: "Last set: myo-reps" },
   { ex: "hanging_knee_raise", s: ["3x10", "3x12", "3x12-15", "2x10"], rest: 60, noRir: true },
@@ -68,7 +68,7 @@ const D3: E[] = [
 const D5: E[] = [
   { ex: "db_bench", s: ["3x8-10", "3x8-10", "4x8-10", "2x10"], rest: 0, tag: "A1", t: "Deep stretch" },
   { ex: "cs_row", s: ["3x8-10", "3x8-10", "4x8-10", "2x10"], rest: 105, tag: "A2", t: "Squeeze 1 s" },
-  { ex: "machine_press", s: ["2x10-12", "3x10-12", "3x10-12", "2x12"], rest: 0, tag: "B1", t3: "Last set: drop set" },
+  { ex: "machine_press", s: ["2x10-12", "3x10-12", "3x10-12", "2x12"], rest: 0, tag: "B1", t3: "Last set: drop set (−20-25%)" },
   { ex: "wide_cable_row", s: ["2x10-12", "3x10-12", "3x10-12", "2x12"], rest: 90, tag: "B2", t: "Elbows out, pull to sternum" },
   { ex: "db_pullover", s: ["2x12", "3x12", "3x12-15", "1x12"], rest: 0, tag: "C1", t: "Big stretch" },
   { ex: "kelso_shrug", s: ["2x12", "3x12", "3x12-15", "2x12"], rest: 75, tag: "C2", t: "Pinch blades, hold 2 s" },
@@ -81,10 +81,10 @@ const D5: E[] = [
 const D6: E[] = [
   { ex: "lean_lateral", s: ["3x12-15", "4x12-15", "4x12-15", "2x15"], rest: 45, t: "Width first, while fresh", t3: "Last set: lengthened partials" },
   { ex: "ohp", s: ["3x6-8", "3x6-8", "4x5-7", "2x6"], rest: 150, heavy: true, t: "Glutes tight, no back lean" },
-  { ex: "cable_y_raise", s: ["2x12-15", "3x12-15", "3x12-15", "1x15"], rest: 60, t3: "Last set: drop set" },
+  { ex: "cable_y_raise", s: ["2x12-15", "3x12-15", "3x12-15", "1x15"], rest: 60, t3: "Last set: drop set (−20-25%)" },
   { ex: "rear_delt_fly", s: ["3x15", "3x15", "3x15-20", "2x15"], rest: 60, t3: "Last set: myo-reps" },
-  { ex: "ez_curl", s: ["3x8-10", "3x8-10", "3x8-10", "2x10"], rest: 0, tag: "A1", t3: "Last set: drop set" },
-  { ex: "pushdown", s: ["3x10-12", "3x10-12", "3x10-12", "2x12"], rest: 75, tag: "A2", t3: "Last set: drop set" },
+  { ex: "ez_curl", s: ["3x8-10", "3x8-10", "3x8-10", "2x10"], rest: 0, tag: "A1", t: "Elbows pinned, 2 s down" },
+  { ex: "pushdown", s: ["3x10-12", "3x10-12", "3x10-12", "2x12"], rest: 75, tag: "A2", t3: "Last set: drop set (−20-25%)" },
   { ex: "hammer_curl", s: ["2x10-12", "2x10-12", "3x10-12", "1x12"], rest: 60 },
   { ex: "db_shrug", s: ["2x12-15", "3x12-15", "3x12-15", "2x12"], rest: 60, t: "Hold 2 s at the top" },
   { ex: "bss", s: ["2x8-10", "2x8-10", "3x8-10", "1x10"], rest: 75, t: "Leg booster (2nd leg hit)" },
@@ -117,10 +117,10 @@ const days = (n: number): DayPlan[] => [
 
 export const v2: Program = {
   id: "ppl-arnold",
-  version: "2.3.0",
+  version: "2.4.0",
   name: "PPL × Arnold · Intensive v2",
   changelog:
-    "2.3: Grip & Wrist extra session (6 forearm/grip exercises), football-aware week planner. 2.2: from your first Push — close-grip earlier with safety, laterals before shoulder press, ab wheel moved off Push, smarter weight engine (per-hand dumbbells, RIR-aware). 2.1: barbell row → machine row on Pull day (same growth, saves the lower back for Legs the next day). 2.0: No dips, pull-ups, bands or assisted machine. Per-session volume capped at ~11 sets per muscle, weekly volume spread for more growth. Stretch-biased picks, seated leg curl, techniques only on last isolation sets, small muscles as finishers, pull-up roadmap.",
+    "2.4: drop sets only on machines/cables/dumbbell isolation (leg press → leg extension, EZ curl drop removed — one drop per superset), −20-25% per drop, never 2 days before football. 2.3: Grip & Wrist extra session (6 forearm/grip exercises), football-aware week planner. 2.2: from your first Push — close-grip earlier with safety, laterals before shoulder press, ab wheel moved off Push, smarter weight engine (per-hand dumbbells, RIR-aware). 2.1: barbell row → machine row on Pull day (same growth, saves the lower back for Legs the next day). 2.0: No dips, pull-ups, bands or assisted machine. Per-session volume capped at ~11 sets per muscle, weekly volume spread for more growth. Stretch-biased picks, seated leg curl, techniques only on last isolation sets, small muscles as finishers, pull-up roadmap.",
   order: ["D1", "D2", "D3", "D5", "D6"],
   schedules: {
     "A (Mon start)": ["rest", "D1", "D2", "D3", "rest", "D5", "D6"],

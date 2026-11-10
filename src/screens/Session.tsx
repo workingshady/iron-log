@@ -38,6 +38,14 @@ export default function SessionScreen({ id }: { id: string }) {
   });
   const { data: appState } = useLoad<AppState>("/state");
   const bars = barsFrom(appState?.settings);
+  // "2 days before football: no drop sets" (same rule as the week planner)
+  const footballSoon = (() => {
+    try {
+      const marks = JSON.parse(appState?.settings?.weekMarks ?? "{}") as Record<string, string>;
+      const d0 = new Date(); const iso = (k: number) => { const d = new Date(d0); d.setDate(d.getDate() + k); return d.toLocaleDateString("en-CA"); };
+      return [1, 2].some((k) => marks[iso(k)] === "football");
+    } catch { return false; }
+  })();
   const [undo, setUndo] = useState<{ set: SetLog; pr: string | null; warn?: boolean } | null>(null);
   const lastTap = useRef(0);
   const [sheet, setSheet] = useState<null | { k: "how" | "menu" | "swap"; i: number } | { k: "set"; s: SetLog } | { k: "finish" } | { k: "log" }>(null);
@@ -173,7 +181,11 @@ export default function SessionScreen({ id }: { id: string }) {
     // drop / rest-pause / warm-up are part of the current set → stay here, no rest timer (it starts when you tap Done)
     if (kind === "D" || kind === "R" || kind === "W") { if (kind !== "W") setRest(null); return; }
     // programmed "Last set: drop set" → open the drop panel right away (no rest in between), move on after Done
-    if (live && kind === "N" && it.tech && /drop set/i.test(it.tech) && workSets(after, i).length === it.sets) {
+    if (live && kind === "N" && it.tech && /drop set/i.test(it.tech) && workSets(after, i).length === it.sets && footballSoon) {
+      track("drop_skipped_football", { ex: it.ex }, id);
+      setUndo({ set, pr: pr ?? "Drop set skipped — football within 2 days. Save it for recovery.", warn: !pr });
+    }
+    if (live && kind === "N" && it.tech && /drop set/i.test(it.tech) && workSets(after, i).length === it.sets && !footballSoon) {
       setRest(null); setAutoDrop(i); setOpen(i);
       track("drop_prompt", { ex: it.ex }, id);
       return;

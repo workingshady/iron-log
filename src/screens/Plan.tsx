@@ -199,6 +199,7 @@ export default function Plan() {
             {!s?.active && <Btn kind="soft" icon={Play} className="min-h-10 px-3 text-sm" onClick={() => setStart({ week: curWeek, dayKey: x.key, dayName: x.name, focus: x.focus, items: x.items.length, status: "open" })}>Start</Btn>}
           </div>
           <p className="text-xs text-mute">{x.focus} · after Chest+Back / Shoulders+Arms or on a rest day — never before Pull.</p>
+          <a href="#/extra" className="mt-1 inline-flex min-h-9 items-center text-xs text-info">Tracker: this week, skip, history →</a>
           <ul className="mt-2 space-y-1.5">
             {x.items.map((rx, i) => {
               const it = toItem(rx.ex, rx);

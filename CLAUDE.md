@@ -21,6 +21,10 @@ Commands: `npm run dev` · `npm run check` (validate program + types) · `npm ru
 - Derived: `/api/dashboard` (calendar, forgiving streak: planned-rest/sick misses don't break it, adherence, creatine), `/api/insights` (`worker/insights.ts` rules + sets per muscle group from `program/groups.ts`), `/api/analytics` (`worker/analytics.ts`: calendar-week trends, fractional hard sets per muscle, e1RM trends, "what goes with good workouts" associations; formulas documented in the file, test with `npx tsx scripts/test-analytics.ts`).
 - Plan position = the first (week, day) in `program.order` with no `done`/`skipped` session for this program id. `missed` does **not** advance it.
 
+## Android app
+- APK = Trusted Web Activity of the live site (`scripts/build-apk.mjs`, Bubblewrap core). Package `com.workingshady.ironlog`, key `private/android/iron-log.keystore` (password in `private/SETUP.md`), fingerprint served at `public/.well-known/assetlinks.json`. Releases: `gh release create vX-android <apk>` (gh at "C:/Program Files/GitHub CLI/gh.exe"). Bump versionCode each build; never change the key.
+- Brand: `public/icon.svg` (app icon), `public/icon-maskable.svg`, `public/brand/{mark,logo,logo-light}.svg`; PNGs are renders of these.
+
 ## Modes & databases
 - `DB` (iron-log) = real data. `DB_DEV` (iron-log-dev) = test data, used when logged in with the `DEV_PASSCODE` secret (cookie prefixed `dev.`). Every handler uses `db(c)` which picks the right one. Never seed, reset or experiment on `DB`; use DEV mode (`POST /api/dev/seed` refills it).
 - Migrations must be applied to BOTH: `wrangler d1 migrations apply iron-log --remote` and `... iron-log-dev --remote`. Take `wrangler d1 export iron-log --remote --output private/backups/...` before migrating real data; additive schema changes only, data mappings via custom migrations (see 0005).

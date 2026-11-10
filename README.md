@@ -45,3 +45,14 @@ migrations/ SQL migrations (generated)
 scripts/   export + program check
 private/   git-ignored: data exports, personal notes
 ```
+
+## Android app (APK)
+Download: **[latest release](https://github.com/workingshady/iron-log/releases/latest)** → `iron-log-x.y.z.apk` → open on the phone → allow "install unknown apps" once.
+It's a Trusted Web Activity: the live site, full-screen, same data, updates with every deploy (the APK only needs rebuilding to change the icon/name/package).
+
+Rebuild (needs JDK 17 + Android SDK, and the signing key in `private/android/` — never committed):
+```
+node scripts/build-apk.mjs <versionCode> <versionName>     # e.g. 2 1.0.1 → private/android/out/iron-log-1.0.1.apk
+gh release create v1.0.1-android private/android/out/iron-log-1.0.1.apk --title "Iron Log Android 1.0.1"
+```
+Always increase `versionCode` and sign with the SAME key, or Android refuses the update. `/.well-known/assetlinks.json` must keep the key's SHA-256.

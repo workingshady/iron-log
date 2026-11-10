@@ -88,6 +88,12 @@ Plan → **Grip & Wrist** (12-15 min, up to 2×/week): barbell finger curls (rol
 ## DEV / test mode
 Log in with the **DEV passcode** instead of yours → an orange "DEV MODE" bar, a **separate test database**, and separate phone storage. Settings → **Fill with dummy data** loads ~3 weeks of fake training (all set types, notes, pain, football, cardio, creatine). Try anything; your real tracking is never touched. Log out and use your normal passcode to go back.
 
+## Preview a workout (without starting it)
+- **Preview** (👁) on Home's workout card, on every day in Plan, on Grip & Wrist, and on a planned day in *This week*.
+- Shows the whole session in order: supersets and finishers marked, sets × reps, rest, warm-ups, the technique note, and **today's recommended weight** with ↑ heavier / = same / ↓ lighter vs last time.
+- On top: estimated minutes, exercises, total sets and the muscle groups hit. Tap an exercise for its video, cues, last time and alternatives.
+- Nothing is logged and the clock doesn't start. **Start this workout** at the bottom goes straight to the start screen.
+
 ## Inside a workout
 - **Tap an exercise** to open or close it. After each set, the app moves you to the right place: superset partners alternate A1 → A2 → A1, then it goes to the next exercise.
 - **The order for each set:** check the suggested kg/reps (already filled in) → do the set → tap **reps left in the tank** (RIR, optional) → **Log set**. Faded rows below show the sets still to come.

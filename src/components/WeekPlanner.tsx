@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { Ban, CalendarClock, Check, Dumbbell, Moon, Trophy } from "lucide-react";
+import { Ban, CalendarClock, Check, Dumbbell, Eye, Moon, Trophy } from "lucide-react";
+import { WorkoutPreview } from "./WorkoutPreview";
 import type { AppState, HistoryRow } from "../../shared/api";
 import { planWeek, weekDates, type Mark, type WeekPlanOut } from "../../shared/weekplan";
 import { weekConfig } from "../../shared/week";
@@ -88,23 +89,28 @@ export function WeekPlanner({ compact }: { compact?: boolean }) {
       ))}
       <p className="mt-2 text-[11px] text-faint">Tap a day: ⚽ football, busy, or pick the session yourself (📌). The rest re-fits automatically — legs stay ≥ 48 h from football.</p>
 
-      {day && <DaySheet iso={day} mark={marks[day] ?? null} plan={plan} open={(s.next ? s.slots.filter((x) => x.week === s.next!.week && x.status === "open") : [])} onClose={() => setDay(null)} onMark={(m) => { setMark(day, m); }} />}
+      {day && <DaySheet iso={day} week={s.next?.week} mark={marks[day] ?? null} plan={plan} open={(s.next ? s.slots.filter((x) => x.week === s.next!.week && x.status === "open") : [])} onClose={() => setDay(null)} onMark={(m) => { setMark(day, m); }} />}
     </Card>
   );
 }
 
-function DaySheet({ iso, mark, plan, open, onClose, onMark }: { iso: string; mark: Mark | null; plan: WeekPlanOut; open: { dayKey: string; dayName: string }[]; onClose: () => void; onMark: (m: Mark | null) => void }) {
+function DaySheet({ iso, week, mark, plan, open, onClose, onMark }: { iso: string; week?: number; mark: Mark | null; plan: WeekPlanOut; open: { dayKey: string; dayName: string }[]; onClose: () => void; onMark: (m: Mark | null) => void }) {
   const d = plan.days.find((x) => x.iso === iso);
   const label = new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "short" });
   const past = iso <= today();
   const [min, setMin] = useState<number | null>(90);
   const [int, setInt] = useState<string | null>("normal");
   const [logged, setLogged] = useState(false);
+  const [preview, setPreview] = useState(false);
   const { data: body } = useLoad<{ weightKg: number | null }[]>("/body");
   const kg = body?.find((b) => b.weightKg)?.weightKg ?? 80;
   return (
     <Sheet open onClose={onClose} title={label} icon={CalendarClock}>
       {d && <p className="text-sm text-mute">{d.kind === "planned" ? `Planned: ${d.dayName}${d.note ? ` — ${d.note}` : ""}` : d.kind === "done" ? `Done: ${d.dayName}` : d.kind === "football" ? "Football day — no lifting." : d.kind === "busy" ? "Marked busy." : "Rest day."}</p>}
+      {d?.kind === "planned" && d.dayKey && week && (
+        <Btn kind="soft" icon={Eye} className="mt-2 w-full" onClick={() => { setPreview(true); track("preview_open", { from: "week", dayKey: d.dayKey }); }}>Preview {d.dayName}</Btn>
+      )}
+      {preview && d?.dayKey && week && <WorkoutPreview week={week} dayKey={d.dayKey} onClose={() => setPreview(false)} />}
       {iso >= today() && mark !== "football" && mark !== "busy" && (
         <div className="mt-3">
           <div className="mb-1.5 text-xs text-mute">Plan this day yourself</div>

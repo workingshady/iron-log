@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { Activity, CalendarDays, Check, ChevronDown, Clock, Info, Play } from "lucide-react";
+import { Activity, CalendarDays, Check, ChevronDown, Clock, Eye, Info, Play } from "lucide-react";
+import { WorkoutPreview } from "../components/WorkoutPreview";
+import { track } from "../lib/api";
 import type { AppState, Lifts, PlanItem, SlotInfo } from "../../shared/api";
 import type { DayPlan } from "../../program/types";
 import { recommend } from "../../shared/recommend";
@@ -25,6 +27,7 @@ export default function Plan() {
   const [openDay, setOpenDay] = useState<string | null>(null);
   const [how, setHow] = useState<PlanItem | null>(null);
   const [start, setStart] = useState<SlotInfo | null>(null);
+  const [preview, setPreview] = useState<{ week: number; dayKey: string; slot: SlotInfo | null } | null>(null);
   const [showMap, setShowMap] = useState(false);
   const [legend, setLegend] = useState(false);
   const [view, setView] = useState<"days" | "weeks">("days");
@@ -146,11 +149,10 @@ export default function Plan() {
 
               {open && (
                 <>
-                  {sl && !s?.active && (
-                    <div className="px-4 pb-3">
-                      <Btn kind={isNext ? "primary" : "soft"} icon={Play} className="w-full" onClick={() => setStart(sl)}>Start {d.name}</Btn>
-                    </div>
-                  )}
+                  <div className="grid grid-cols-[auto_1fr] gap-2 px-4 pb-3">
+                    <Btn kind="soft" icon={Eye} onClick={() => { setPreview({ week: week.n, dayKey: d.key, slot: sl ?? null }); track("preview_open", { from: "plan", dayKey: d.key }); }}>Preview</Btn>
+                    {sl && !s?.active ? <Btn kind={isNext ? "primary" : "soft"} icon={Play} className="w-full" onClick={() => setStart(sl)}>Start {d.name}</Btn> : <span />}
+                  </div>
                   <ul className="border-t border-line">
                     {d.items.map((rx, i) => {
                       const item = toItem(rx.ex, rx);
@@ -196,6 +198,7 @@ export default function Plan() {
         <section key={x.key} className="mt-3 rounded-2xl border border-dashed border-vio/40 bg-card p-4">
           <div className="flex items-center gap-2">
             <h2 className="flex-1 text-lg font-bold">{x.name} <span className="ml-1 rounded-full bg-vio/15 px-2 py-0.5 text-[11px] font-medium text-vio">optional extra</span></h2>
+            <Btn kind="soft" icon={Eye} className="min-h-10 px-3 text-sm" onClick={() => setPreview({ week: curWeek, dayKey: x.key, slot: { week: curWeek, dayKey: x.key, dayName: x.name, focus: x.focus, items: x.items.length, status: "open" } })}>Preview</Btn>
             {!s?.active && <Btn kind="soft" icon={Play} className="min-h-10 px-3 text-sm" onClick={() => setStart({ week: curWeek, dayKey: x.key, dayName: x.name, focus: x.focus, items: x.items.length, status: "open" })}>Start</Btn>}
           </div>
           <p className="text-xs text-mute">{x.focus} · after Chest+Back / Shoulders+Arms or on a rest day — never before Pull.</p>
@@ -243,6 +246,7 @@ export default function Plan() {
       </Sheet>
 
       {how && <ExerciseSheet item={how} onClose={() => setHow(null)} />}
+      {preview && <WorkoutPreview week={preview.week} dayKey={preview.dayKey} onClose={() => setPreview(null)} onStart={preview.slot ? () => { setStart(preview.slot); setPreview(null); } : undefined} />}
       <StartSheet open={!!start} slot={start} kind={start?.dayKey.startsWith("X") ? "extra" : start && !(s?.next?.week === start.week && s?.next?.dayKey === start.dayKey) ? (start.status === "open" ? "picked" : "extra") : "planned"} onClose={() => setStart(null)} />
     </div>
   );

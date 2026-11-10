@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CalendarOff, CalendarRange, Dumbbell, Flame, FlaskConical, Footprints, House, Lightbulb, Play, Plus, Scale, Timer, TrendingUp } from "lucide-react";
+import { CalendarOff, CalendarRange, Dumbbell, Eye, Flame, FlaskConical, Footprints, House, Lightbulb, Play, Plus, Scale, Timer, TrendingUp } from "lucide-react";
 import type { AppState, DashboardData, InsightsData, Lifts, ProgressData, SlotInfo } from "../../shared/api";
 import { recommend } from "../../shared/recommend";
 import { kg } from "../lib/util";
@@ -15,6 +15,7 @@ import { Heatmap } from "../components/Heatmap";
 import { LineChart } from "../components/Chart";
 import { LiftTrends, WeeklyTrend, useAnalytics } from "../components/Analytics";
 import { MissedSheet, PickSheet, StartSheet } from "../components/StartSheets";
+import { WorkoutPreview } from "../components/WorkoutPreview";
 import { WeekPlanner, useWeekPlan } from "../components/WeekPlanner";
 
 export default function Home() {
@@ -23,7 +24,7 @@ export default function Home() {
   const { data: p } = useLoad<ProgressData>("/progress");
   const { data: ins } = useLoad<InsightsData>(`/insights?today=${today()}`);
   const { data: lifts } = useLoad<Lifts>("/lifts");
-  const [sheet, setSheet] = useState<null | "start" | "missed" | "pick">(null);
+  const [sheet, setSheet] = useState<null | "start" | "missed" | "pick" | "preview">(null);
   const [target, setTarget] = useState<SlotInfo | null>(null);
   const { plan: wp } = useWeekPlan();
   const { data: an } = useAnalytics(s ? weekConfig(s.settings, s.schedules).weekStart : 1);
@@ -108,7 +109,8 @@ export default function Home() {
                   {state === "train" ? "Start workout" : `Train anyway — ${next.dayName}`}
                 </Btn>
               )}
-              <div className="mt-2 grid grid-cols-2 gap-2">
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                <Btn kind="soft" icon={Eye} onClick={() => { setTarget(next); setSheet("preview"); track("preview_open", { from: "home", dayKey: next.dayKey }); }}>Preview</Btn>
                 <Btn kind="soft" icon={CalendarOff} onClick={() => { setTarget(next); setSheet("missed"); }}>Can't train</Btn>
                 <Btn kind="soft" icon={CalendarRange} onClick={() => setSheet("pick")}>Other day</Btn>
               </div>
@@ -163,6 +165,7 @@ export default function Home() {
         </Card>
       </div>
 
+      {sheet === "preview" && target && <WorkoutPreview week={target.week} dayKey={target.dayKey} onClose={() => setSheet(null)} onStart={() => setSheet("start")} />}
       <StartSheet open={sheet === "start"} slot={target} kind={target && target.dayKey !== s.next?.dayKey ? (target.status === "open" ? "picked" : "extra") : "planned"} onClose={() => setSheet(null)} />
       <MissedSheet open={sheet === "missed"} slot={target} onClose={() => setSheet(null)} onDone={() => { reload(); }} />
       <PickSheet open={sheet === "pick"} s={s} onClose={() => setSheet(null)} onPick={(x) => { setTarget(x); setSheet("start"); }} />

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { Ban, Check, ChevronRight, Dumbbell, Play, RotateCcw } from "lucide-react";
+import { Ban, Check, ChevronRight, Dumbbell, Eye, Play, RotateCcw } from "lucide-react";
+import { WorkoutPreview } from "../components/WorkoutPreview";
 import type { AppState, HistoryRow, Lifts, PlanItem } from "../../shared/api";
 import { CURRENT } from "../../program";
 import { toItem, targetLabel } from "../../shared/plan";
@@ -30,6 +31,7 @@ export default function Extras() {
   const { data: hist, reload } = useLoad<HistoryRow[]>("/history");
   const { data: lifts } = useLoad<Lifts>("/lifts");
   const [start, setStart] = useState(false);
+  const [preview, setPreview] = useState(false);
   const [skip, setSkip] = useState(false);
   const [how, setHow] = useState<PlanItem | null>(null);
   const curWeek = s?.next?.week ?? s?.active?.week ?? 1;
@@ -75,7 +77,8 @@ export default function Extras() {
             </div>
           </div>
         </div>
-        <div className="mt-4 grid grid-cols-[1fr_auto] gap-2">
+        <div className="mt-4 grid grid-cols-[auto_1fr_auto] gap-2">
+          <Btn kind="soft" icon={Eye} onClick={() => setPreview(true)} aria-label="Preview">Preview</Btn>
           {s?.active ? (
             <Btn kind="primary" icon={RotateCcw} onClick={() => go(`/s/${s.active!.id}`)}>{activeExtra ? "Continue" : `Finish ${s.active.dayName} first`}</Btn>
           ) : (
@@ -138,6 +141,7 @@ export default function Extras() {
         </ul>
       </section>
 
+      {preview && <WorkoutPreview week={curWeek} dayKey={extra.key} onClose={() => setPreview(false)} onStart={() => { setPreview(false); setStart(true); }} />}
       <StartSheet open={start} slot={start ? { week: curWeek, dayKey: extra.key, dayName: extra.name, focus: extra.focus, items: extra.items.length, status: "open" } : null} kind="extra" onClose={() => setStart(false)} />
       {skip && <SkipSheet onClose={() => setSkip(false)} onSkip={(excuse, note) => {
         const id = uid();

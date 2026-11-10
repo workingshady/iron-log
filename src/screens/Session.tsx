@@ -4,6 +4,8 @@ import { NOTE_TAGS, PAIN_AREAS, SET_KINDS, type SetKind } from "../../shared/lis
 import { targetLabel, toItem } from "../../shared/plan";
 import { EXERCISES } from "../../program/exercises";
 import { DEFAULT_SWAP_NOTE, SWAP_REASONS, swapHint } from "../../program/swaps";
+import { EQUIP_LABEL, defaultRx, equipOf, genericRatio, smartAlts, type Equip } from "../../program/bank";
+import { EX_GROUP, GROUPS } from "../../program/groups";
 import { cache, get, queue, send, track, uid } from "../lib/api";
 import { beep, clock, cx, kg, niceDate, restLabel, roundTo, unlockAudio, vibrate } from "../lib/util";
 import { Btn, Chips, Label, NumInput, Sheet, Thumb, scale } from "../components/ui";
@@ -1018,21 +1020,40 @@ function SwapSheet({ it, lastWeight, sessionId, onClose, onPick }: {
   const [reason, setReason] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [all, setAll] = useState(!it);
+  const [grp, setGrp] = useState<string | null>(it ? EX_GROUP[it.ex] ?? null : null);
+  const [eq, setEq] = useState<string | null>(null);
   const origin = it?.swappedFrom ?? it?.ex;
+  const topR = (r: unknown) => (Array.isArray(r) ? r[1] : typeof r === "number" ? r : 10);
+  /** Explicit conversion if we have one, else from the strength ratios of both exercises (any pair works). */
+  const startFor = (key: string) => {
+    if (!origin || !lastWeight) return null;
+    const h = swapHint(origin, key);
+    const ratio = h.ratio ?? genericRatio(origin, key, topR(it?.reps), topR(h.reps ?? it?.reps));
+    if (!ratio) return null;
+    const step = Math.max(EXERCISES[key]?.step ?? 2.5, EXERCISES[key]?.pair ? 2.5 : 0);
+    return Math.max(step, roundTo(lastWeight * ratio * (h.ratio ? 1 : 0.95), step)); // generic → 5% lighter, find RIR on set 1
+  };
 
   async function pick(key: string) {
     const h = origin ? swapHint(origin, key) : {};
-    const base = it ?? { sets: 3, reps: [8, 12] as [number, number], rest: 90 };
+    const base = it ?? defaultRx(key);
     const { ex: _ex, name: _n, metric: _m, muscles: _mu, cues: _c, yt: _y, alts: _a, step: _s, perSide: _p, startKg: _k, ...rx } = base as PlanItem;
     const item = toItem(key, { ...rx, reps: h.reps ?? rx.reps, tech: h.note ?? (it ? DEFAULT_SWAP_NOTE : undefined) });
     if (it && origin && key !== origin) { item.swappedFrom = origin; item.swapReason = reason ?? undefined; }
-    if (h.ratio && lastWeight) item.startKg = roundTo(lastWeight * h.ratio, item.step);
+    const sk = startFor(key);
+    if (it && sk) item.startKg = sk;
     const last = await get<{ date: string; sets: SetLog[] } | null>(`/last/${key}?not=${sessionId}`).catch(() => null);
     onPick(item, last, reason);
   }
 
-  const alts = it ? [...(origin && origin !== it.ex ? [{ key: origin, name: `${EXERCISES[origin]?.name} (original)` }] : []), ...it.alts.filter((a) => a.key !== origin)] : [];
-  const list = Object.values(EXERCISES).filter((e) => e.name.toLowerCase().includes(q.toLowerCase()));
+  // hand-picked alternatives + the best matches for your reason (pain → machines/cables, busy → other equipment…)
+  const picked = it ? [...(origin && origin !== it.ex ? [{ key: origin, name: `${EXERCISES[origin]?.name} (original)` }] : []), ...it.alts.filter((a) => a.key !== origin)] : [];
+  const smart = it && origin ? smartAlts(origin, reason, 8).filter((k) => k !== it.ex && !picked.some((p) => p.key === k)).map((k) => ({ key: k, name: EXERCISES[k].name })) : [];
+  const alts = reason ? [...smart.slice(0, 4), ...picked].filter((a, i, arr) => arr.findIndex((b) => b.key === a.key) === i) : [...picked, ...smart.slice(0, 3)];
+  const list = Object.values(EXERCISES)
+    .filter((e) => e.name.toLowerCase().includes(q.toLowerCase()) || e.muscles.toLowerCase().includes(q.toLowerCase()))
+    .filter((e) => (!grp || EX_GROUP[e.key] === grp) && (!eq || equipOf(e.key) === eq))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <Sheet open onClose={onClose} title={it ? `Swap ${it.name}` : "Add exercise"}>
@@ -1044,14 +1065,15 @@ function SwapSheet({ it, lastWeight, sessionId, onClose, onPick }: {
           <div className="grid gap-2">
             {alts.map((a) => {
               const h = origin ? swapHint(origin, a.key) : {};
-              const sk = h.ratio && lastWeight ? roundTo(lastWeight * h.ratio, EXERCISES[a.key]?.step ?? 2.5) : null;
+              const sk = startFor(a.key);
+              const isSmart = !it.alts.some((x) => x.key === a.key) && a.key !== origin;
               return (
                 <button key={a.key} onClick={() => pick(a.key)} className="flex items-center gap-3 rounded-xl bg-card2 p-2.5 text-left hover:bg-card3">
                   <Thumb yt={(() => { const y = EXERCISES[a.key]?.yt; return Array.isArray(y) ? y[0] : y; })()} />
                   <div className="min-w-0 flex-1">
-                  <div className="font-semibold">{a.name}</div>
+                  <div className="font-semibold">{a.name}{isSmart && <span className="ml-1.5 rounded-full bg-info/15 px-1.5 py-0.5 text-[10px] font-normal text-info">{reason ? `fits “${reason}”` : "similar"}</span>}</div>
                   <div className="text-xs text-mute">
-                    {[sk != null && `start ≈ ${sk} kg`, h.reps && `reps ${Array.isArray(h.reps) ? h.reps.join("-") : h.reps}`, h.note].filter(Boolean).join(" · ") || "same sets · reps · RIR"}
+                    {[EQUIP_LABEL[equipOf(a.key)], sk != null && `start ≈ ${kg(sk)} kg${EXERCISES[a.key]?.pair ? "/hand" : ""}`, h.reps && `reps ${Array.isArray(h.reps) ? h.reps.join("-") : h.reps}`, h.note].filter(Boolean).join(" · ") || "same sets · reps · RIR"}
                   </div>
                   </div>
                 </button>
@@ -1063,14 +1085,24 @@ function SwapSheet({ it, lastWeight, sessionId, onClose, onPick }: {
       )}
       {all && (
         <>
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search exercises" className="mt-3 min-h-12 w-full rounded-xl bg-card2 px-3 outline-none focus:ring-2 focus:ring-acc" />
-          <div className="mt-2 grid gap-1">
-            {list.map((e) => (
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Search ${Object.keys(EXERCISES).length} exercises or a muscle`} className="mt-3 min-h-12 w-full rounded-xl bg-card2 px-3 outline-none focus:ring-2 focus:ring-acc" />
+          <div className="-mx-1 mt-2 overflow-x-auto px-1"><Chips small options={GROUPS.map((g) => ({ id: g, label: g }))} value={grp} onChange={setGrp} /></div>
+          <div className="-mx-1 mt-1.5 overflow-x-auto px-1"><Chips small options={(Object.keys(EQUIP_LABEL) as Equip[]).map((x) => ({ id: x, label: EQUIP_LABEL[x] }))} value={eq} onChange={setEq} /></div>
+          <p className="mt-1.5 text-[11px] text-faint">{list.length} exercises{!it ? " · added with sensible sets/reps and a starting weight" : ""}</p>
+          <div className="mt-1 grid gap-1">
+            {list.map((e) => {
+              const rx = defaultRx(e.key);
+              return (
               <button key={e.key} onClick={() => pick(e.key)} className="flex items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-card2">
                 <Thumb yt={Array.isArray(e.yt) ? e.yt[0] : e.yt} className="h-9 w-12" />
-                <span className="min-w-0 flex-1 truncate">{e.name} <span className="text-xs text-mute">· {e.muscles}</span></span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm">{e.name}</span>
+                  <span className="block truncate text-[11px] text-mute">{EX_GROUP[e.key] ?? "—"} · {EQUIP_LABEL[equipOf(e.key)]} · {it ? e.muscles : targetLabel(rx)}</span>
+                </span>
+                <Plus size={16} className="text-acc" />
               </button>
-            ))}
+              );
+            })}
           </div>
         </>
       )}

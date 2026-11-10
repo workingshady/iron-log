@@ -64,7 +64,7 @@ app.get("/me", (c) => c.json({ ok: true, dev: c.var.dev }));
 /** DEV mode only: fill the test database with ~3 weeks of realistic dummy training. */
 app.post("/dev/seed", async (c) => {
   if (!c.var.dev) return c.json({ error: "Only in DEV mode" }, 403);
-  const n = await seedDev(db(c), c.req.query("today") ?? new Date().toISOString().slice(0, 10));
+  const n = await seedDev(db(c), c.req.query("today") ?? new Date().toISOString().slice(0, 10), drizzle(c.env.DB, { schema: t }));
   return c.json({ ok: true, rows: n });
 });
 

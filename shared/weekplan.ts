@@ -1,14 +1,19 @@
-// Adaptive week: re-fits the remaining sessions of this program week around football / busy days.
+// Adaptive week: finds the best way to fit the remaining sessions of this program week around
+// football / busy days. It tries EVERY arrangement (≤ 7 days × ≤ 5 sessions) and keeps the lowest penalty score.
 //
-// Rules (sources in docs/GUIDE.md "Football weeks"):
-//  • No lifting on a football day (you can toggle "lift too" on a light-game day).
-//  • Heavy LEGS never the day before, the day of, or the day after football; 2 days before only if nothing else fits
-//    (≥48 h between a match and heavy leg work — soccer S&C guidance).
-//  • Sessions keep program order when they can; Legs is moved later (or earlier) instead of breaking a rule.
-//  • Your weekly schedule's rest days are kept unless sessions would otherwise not fit.
-//  • No more than 3 hard days in a row (football counts as a hard day).
-//  • If a session can't fit: Legs → "Legs-lite" (squat + RDL + calves, fewer sets) on the safest day, or skip it this
-//    week (football already loaded your legs); others → carry to next week (the week just stretches).
+// Hard rules (never broken):
+//  • No lifting on a football day (unless "lift too") or a busy day.
+//  • Heavy LEGS never the day before, the day of, or the day after football (≥ 48 h guidance for match + heavy legs).
+// Soft rules (penalty points — lower total wins):
+//  • Session left out this week ............................... 12   (Legs in a football week: 6 — football loaded your legs)
+//  • Legs 2 days before football ................................ 2
+//  • Out of program order (per swapped pair) .................... 1.5
+//  • Same muscles on back-to-back days: Pull→Chest+Back (back) 1.5, Push→Shoulders+Arms (delts/triceps) 1.5,
+//    Push→Chest+Back (chest) 1, Pull→Shoulders+Arms (biceps) 0.5, Legs↔Shoulders+Arms (leg booster) 0.5
+//  • Hard days in a row (lifting + football): the 3rd → 0.3, each beyond 3 → 4
+//  • Lifting on one of your rest days 0.4 · resting on one of your training days 0.4
+//  • Resting the day after football: −0.3 (recovery bonus)
+//  • Tiny nudge (0.02/day) toward training earlier, so spare days stay at the end of the week.
 
 export type Mark = "football" | "busy";
 export interface DayIn { iso: string; dow: number } // dow 0 = Sunday
@@ -26,6 +31,7 @@ export interface WeekPlanOut {
   days: PlanDay[];
   unplaced: { dayKey: string; dayName: string; advice: string; action?: "legs_lite" | "skip_sport" | "carry" }[];
   todayKey: string | null;
+  todayKind: PlanDay["kind"] | null;
   summary: string;
 }
 
@@ -35,6 +41,7 @@ const addDays = (iso: string, n: number) => {
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
 };
+const dayName = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" });
 
 /** The 7 dates of the calendar week containing `today`, starting on `weekStart` (0 = Sun … 6 = Sat). */
 export function weekDates(today: string, weekStart: number): DayIn[] {
@@ -47,10 +54,18 @@ export function weekDates(today: string, weekStart: number): DayIn[] {
   });
 }
 
+/** Muscle overlap penalty for two sessions on consecutive days (order-independent). */
+function overlap(a: string, b: string): number {
+  const k = (x: string) => (/push/i.test(x) ? "push" : /pull/i.test(x) ? "pull" : /leg/i.test(x) ? "legs" : /chest/i.test(x) ? "cb" : /shoulder|arm/i.test(x) ? "sa" : x);
+  const p = [k(a), k(b)].sort().join("+");
+  return ({ "cb+pull": 1.5, "push+sa": 1.5, "cb+push": 1, "pull+sa": 0.5, "legs+sa": 0.5 } as Record<string, number>)[p] ?? 0;
+}
+
 export function planWeek(input: {
   today: string;
   dates: DayIn[];
-  schedule: string[] | null; // index = dow → dayKey | "rest"
+  /** index = dow → "rest" = preferred rest day; anything else = preferred training day. null = no preference. */
+  schedule: string[] | null;
   slots: SlotIn[]; // this program week, in program order
   doneOn: Record<string, string>; // iso → dayName of a finished lifting session
   marks: Record<string, Mark>;
@@ -58,70 +73,114 @@ export function planWeek(input: {
 }): WeekPlanOut {
   const { today, dates, schedule, slots, doneOn, marks } = input;
   const football = new Set(Object.entries(marks).filter(([, m]) => m === "football").map(([d]) => d));
-  const fbNear = (iso: string, k: number) => football.has(addDays(iso, k));
+  const fb = (iso: string, k: number) => football.has(addDays(iso, k));
   const remaining = slots.filter((s) => s.status === "open");
   const doneToday = !!doneOn[today];
-
-  // candidate days to lift: today (if not trained yet) and later, not busy, not football (unless "lift too")
   const future = dates.filter((d) => d.iso > today || (d.iso === today && !doneToday));
-  const candidates = future.filter((d) => marks[d.iso] !== "busy" && (!football.has(d.iso) || input.liftOnFootball?.[d.iso]));
-  const preferred = (d: DayIn) => !schedule || schedule[d.dow] !== "rest";
+  const canLift = (d: DayIn) => marks[d.iso] !== "busy" && (!football.has(d.iso) || !!input.liftOnFootball?.[d.iso]);
+  const prefersTrain = (d: DayIn) => (schedule ? schedule[d.dow] !== "rest" : true);
+  const legsHard = (iso: string) => football.has(iso) || fb(iso, 1) || fb(iso, -1);
+  const n = future.length;
+  const plan: (SlotIn | null)[] = new Array(n).fill(null);
+  const used: boolean[] = new Array(remaining.length).fill(false);
+  const futureIdx = new Map(future.map((d, k) => [d.iso, k]));
 
-  const legsHard = (iso: string) => football.has(iso) || fbNear(iso, 1) || fbNear(iso, -1);
-  const legsSoft = (iso: string) => fbNear(iso, 2);
+  const nameOn = (iso: string): string | null => {
+    if (doneOn[iso]) return doneOn[iso];
+    const k = futureIdx.get(iso);
+    return k != null && plan[k] ? plan[k]!.dayName : null;
+  };
 
-  // hard days already in a row before a date (done sessions + football + planned so far)
-  const assigned = new Map<string, SlotIn>();
-  const hard = (iso: string) => !!doneOn[iso] || football.has(iso) || assigned.has(iso);
-  const streakBefore = (iso: string) => { let n = 0; for (let k = 1; k <= 3; k++) { if (hard(addDays(iso, -k))) n++; else break; } return n; };
-
-  const queue = [...remaining];
-  for (let i = 0; i < candidates.length && queue.length; i++) {
-    const d = candidates[i];
-    const daysLeft = candidates.length - i;
-    const must = queue.length >= daysLeft; // not enough days left → train today
-    if (!must && !preferred(d)) continue;
-    if (!must && streakBefore(d.iso) >= 3) continue;
-    // first session in program order that is allowed here; legs avoids the soft zone unless it's the last chance
-    let pick = queue.findIndex((s) => !isLegs(s) || (!legsHard(d.iso) && !legsSoft(d.iso)));
-    if (pick < 0) pick = queue.findIndex((s) => !isLegs(s) || !legsHard(d.iso));
-    if (pick < 0) continue;
-    // keep Legs in order if it's next and allowed; otherwise program order already chose the next allowed one
-    assigned.set(d.iso, queue[pick]);
-    queue.splice(pick, 1);
+  function score(): number {
+    let s = 0;
+    remaining.forEach((r, i) => { if (!used[i]) s += isLegs(r) && football.size ? 6 : 12; });
+    const order = plan.filter((p): p is SlotIn => !!p).map((p) => remaining.indexOf(p));
+    for (let i = 0; i < order.length; i++) for (let j = i + 1; j < order.length; j++) if (order[i] > order[j]) s += 1.5;
+    future.forEach((d, k) => {
+      const p = plan[k];
+      if (p) {
+        if (isLegs(p) && fb(d.iso, 2)) s += 2;
+        const prev = nameOn(addDays(d.iso, -1));
+        if (prev) s += overlap(prev, p.dayName);
+        if (!prefersTrain(d)) s += 0.4;
+        s += 0.02 * k;
+      } else if (canLift(d)) {
+        if (prefersTrain(d)) s += 0.4;
+        if (fb(d.iso, -1)) s -= 0.3;
+      }
+    });
+    let run = 0;
+    for (let i = -3; i < dates.length; i++) {
+      const iso = addDays(dates[0].iso, i);
+      if (nameOn(iso) || football.has(iso)) { run++; if (run === 3) s += 0.3; if (run > 3) s += 4; } else run = 0;
+    }
+    return s;
   }
+
+  let bestScore = Infinity;
+  let bestPlan: (SlotIn | null)[] = [...plan];
+  function dfs(k: number) {
+    if (k === n) {
+      const sc = score();
+      if (sc < bestScore - 1e-9) { bestScore = sc; bestPlan = [...plan]; }
+      return;
+    }
+    plan[k] = null; // rest / no lifting
+    dfs(k + 1);
+    const d = future[k];
+    if (!canLift(d)) return;
+    for (let i = 0; i < remaining.length; i++) {
+      if (used[i]) continue;
+      if (isLegs(remaining[i]) && legsHard(d.iso)) continue;
+      used[i] = true;
+      plan[k] = remaining[i];
+      dfs(k + 1);
+      used[i] = false;
+      plan[k] = null;
+    }
+  }
+  dfs(0);
+
+  const assigned = new Map<string, SlotIn>();
+  future.forEach((d, k) => { if (bestPlan[k]) assigned.set(d.iso, bestPlan[k]!); });
 
   const days: PlanDay[] = dates.map((d) => {
     const base = { iso: d.iso, dow: d.dow, today: d.iso === today };
     if (doneOn[d.iso]) return { ...base, kind: "done", dayName: doneOn[d.iso] };
     const a = assigned.get(d.iso);
     if (a) {
-      const note = football.has(d.iso) ? "after football — keep it short" : isLegs(a) && legsSoft(d.iso) ? "2 days before football: go lighter" : !isLegs(a) && /shoulder|arm/i.test(a.dayName) && (fbNear(d.iso, 1) || fbNear(d.iso, -1)) ? "football next to it: skip the leg booster (split squats)" : undefined;
+      const note = football.has(d.iso) ? "after football — keep it short"
+        : isLegs(a) && fb(d.iso, 2) ? "2 days before football: leave 3 reps in the tank, no drop sets"
+        : /shoulder|arm/i.test(a.dayName) && (fb(d.iso, 1) || fb(d.iso, -1)) ? "football next to it: skip the leg booster (split squats)"
+        : fb(d.iso, 1) ? "football tomorrow: no failure sets, skip hard cardio" : undefined;
       return { ...base, kind: "planned", dayKey: a.dayKey, dayName: a.dayName, note };
     }
-    if (football.has(d.iso)) return { ...base, kind: "football" };
+    if (football.has(d.iso)) return { ...base, kind: "football", note: "football = your cardio today" };
     if (marks[d.iso] === "busy") return { ...base, kind: "busy" };
     if (d.iso < today) return { ...base, kind: "past" };
-    return { ...base, kind: "rest", note: fbNear(d.iso, -1) ? "recovery after football" : undefined };
+    return { ...base, kind: "rest", note: fb(d.iso, -1) ? "recovery after football (easy walk / mobility)" : undefined };
   });
 
-  const unplaced: WeekPlanOut["unplaced"] = queue.map((s) => {
+  const placed = new Set(assigned.values());
+  const left = remaining.filter((r) => !placed.has(r));
+  const unplaced: WeekPlanOut["unplaced"] = left.map((s) => {
     if (isLegs(s) && football.size) {
-      const safe = candidates.find((d) => !assigned.has(d.iso) && !legsHard(d.iso));
-      const day = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long" });
-      if (safe) return { dayKey: s.dayKey, dayName: s.dayName, action: "legs_lite" as const, advice: `No full Legs slot this week. Do Legs-lite on ${day(safe.iso)}: squat + RDL + calves, 2 sets each — or skip it, football already loaded your legs.` };
-      // last resort: a day 2 days before football that holds another session → offer to swap it for a lighter Legs
-      const swap = candidates.find((d) => !legsHard(d.iso));
-      const other = swap ? assigned.get(swap.iso) : undefined;
-      if (swap && other) return { dayKey: s.dayKey, dayName: s.dayName, action: "legs_lite" as const, advice: `Legs only fits on ${day(swap.iso)} (2 days before football). Option A: do Legs there instead of ${other.dayName} — lighter, RIR 3, no drop sets — and ${other.dayName} moves to next week. Option B: skip Legs this week, football counts as your leg day.` };
-      return { dayKey: s.dayKey, dayName: s.dayName, action: "skip_sport" as const, advice: "No safe day for Legs (football too close). Skip Legs this week — football counts as your leg day — and log it as skipped (sport)." };
+      const free = future.find((d) => canLift(d) && !assigned.has(d.iso) && !legsHard(d.iso));
+      if (free) return { dayKey: s.dayKey, dayName: s.dayName, action: "legs_lite" as const, advice: `Legs fits as Legs-lite on ${dayName(free.iso)}: squat + RDL + calves, 2 sets each. Or skip it — football already loaded your legs.` };
+      const swap = future.find((d) => canLift(d) && assigned.has(d.iso) && !legsHard(d.iso));
+      if (swap) return { dayKey: s.dayKey, dayName: s.dayName, action: "skip_sport" as const, advice: `Not enough free days this week, so Legs is the one left out — football already trained your legs. Rather do Legs? Start it on ${dayName(swap.iso)} instead of ${assigned.get(swap.iso)!.dayName} (that one moves to next week).` };
+      return { dayKey: s.dayKey, dayName: s.dayName, action: "skip_sport" as const, advice: "No safe day for heavy Legs this week (football too close on both sides). Skip it — football counts as your leg day." };
     }
-    return { dayKey: s.dayKey, dayName: s.dayName, action: "carry" as const, advice: `${s.dayName} doesn't fit this week — it moves to next week (the week just stretches). Short on time? Do its first 3 exercises on your next session.` };
+    return { dayKey: s.dayKey, dayName: s.dayName, action: "carry" as const, advice: `${s.dayName} doesn't fit this week — it moves to next week (the week just stretches). Short on time? Add its first 3 exercises to your next session.` };
   });
 
-  const todayPlan = days.find((d) => d.today && d.kind === "planned");
-  const moved = remaining.filter((s, i) => { const at = [...assigned.entries()].find(([, v]) => v === s); return at && remaining.indexOf(s) !== i; });
-  const fb = football.size ? `${football.size} football day${football.size > 1 ? "s" : ""}` : "";
-  const summary = [fb, unplaced.length ? `${unplaced.length} session${unplaced.length > 1 ? "s don't" : " doesn't"} fit` : remaining.length ? "everything fits" : "week done", moved.length ? "order adjusted" : ""].filter(Boolean).join(" · ");
-  return { days, unplaced, todayKey: todayPlan?.dayKey ?? null, summary };
+  const t = days.find((d) => d.today) ?? null;
+  const seq = future.map((_, k) => bestPlan[k]).filter((p): p is SlotIn => !!p).map((p) => remaining.indexOf(p));
+  const moved = seq.some((v, i) => i > 0 && seq[i - 1] > v);
+  const summary = [
+    football.size ? `${football.size} football day${football.size > 1 ? "s" : ""}` : "",
+    unplaced.length ? `${unplaced.length} session${unplaced.length > 1 ? "s don't" : " doesn't"} fit` : remaining.length ? "everything fits" : "week done",
+    moved ? "order adjusted" : "",
+  ].filter(Boolean).join(" · ");
+  return { days, unplaced, todayKey: t?.kind === "planned" ? t.dayKey ?? null : null, todayKind: t?.kind ?? null, summary };
 }

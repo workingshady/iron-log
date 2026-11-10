@@ -22,7 +22,19 @@ export async function send<T = unknown>(method: string, url: string, body?: unkn
   });
   if (r.status === 401) throw new Unauthorized();
   if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error ?? r.statusText);
-  return r.json();
+  const out = await r.json();
+  if (method !== "GET" && !url.startsWith("/events")) dataChanged();
+  return out;
+}
+
+// ---------------------------------------------------------------- one source of truth
+// After any saved change, every screen that is showing data re-fetches it (debounced), so Home, Plan,
+// the week planner, Stats and Settings never disagree.
+let changeTimer: ReturnType<typeof setTimeout> | null = null;
+export function dataChanged() {
+  if (typeof window === "undefined") return;
+  if (changeTimer) clearTimeout(changeTimer);
+  changeTimer = setTimeout(() => window.dispatchEvent(new Event("il:changed")), 250);
 }
 
 // ---------------------------------------------------------------- outbox

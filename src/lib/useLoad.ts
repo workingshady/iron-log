@@ -15,5 +15,11 @@ export function useLoad<T>(url: string) {
       .catch((e) => setError((e as Error).message));
   }, [url]);
   useEffect(reload, [reload]);
+  useEffect(() => {
+    window.addEventListener("il:changed", reload);
+    const vis = () => document.visibilityState === "visible" && reload(); // fresh data when you come back to the app
+    document.addEventListener("visibilitychange", vis);
+    return () => { window.removeEventListener("il:changed", reload); document.removeEventListener("visibilitychange", vis); };
+  }, [reload]);
   return { data, error, reload, setData };
 }

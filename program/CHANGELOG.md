@@ -2,6 +2,15 @@
 
 Each version: what changed, and the data that justified it.
 
+## app update · 2026-11-10 (no program change)
+- Week planner rebuilt as an optimizer (scores every arrangement); Legs-left-out advice explains why.
+- Settings: week start + preferred rest days (replaces A/B presets, still read for old data), Profile (name, height, bodyweight, background).
+- One source of truth: every saved change refreshes all screens; data also refreshes when you return to the app.
+- Home: Today card follows the adapted week (train / rest / football / done), quick actions, greeting.
+- Cardio follows the adapted week; DEV seed copies your real settings.
+- Workout: "Same as last set" one-tap; clearer session-effort prompt at Finish.
+- Fix: "stopped early" insight compared against the top of the range instead of the bottom.
+
 ## ppl-arnold@2.3.0 · 2026-11-10
 - **Grip & Wrist extra** (optional, 12-15 min, ≤2×/week): finger curls, behind-the-back wrist curls, reverse wrist curls, pronation/supination, radial deviation, heavy holds. Never before / the day before Pull (grip must be fresh).
 - **Adaptive football week** (shared/weekplan.ts): mark football/busy days, sessions re-fit with heavy legs ≥1 day away on both sides (48 h guidance), Legs-lite or skip-for-sport when it can't fit, football logged as cardio. New excuse "Played sport / football".

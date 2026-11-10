@@ -13,7 +13,7 @@ const iso = (base: string, back: number) => { const d = new Date(`${base}T12:00:
 const at = (date: string, h: number, m = 0) => Date.parse(`${date}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00Z`) - 2 * 3600e3; // Cairo
 const r = (n: number, step: number) => Math.max(step, Math.round(n / step) * step);
 
-export async function seedDev(d: DB, today: string): Promise<number> {
+export async function seedDev(d: DB, today: string, real?: DB): Promise<number> {
   // wipe the TEST database only
   await d.batch([d.delete(t.sets), d.delete(t.sessions), d.delete(t.events), d.delete(t.body), d.delete(t.tests), d.delete(t.journal), d.delete(t.intake), d.delete(t.feedback), d.delete(t.cardio), d.delete(t.settings), d.delete(t.programVersions)]);
   const pv = programVersionId(CURRENT);
@@ -78,6 +78,9 @@ export async function seedDev(d: DB, today: string): Promise<number> {
   await d.insert(t.tests).values([{ id: id("t"), date: iso(today, 20), testKey: "dead_hang", value: 32, unit: "s", createdAt: Date.now() }, { id: id("t"), date: iso(today, 20), testKey: "pushups", value: 28, unit: "reps", createdAt: Date.now() }]);
   await d.insert(t.journal).values({ id: id("j"), date: iso(today, 6), text: "Week 3. Football on Wednesday so Legs moved — felt fine.", tags: "life", createdAt: Date.now() });
   const marks = { [iso(today, 3)]: "football", [iso(today, -2)]: "football" };
-  await d.insert(t.settings).values([{ key: "schedule", value: "B (Sat start, Egypt weekend)" }, { key: "weekMarks", value: JSON.stringify(marks) }, { key: "barKg", value: "20" }, { key: "ezKg", value: "10" }]);
+  // copy YOUR real preferences (read-only) so test mode looks like your week; dummy football marks on top
+  const mine = real ? (await real.select().from(t.settings)).filter((r) => r.key !== "weekMarks") : [];
+  const base = mine.length ? mine : [{ key: "schedule", value: "A (Mon start)" }, { key: "barKg", value: "20" }, { key: "ezKg", value: "10" }];
+  await d.insert(t.settings).values([...base, { key: "weekMarks", value: JSON.stringify(marks) }]);
   return sessions.length + sets.length + cardio.length + intake.length;
 }

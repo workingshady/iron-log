@@ -1,24 +1,35 @@
 import { useState } from "react";
-import { CalendarDays, Download, FlaskConical, LogOut, Settings as Gear, TriangleAlert, Dumbbell } from "lucide-react";
+import { CalendarDays, Download, FlaskConical, LogOut, Settings as Gear, TriangleAlert, Dumbbell, UserRound } from "lucide-react";
 import type { AppState } from "../../shared/api";
+import { DOW, orderedDows, weekConfig } from "../../shared/week";
 import { send, track, isDev, clearScreenCache } from "../lib/api";
 import { useLoad } from "../lib/useLoad";
 import { cx, today } from "../lib/util";
-import { Btn, Card, NumInput, PageHead } from "../components/ui";
+import { Btn, Card, NumInput, PageHead, Chips } from "../components/ui";
 
 export default function Settings() {
-  const { data: s, reload } = useLoad<AppState>("/state");
+  const { data: s, setData } = useLoad<AppState>("/state");
   const [cre, setCre] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [prof, setProf] = useState<{ name: string; height: string; weight: string; level: string }>({ name: "", height: "", weight: "", level: "returning" });
+  const [profLoaded, setProfLoaded] = useState(false);
   const [bar, setBar] = useState<string | null>(null);
   const [ez, setEz] = useState<string | null>(null);
   const [confirmText, setConfirmText] = useState("");
   const [busy, setBusy] = useState(false);
   if (!s) return null;
+  if (!profLoaded) {
+    setProf({ name: s.settings.profileName ?? "Shady", height: s.settings.heightCm ?? "174", weight: s.settings.bodyKg ?? "80", level: s.settings.level ?? "returning" });
+    setProfLoaded(true);
+  }
+  const wk = weekConfig(s.settings, s.schedules);
 
   async function set(key: string, value: string) {
+    setData((x) => (x ? { ...x, settings: { ...x.settings, [key]: value } } : x)); // instant on screen
     await send("PUT", `/settings/${key}`, { value });
     track("setting", { [key]: value });
-    reload();
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
   }
   async function reset() {
     setBusy(true);
@@ -37,22 +48,45 @@ export default function Settings() {
 
   return (
     <div>
-      <PageHead icon={Gear} title="Settings" sub="Schedule, targets, your data." />
+      <PageHead icon={Gear} title="Settings" sub="Your week, profile, equipment, targets and your data." />
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <Card title="Weekly schedule" icon={CalendarDays} className="md:col-span-2">
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-            {Object.entries(s.schedules).map(([name, days]) => (
-              <button key={name} onClick={() => set("schedule", name)} className={cx("rounded-xl border p-3 text-left", s.settings.schedule === name ? "border-acc bg-acc/5" : "border-line hover:bg-card2")}>
-                <div className="font-semibold">{name}</div>
-                <div className="mt-2 flex gap-1 text-[11px]">
-                  {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d, i) => (
-                    <span key={d} className={cx("flex-1 rounded py-1 text-center", days[i] === "rest" ? "bg-card2 text-faint" : "bg-acc/15 text-acc")}>{d}</span>
-                  ))}
-                </div>
-              </button>
+        <Card title="Your week" icon={CalendarDays} className="md:col-span-2">
+          <div className="text-xs text-mute">Week starts on</div>
+          <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+            {[{ v: 6, l: "Saturday" }, { v: 0, l: "Sunday" }, { v: 1, l: "Monday" }].map((o) => (
+              <button key={o.v} onClick={() => set("weekStart", String(o.v))} className={cx("min-h-11 rounded-xl border text-sm", wk.weekStart === o.v ? "border-acc bg-acc/10 font-semibold text-acc" : "border-line")}>{o.l}</button>
             ))}
           </div>
-          <p className="mt-2 text-xs text-mute">Used for "rest day" hints and where the calendar week starts.</p>
+          <div className="mt-4 text-xs text-mute">Preferred rest days (tap to toggle) — the planner keeps these free when it can</div>
+          <div className="mt-1.5 grid grid-cols-7 gap-1">
+            {orderedDows(wk.weekStart).map((dow) => {
+              const rest = wk.restDows.includes(dow);
+              return (
+                <button key={dow} onClick={() => set("restDays", (rest ? wk.restDows.filter((x) => x !== dow) : [...wk.restDows, dow]).sort().join(","))}
+                  className={cx("min-h-12 rounded-lg text-xs font-semibold", rest ? "bg-card2 text-faint" : "bg-acc/15 text-acc")}>
+                  {DOW[dow]}<div className="text-[10px] font-normal">{rest ? "rest" : "train"}</div>
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-xs text-mute">{7 - wk.restDows.length} training days · your program needs 5. Football / busy days are marked per week on Home or Plan, and the week re-plans itself around them.</p>
+          {saved && <p className="mt-1 text-xs text-acc">Saved ✓</p>}
+        </Card>
+
+        <Card title="Profile" icon={UserRound}>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="col-span-2"><div className="mb-1 text-[11px] text-mute">Name</div><input value={prof.name} onChange={(e) => setProf({ ...prof, name: e.target.value })} className="min-h-12 w-full rounded-xl bg-card2 px-3 outline-none focus:ring-2 focus:ring-acc" /></div>
+            <div><div className="mb-1 text-[11px] text-mute">Height (cm)</div><NumInput value={prof.height} onChange={(v) => setProf({ ...prof, height: v })} /></div>
+            <div><div className="mb-1 text-[11px] text-mute">Bodyweight (kg)</div><NumInput value={prof.weight} onChange={(v) => setProf({ ...prof, weight: v })} /></div>
+          </div>
+          <div className="mt-2 text-[11px] text-mute">Training background</div>
+          <div className="mt-1"><Chips small clearable={false} options={[{ id: "new", label: "New" }, { id: "returning", label: "Returning after a break" }, { id: "regular", label: "Training 1y+" }]} value={prof.level} onChange={(v) => setProf({ ...prof, level: v ?? "returning" })} /></div>
+          <Btn kind="soft" className="mt-3 w-full" onClick={async () => {
+            const h = Number(prof.height || 0), w = Number(prof.weight || 0);
+            if ((h && (h < 120 || h > 230)) || (w && (w < 35 || w > 250))) return alert("Check height / weight");
+            await set("profileName", prof.name.trim()); await set("heightCm", prof.height); await set("bodyKg", prof.weight); await set("level", prof.level);
+          }}>Save profile</Btn>
+          <p className="mt-2 text-xs text-mute">Bodyweight is used for cardio calories and starting-weight estimates until you log weigh-ins in Body.</p>
         </Card>
 
         <Card title="Creatine daily target" icon={FlaskConical}>

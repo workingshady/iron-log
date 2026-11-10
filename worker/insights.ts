@@ -75,8 +75,11 @@ export function buildInsights(sess: S[], sets: X[], body: B[], intake: I[], creT
   }
 
   // 2b. honesty: stopping early & cheating (the user's own known habits)
-  const tgtBottom = (x: X) => { try { const p = JSON.parse(x.suggested ?? "null"); return p?.reps ?? null; } catch { return null; } };
-  const early = work.filter((x) => x.reps != null && x.rir != null && x.rir >= 2 && tgtBottom(x) != null && x.reps < tgtBottom(x));
+  // bottom of the planned rep range for that exercise in that session (stopping inside the range is fine)
+  const bottoms = new Map<string, number>();
+  for (const sess of done) { try { (JSON.parse(sess.plan) as { reps?: number | [number, number] | null }[]).forEach((p, i) => { const r = p.reps; if (r != null) bottoms.set(`${sess.id}|${i}`, Array.isArray(r) ? r[0] : r); }); } catch { /* ignore */ } }
+  const tgtBottom = (x: X) => bottoms.get(`${x.sessionId}|${x.itemIdx}`) ?? null;
+  const early = work.filter((x) => { const b = tgtBottom(x); return x.reps != null && x.rir != null && x.rir >= 2 && b != null && x.reps < b; });
   if (early.length) out.push({ tone: "warn", title: `Stopped early on ${early.length} set${early.length > 1 ? "s" : ""}`, text: "Below the target reps with 2+ left in the tank. The burn isn't failure — finish the set." });
   const answered = work.filter((x) => x.strict != null);
   const cheated = answered.filter((x) => x.strict === 0);

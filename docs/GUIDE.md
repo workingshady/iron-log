@@ -62,7 +62,15 @@ Each exercise shows **Today: 75 kg × 6** plus *why*, and the inputs are pre-fil
 - **Rest-pause**: same weight, rest 15-20 s, log the mini-set reps (don't add them to the main set).
 - **Extra set**: a normal set beyond the plan; the rest timer runs.
 
+## Your week (Settings)
+**Week starts on** Sat / Sun / Mon, and **preferred rest days** (tap to toggle). Saved instantly; every screen updates. These are preferences: the planner keeps them free when it can.
+
 ## Football weeks (adaptive week)
+The planner tries every possible arrangement of your remaining sessions and picks the best one. Hard rules: no lifting on football or busy days; heavy Legs never the day before, of, or after football. Then it scores: program order, no same muscles two days in a row (Pull→Chest+Back, Push→Shoulders+Arms), max 3 hard days in a row (football counts), recovery the day after football, and your preferred rest days.
+Example (Mon start, Push done, football Wed): Tue Pull · Wed ⚽ · Thu rest (Tue-Sat would be 5 hard days straight) · Fri Legs (48 h after) · Sat Chest+Back · Sun Shoulders+Arms.
+Cardio follows it too: football = your cardio, and no hard intervals the day before football or Legs.
+
+
 Plan (top) and Home show **This week** as 7 tiles. Tap a day → **⚽ Football** or **Busy**. The week re-fits itself:
 - No lifting on a football day. **Heavy Legs never the day before, the day of, or the day after football**; 2 days before only if nothing else fits (≥48 h between a match and heavy leg work).
 - Sessions keep program order when they can — otherwise Legs is moved later and an upper day comes first.

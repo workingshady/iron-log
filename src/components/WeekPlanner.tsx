@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Ban, CalendarClock, Check, Dumbbell, Moon, Trophy } from "lucide-react";
 import type { AppState, HistoryRow } from "../../shared/api";
 import { planWeek, weekDates, type Mark, type WeekPlanOut } from "../../shared/weekplan";
+import { weekConfig } from "../../shared/week";
 import { queue, send, track, uid } from "../lib/api";
 import { useLoad } from "../lib/useLoad";
 import { cx, today, tz } from "../lib/util";
@@ -19,9 +20,8 @@ export function useWeekPlan() {
   const plan = useMemo<WeekPlanOut | null>(() => {
     if (!s) return null;
     const t = today();
-    const weekStart = s.settings?.schedule?.startsWith("B") ? 6 : 1;
+    const { weekStart, schedule } = weekConfig(s.settings, s.schedules);
     const dates = weekDates(t, weekStart);
-    const schedule = s.settings?.schedule ? s.schedules[s.settings.schedule] : null;
     const wk = s.next?.week;
     const slots = wk ? s.slots.filter((x) => x.week === wk) : [];
     const doneOn: Record<string, string> = {};

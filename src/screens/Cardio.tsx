@@ -6,6 +6,7 @@ import { queue, send, track, uid } from "../lib/api";
 import { useLoad } from "../lib/useLoad";
 import { beep, clock, cx, niceDate, today, unlockAudio, vibrate } from "../lib/util";
 import { Badge, Btn, Card, Chips, Label, NumInput, PageHead, Sheet, scale } from "../components/ui";
+import { useWeekPlan } from "../components/WeekPlanner";
 
 const KIND: Record<SegKind, { dot: string; text: string; label: string }> = {
   warm: { dot: "bg-faint", text: "text-mute", label: "warm-up" },
@@ -36,14 +37,20 @@ export default function Cardio() {
   const [logSheet, setLogSheet] = useState<null | { protocol: string; minutes: number; status: "done" | "partial"; live?: Live }>(null);
   const [tips, setTips] = useState(false);
   const setLive = (l: Live | null) => { saveLive(l); setLiveState(l); };
+  const { plan: wp } = useWeekPlan();
 
-  const kg = body?.find((b) => b.weightKg)?.weightKg ?? 80;
+  const kg = body?.find((b) => b.weightKg)?.weightKg ?? (Number(st?.settings?.bodyKg) || 80);
 
-  // which day is it? a lifting session done today wins; else the weekly schedule; else "rest"
+  // which day is it? follows the ADAPTED week (football, moved sessions), not a fixed weekday
   const todays = hist?.find((h) => h.date === today() && (h.status === "done" || h.status === "active"));
-  const sched = st?.settings?.schedule ? st.schedules[st.settings.schedule] : null;
-  const dayKey = todays?.dayKey ?? (sched ? sched[new Date().getDay()] : null) ?? "rest";
-  const plan = CARDIO_PLAN[dayKey === "rest" ? "rest" : dayKey] ?? null;
+  const tDay = wp?.days.find((d) => d.today);
+  const tmr = wp?.days.find((d) => d.iso > today());
+  const footballToday = tDay?.kind === "football";
+  const dayKey = todays?.dayKey ?? (tDay?.kind === "planned" ? tDay.dayKey! : "rest");
+  let plan = footballToday ? null : CARDIO_PLAN[dayKey === "rest" ? "rest" : dayKey] ?? null;
+  // never hard intervals the day before football or the day before Legs
+  const hardTomorrow = tmr && (tmr.kind === "football" || /leg/i.test(tmr.dayName ?? ""));
+  if (plan && PROTOCOLS[plan.key].intensity === "hard" && hardTomorrow) plan = { key: "hill_walk30", when: `${tmr!.kind === "football" ? "football" : "Legs"} tomorrow — easy hill walk instead of intervals` };
   const proto = PROTOCOLS[pick ?? plan?.key ?? "hill_walk30"];
   const doneToday = (logs ?? []).filter((l) => l.date === today());
 
@@ -61,7 +68,12 @@ export default function Cardio() {
             {plan?.optional && <Badge tone="info">optional</Badge>}
             {doneToday.length > 0 && <Badge tone="acc"><Check size={11} /> {doneToday[0].status}</Badge>}
           </div>
-          {plan === null && !pick ? (
+          {footballToday && !pick ? (
+            <div className="rounded-xl bg-warn/10 p-4 text-sm">
+              <b className="text-warn">⚽ Football today = your cardio.</b>
+              <p className="mt-1 text-mute">After the game, log it from the week card (Home or Plan): tap today → Log the game.</p>
+            </div>
+          ) : plan === null && !pick ? (
             <div className="rounded-xl bg-card2 p-4 text-sm">
               <b>No cardio today — heavy leg day.</b>
               <p className="mt-1 text-mute">A 10-min easy walk to cool down is fine. Or pick a session below if you really want one.</p>

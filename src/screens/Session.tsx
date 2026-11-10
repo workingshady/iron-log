@@ -464,6 +464,17 @@ function ExerciseCard({ i, it, sets, last, rec, live, bars, feedback, open, onTo
             ))}
           </div>
 
+          {!complete && extra !== "N" && work.length > 0 && (() => {
+            const prev = work[work.length - 1];
+            const w = shownKg(prev);
+            return (
+              <button onClick={() => onLog({ ...d, weight: w != null ? String(w) : "", reps: prev.reps != null ? String(prev.reps) : d.reps, seconds: prev.seconds != null ? String(prev.seconds) : d.seconds, meters: prev.meters != null ? String(prev.meters) : d.meters, assist: prev.assist ?? "", rir: prev.rir != null ? String(prev.rir) : "", strict: prev.strict != null ? String(prev.strict) : "", note: "" })}
+                className="mt-2 flex min-h-12 w-full items-center justify-between rounded-xl border border-acc/40 px-3 text-sm active:bg-acc/10">
+                <span className="inline-flex items-center gap-2 font-semibold text-acc"><Repeat size={16} />Same as last set</span>
+                <span className="num text-mute">{fmtSet(prev)}{prev.rir != null ? ` @${prev.rir}` : ""}</span>
+              </button>
+            );
+          })()}
           {!complete && extra !== "N" && <SetInput it={it} d={d} setD={setD} n={work.length + 1} total={it.sets} bars={bars} onLog={() => onLog(d)} />}
 
           {!complete && remainingRows > 0 && (
@@ -938,8 +949,15 @@ function FinishSheet({ s, sets, elapsed, onClose, onSave, onDelete }: {
         </div>
       )}
       {pains > 0 && <p className="mt-3 text-sm text-bad">⚠ {pains} set(s) with pain logged</p>}
-      <Label>How hard was the whole session? (1-10)</Label>
-      <Chips small options={scale(1, 10)} value={rpe} onChange={setRpe} />
+      <div className={cx("mt-4 rounded-xl p-3", live && rpe == null ? "border border-warn/60 bg-warn/5" : "bg-card2")}>
+        <div className="text-sm font-semibold">How hard was today overall?</div>
+        <div className="text-xs text-mute">1 = very easy · 5 = solid · 7 = hard · 9 = almost everything I had · 10 = max. It tells the monthly review how much you can handle.</div>
+        <div className="mt-2 grid grid-cols-5 gap-1.5">
+          {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+            <button key={n} onClick={() => setRpe(n)} className={cx("h-11 rounded-lg text-sm font-semibold num", rpe === n ? (n >= 9 ? "bg-bad text-black" : n >= 7 ? "bg-warn text-black" : "bg-acc text-acc-ink") : "bg-card3 text-mute")}>{n}</button>
+          ))}
+        </div>
+      </div>
       <Label>Bodyweight (optional)</Label>
       <NumInput value={bw} onChange={setBw} placeholder="kg" />
       <Label>Session note</Label>
@@ -947,7 +965,7 @@ function FinishSheet({ s, sets, elapsed, onClose, onSave, onDelete }: {
       <div className="mt-6 grid gap-2">
         {live ? (
           <>
-            <Btn kind="primary" onClick={() => onSave({ ...base, status: "done", endedAt: Date.now() }, true)}>Finish & save</Btn>
+            <Btn kind="primary" onClick={() => { if (rpe == null && !confirm("Save without rating how hard it was? (1 tap above helps the review)")) return; onSave({ ...base, status: "done", endedAt: Date.now() }, true); }}>Finish & save</Btn>
             <Btn kind="soft" onClick={() => onSave({ ...base, status: "abandoned", endedAt: Date.now() }, true)}>Stop early (didn't finish)</Btn>
           </>
         ) : (

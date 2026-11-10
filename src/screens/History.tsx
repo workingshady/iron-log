@@ -7,6 +7,7 @@ import { clock, cx, niceDate, today } from "../lib/util";
 import { Badge, Card, Empty, PageHead } from "../components/ui";
 import { Heatmap } from "../components/Heatmap";
 import { EXCUSE_ICON } from "../components/StartSheets";
+import { weekConfig } from "../../shared/week";
 
 type Filter = "all" | "workouts" | "missed";
 
@@ -26,7 +27,7 @@ export default function History() {
       <PageHead icon={HistoryIcon} title="History" sub="Every workout and missed day. Tap a workout to see or edit its sets." />
 
       <Card className="mb-4">
-        <Heatmap days={d?.days} weekStart={s?.settings?.schedule?.startsWith("B") ? 6 : 1} />
+        <Heatmap days={d?.days} weekStart={s ? weekConfig(s.settings, s.schedules).weekStart : 1} />
       </Card>
 
       <div className="mb-4 grid grid-cols-3 gap-1 rounded-xl bg-card p-1 text-sm">

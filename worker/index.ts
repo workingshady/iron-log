@@ -7,6 +7,7 @@ import { login, requireAuth } from "./auth";
 import { CURRENT, EXERCISES, programVersionId } from "../program";
 import { buildPlan } from "../shared/plan";
 import { buildInsights, muscleSets } from "./insights";
+import { analyticsInsights, buildAnalytics } from "./analytics";
 import { seedDev } from "./devseed";
 import { shownKg, totalKg } from "../shared/load";
 import type {
@@ -553,10 +554,29 @@ app.get("/insights", async (c) => {
     d.select().from(t.sessions), d.select().from(t.sets).where(eq(t.sets.deleted, 0)), d.select().from(t.body),
     d.select().from(t.intake).where(eq(t.intake.item, "creatine")), d.select().from(t.settings).where(eq(t.settings.key, "creatineTarget")),
   ]);
+  const [journal, cardio] = await Promise.all([d.select({ date: t.journal.date, mood: t.journal.mood }).from(t.journal), d.select({ date: t.cardio.date, protocol: t.cardio.protocol, status: t.cardio.status }).from(t.cardio)]);
+  const creTarget = Number(st[0]?.value ?? 5);
+  const a = buildAnalytics({ sessions: sess, sets, body, intake, journal, cardio, creTarget }, today, 1);
   return c.json({
-    insights: buildInsights(sess, sets, body, intake, Number(st[0]?.value ?? 5), today),
+    insights: [...buildInsights(sess, sets, body, intake, creTarget, today), ...analyticsInsights(a)],
     muscles: muscleSets(sess.filter((s) => s.status !== "missed"), sets),
   });
+});
+
+/** Dashboard analytics by calendar week (`ws` = weekday the week starts on, 0 = Sun). Formulas: worker/analytics.ts. */
+app.get("/analytics", async (c) => {
+  const d = db(c);
+  const today = c.req.query("today") ?? new Date().toISOString().slice(0, 10);
+  const ws = Math.min(6, Math.max(0, Number(c.req.query("ws") ?? 1) || 0));
+  const [sessions, sets, body, intake, journal, cardio, st] = await Promise.all([
+    d.select().from(t.sessions), d.select().from(t.sets).where(eq(t.sets.deleted, 0)),
+    d.select({ date: t.body.date, sleepH: t.body.sleepH }).from(t.body),
+    d.select({ date: t.intake.date, amount: t.intake.amount }).from(t.intake).where(eq(t.intake.item, "creatine")),
+    d.select({ date: t.journal.date, mood: t.journal.mood }).from(t.journal),
+    d.select({ date: t.cardio.date, protocol: t.cardio.protocol, status: t.cardio.status }).from(t.cardio),
+    d.select().from(t.settings).where(eq(t.settings.key, "creatineTarget")),
+  ]);
+  return c.json(buildAnalytics({ sessions, sets, body, intake, journal, cardio, creTarget: Number(st[0]?.value ?? 5) }, today, ws));
 });
 
 // ---------------------------------------------------------------- plan vs actual

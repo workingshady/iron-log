@@ -55,15 +55,34 @@ export function LineChart({ points, unit, height = 140 }: { points: P[]; unit: s
   );
 }
 
-export function Bars({ data, unit }: { data: P[]; unit: string }) {
+/** Word-sized trend line (Tufte sparkline): no axes, last point marked. Decorative — pair it with the number. */
+export function Sparkline({ values, w = 64, h = 22, tone = "var(--color-acc)" }: { values: number[]; w?: number; h?: number; tone?: string }) {
+  if (values.length < 2) return <svg width={w} height={h} aria-hidden />;
+  let lo = Math.min(...values), hiY = Math.max(...values);
+  if (lo === hiY) { lo -= 1; hiY += 1; }
+  const x = (i: number) => 2 + (i / (values.length - 1)) * (w - 4);
+  const y = (v: number) => 3 + (1 - (v - lo) / (hiY - lo)) * (h - 6);
+  const d = values.map((v, i) => `${i ? "L" : "M"}${x(i)},${y(v)}`).join(" ");
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden className="block shrink-0">
+      <path d={d} fill="none" stroke={tone} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" opacity="0.85" />
+      <circle cx={x(values.length - 1)} cy={y(values[values.length - 1])} r="2.5" fill={tone} />
+    </svg>
+  );
+}
+
+export function Bars({ data, unit, tone = "var(--color-acc)", fmt }: { data: P[]; unit: string; tone?: string; fmt?: (y: number) => string }) {
   const [hi, setHi] = useState<number | null>(null);
   if (!data.length) return null;
   const max = Math.max(1, ...data.map((d) => d.y));
   const sel = hi ?? data.length - 1;
+  // at 384 px a 12-week axis can't show every label: show ~6 evenly, always the latest
+  const step = data.length > 7 ? Math.ceil(data.length / 6) : 1;
+  const showLabel = (i: number) => i === data.length - 1 || (i % step === 0 && data.length - 1 - i >= step);
   return (
     <div>
       <div className="mb-1 flex items-baseline justify-between text-sm">
-        <span className="font-semibold num">{Math.round(data[sel].y).toLocaleString()} {unit}</span>
+        <span className="font-semibold num">{data[sel].label ?? `${fmt ? fmt(data[sel].y) : Math.round(data[sel].y).toLocaleString()} ${unit}`}</span>
         <span className="text-xs text-mute">{data[sel].x}</span>
       </div>
       <div className="flex h-24 items-end gap-0.5" onPointerLeave={() => setHi(null)}>
@@ -75,12 +94,12 @@ export function Bars({ data, unit }: { data: P[]; unit: string }) {
             className="flex h-full flex-1 items-end"
             aria-label={`${d.x}: ${d.y} ${unit}`}
           >
-            <span className="block w-full rounded-t" style={{ height: `${(d.y / max) * 100}%`, minHeight: d.y ? 4 : 0, background: i === sel ? "var(--color-acc)" : "color-mix(in srgb, var(--color-acc) 55%, transparent)" }} />
+            <span className="block w-full rounded-t" style={{ height: `${(d.y / max) * 100}%`, minHeight: d.y ? 4 : 0, background: i === sel ? tone : `color-mix(in srgb, ${tone} 55%, transparent)` }} />
           </button>
         ))}
       </div>
       <div className="mt-1 flex gap-0.5 text-center text-[10px] text-mute">
-        {data.map((d, i) => <span key={i} className="flex-1 truncate">{d.x}</span>)}
+        {data.map((d, i) => <span key={i} className="min-w-0 flex-1 overflow-visible whitespace-nowrap">{showLabel(i) ? d.x : ""}</span>)}
       </div>
     </div>
   );

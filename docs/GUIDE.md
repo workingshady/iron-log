@@ -13,10 +13,10 @@ Your personal training tracker. It runs free on Cloudflare (Workers + D1). On yo
 
 | Page | What it's for |
 |---|---|
-| **Home** | Dashboard: next workout (with exercise thumbnails), this week, streak, adherence %, minutes, creatine today, training calendar (heatmap), insights, sets/week, bodyweight trend |
+| **Home** | Dashboard: next workout (with exercise thumbnails), this week, streak, adherence %, minutes, creatine today, training calendar (heatmap), insights, **strength trend** (top 3 lifts, est. max + 4-week %), hard sets per calendar week, bodyweight trend |
 | **Plan** | The whole month: Week 1-4 tabs, every day and exercise with thumbnails, targets, rest, technique (ⓘ explains words like "drop set"). Start any day from here. **Muscle map** shows which muscles that week hits. |
 | **History** | Calendar + every workout and missed day (with the reason). Filter all / workouts / missed. Tap a workout to see or edit it. |
-| **Stats** | "Am I getting stronger?" Insights, hard sets per muscle vs the 10-20 target, **body heatmap** (front/back; what you did vs what the plan asks), per-week bars, per-exercise trend (tap for chart + table), missed-day reasons, pain log |
+| **Stats** | Four tabs. **Overview**: workouts, 4-week adherence, hard sets this week, week-by-week chart (workouts / hard sets / tonnage / minutes / PRs), insights. **Strength**: est. max trend per main lift with 4-week % and sparkline, recent records, per-exercise chart (tap: est. max + volume + table), recommended vs actual, all-time records. **Volume**: hard sets per muscle per calendar week vs 10-20 (fractional: ½ for helper muscles; drop/rest-pause chain = +½; RIR 5+ not hard; ⓘ explains), body heatmap, per-program-week bars. **Patterns**: what goes with good workouts (sleep, readiness, mood, football the day before, creatine, rest length; each with sample sizes, shown only with 3+ workouts on both sides, phrased as associations), RIR mix, missed-day reasons, pain log |
 | **Creatine** | Daily grams: one tap for 3/5/10 g, progress ring, streak, calendar |
 | **Body & habits** | Weight, waist, sleep, protein, steps, water, energy. **Not daily**: fill only what you know, whenever (weekly weigh-in is enough). |
 | **Tests** | Max-effort benchmarks (pull-ups, dips, hangs…). Test at the start and on Week 4 · Day 6. |

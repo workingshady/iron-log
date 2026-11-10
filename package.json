@@ -24,6 +24,7 @@
     "react-dom": "^19.3.0"
   },
   "devDependencies": {
+    "@bubblewrap/core": "^1.27.0",
     "@cloudflare/vite-plugin": "^1.67.0",
     "@cloudflare/workers-types": "^5.20261109.1",
     "@tailwindcss/vite": "^4.3.5",

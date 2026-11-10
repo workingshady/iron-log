@@ -24,8 +24,7 @@ export default function Login({ onIn }: { onIn: () => void }) {
 
   return (
     <form onSubmit={submit} className="mx-auto flex min-h-dvh max-w-xs flex-col justify-center gap-4 px-4">
-      <img src="/icon.svg" alt="" className="mx-auto h-16 w-16" />
-      <h1 className="text-center text-2xl font-bold">Iron Log</h1>
+      <h1 className="mb-2"><img src="/brand/logo.svg" alt="Iron Log" className="mx-auto w-full max-w-[280px]" /></h1>
       <input
         type="password"
         inputMode="numeric"

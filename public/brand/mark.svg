@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Iron Log mark">
+  <!-- Iron Log mark: a dumbbell tilted upward = progress. Plates step up in size like a rising chart. -->
+  <g transform="rotate(-20 256 256)" fill="#c8f560">
+    <rect x="70" y="214" width="34" height="84" rx="10" opacity=".55"/>
+    <rect x="112" y="178" width="44" height="156" rx="12"/>
+    <rect x="150" y="238" width="212" height="36" rx="10"/>
+    <rect x="356" y="160" width="48" height="192" rx="13"/>
+    <rect x="410" y="196" width="36" height="120" rx="10" opacity=".55"/>
+  </g>
+</svg>

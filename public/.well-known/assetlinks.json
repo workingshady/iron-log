@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.workingshady.ironlog",
+    "sha256_cert_fingerprints": ["67:B4:65:1D:51:85:38:63:F6:E7:96:6D:4B:DD:58:65:16:81:2E:CE:E6:4E:23:8D:4F:57:FF:71:A3:39:9A:97"]
+  }
+}]

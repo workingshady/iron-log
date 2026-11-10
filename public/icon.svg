@@ -1,1 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="96" fill="#0b0b0c"/><g fill="#c8f560"><rect x="96" y="196" width="40" height="120" rx="10"/><rect x="376" y="196" width="40" height="120" rx="10"/><rect x="146" y="166" width="44" height="180" rx="12"/><rect x="322" y="166" width="44" height="180" rx="12"/><rect x="190" y="240" width="132" height="32" rx="8"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Iron Log">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1d1f17"/><stop offset="1" stop-color="#0b0b0c"/></linearGradient>
+    <radialGradient id="glow" cx=".5" cy=".55" r=".5"><stop offset="0" stop-color="#c8f560" stop-opacity=".16"/><stop offset="1" stop-color="#c8f560" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect width="512" height="512" rx="112" fill="url(#glow)"/>
+  <g transform="translate(256 256) scale(1.02) translate(-256 -256) rotate(-20 256 256)" fill="#c8f560">
+    <rect x="70" y="214" width="34" height="84" rx="10" opacity=".55"/>
+    <rect x="112" y="178" width="44" height="156" rx="12"/>
+    <rect x="150" y="238" width="212" height="36" rx="10"/>
+    <rect x="356" y="160" width="48" height="192" rx="13"/>
+    <rect x="410" y="196" width="36" height="120" rx="10" opacity=".55"/>
+  </g>
+  <rect x="1.5" y="1.5" width="509" height="509" rx="110.5" fill="none" stroke="#c8f560" stroke-opacity=".12" stroke-width="3"/>
+</svg>

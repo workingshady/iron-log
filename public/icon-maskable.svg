@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Iron Log">
+  <!-- Android adaptive/maskable: full-bleed background, mark inside the 80% safe zone. -->
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1d1f17"/><stop offset="1" stop-color="#0b0b0c"/></linearGradient></defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <g transform="translate(256 256) scale(.8) translate(-256 -256) rotate(-20 256 256)" fill="#c8f560">
+    <rect x="70" y="214" width="34" height="84" rx="10" opacity=".55"/>
+    <rect x="112" y="178" width="44" height="156" rx="12"/>
+    <rect x="150" y="238" width="212" height="36" rx="10"/>
+    <rect x="356" y="160" width="48" height="192" rx="13"/>
+    <rect x="410" y="196" width="36" height="120" rx="10" opacity=".55"/>
+  </g>
+</svg>

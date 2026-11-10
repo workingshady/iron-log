@@ -13,6 +13,13 @@
       "database_name": "iron-log",
       "database_id": "c308d766-195f-4a1e-a355-81561dc01e23",
       "migrations_dir": "migrations"
+    },
+    {
+      // DEV / test mode: same app, separate database with dummy data (log in with the DEV passcode).
+      "binding": "DB_DEV",
+      "database_name": "iron-log-dev",
+      "database_id": "d47039c1-f4af-442c-8bb0-e8061da90bb0",
+      "migrations_dir": "migrations"
     }
   ],
   "observability": { "enabled": true }

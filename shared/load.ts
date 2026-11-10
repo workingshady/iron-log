@@ -12,9 +12,9 @@ import type { SetLog } from "./api";
 
 export type Load = "barbell" | "ez" | "pair" | "single" | "stack" | "body";
 
-const BARBELL = new Set(["bench", "close_grip_bench", "squat", "rdl", "bb_row", "ohp", "bb_shrug", "hip_thrust"]);
+const BARBELL = new Set(["bench", "close_grip_bench", "squat", "rdl", "bb_row", "ohp", "bb_shrug", "hip_thrust", "finger_curl", "bb_wrist_curl_behind"]);
 const EZ = new Set(["ez_curl", "reverse_curl"]);
-const SINGLE = new Set(["goblet_squat", "db_pullover", "db_row", "oh_tri_ext", "wrist_curl", "rev_wrist_curl", "wrist_roller"]);
+const SINGLE = new Set(["goblet_squat", "db_pullover", "db_row", "oh_tri_ext", "wrist_curl", "rev_wrist_curl", "wrist_roller", "db_pro_sup", "radial_dev"]);
 
 export function loadOf(exKey: string): Load {
   if (PAIRS.has(exKey)) return "pair";

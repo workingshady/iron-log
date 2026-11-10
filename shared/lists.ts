@@ -26,6 +26,7 @@ export const EXCUSES = [
   { id: "gym", label: "Gym closed / crowded" },
   { id: "weather", label: "Heat / weather" },
   { id: "fasting", label: "Fasting / Ramadan" },
+  { id: "sport", label: "Played sport / football" },
   { id: "planned", label: "Planned rest" },
   { id: "other", label: "Other" },
 ] as const;

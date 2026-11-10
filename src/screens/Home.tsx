@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CalendarOff, CalendarRange, Dumbbell, Flame, FlaskConical, Footprints, House, Lightbulb, Play, Plus, Scale, Target, TrendingUp } from "lucide-react";
+import { CalendarOff, CalendarRange, Dumbbell, Flame, FlaskConical, Footprints, House, Lightbulb, Play, Plus, Scale, TrendingUp } from "lucide-react";
 import type { AppState, DashboardData, InsightsData, Lifts, ProgressData, SlotInfo } from "../../shared/api";
 import { recommend } from "../../shared/recommend";
 import { kg } from "../lib/util";
@@ -13,6 +13,7 @@ import { Badge, Btn, Card, PageHead, Stat, Thumb } from "../components/ui";
 import { Heatmap } from "../components/Heatmap";
 import { Bars, LineChart } from "../components/Chart";
 import { MissedSheet, PickSheet, StartSheet } from "../components/StartSheets";
+import { WeekPlanner, useWeekPlan } from "../components/WeekPlanner";
 
 export default function Home() {
   const { data: s, error, reload } = useLoad<AppState>("/state");
@@ -22,11 +23,14 @@ export default function Home() {
   const { data: lifts } = useLoad<Lifts>("/lifts");
   const [sheet, setSheet] = useState<null | "start" | "missed" | "pick">(null);
   const [target, setTarget] = useState<SlotInfo | null>(null);
+  const { plan: wp } = useWeekPlan();
 
   if (!s) return <p className="py-20 text-center text-mute">{error ?? "Loading…"}</p>;
-  const next = s.next;
+  // adaptive week: today's planned session can differ from program order (e.g. Legs moved for football)
+  const todayDay = wp?.days.find((d) => d.today);
+  const adapted = wp?.todayKey && s.next && wp.todayKey !== s.next.dayKey ? s.slots.find((x) => x.week === s.next!.week && x.dayKey === wp.todayKey) ?? null : null;
+  const next = adapted ?? s.next;
   const week = next ? s.weeks.find((w) => w.n === next.week) : null;
-  const weekSlots = next ? s.slots.filter((x) => x.week === next.week) : [];
   const sched = s.settings.schedule ? s.schedules[s.settings.schedule] : null;
   const restToday = sched?.[new Date().getDay()] === "rest";
   const weekStart = s.settings.schedule?.startsWith("B") ? 6 : 1;
@@ -46,6 +50,9 @@ export default function Home() {
                 Week {next.week} · {week?.name}
                 {restToday && <Badge tone="info">rest day on your schedule</Badge>}
               </div>
+              {todayDay?.kind === "football" && <div className="mt-2 rounded-xl bg-warn/15 px-3 py-2 text-sm text-warn">⚽ Football today — no lifting. Log the game from the week card below.</div>}
+              {adapted && <div className="mt-2 rounded-xl bg-info/10 px-3 py-2 text-xs text-info">Adapted week: {adapted.dayName} today, {s.next?.dayName} moved{todayDay?.note ? ` · ${todayDay.note}` : ""}.</div>}
+              {!adapted && todayDay?.note && <div className="mt-2 rounded-xl bg-info/10 px-3 py-2 text-xs text-info">{todayDay.note}</div>}
               <div className="mt-1 text-3xl font-bold">{next.dayName}</div>
               <div className="text-sm text-mute">{next.focus}</div>
               {dayPlan && (
@@ -81,7 +88,7 @@ export default function Home() {
               })()}
               {!s.active && (
                 <Btn kind="primary" icon={Play} className="mt-5 w-full text-lg" onClick={() => { setTarget(next); setSheet("start"); }}>
-                  Start workout
+                  {todayDay?.kind === "rest" || todayDay?.kind === "football" ? "Start anyway" : "Start workout"}
                 </Btn>
               )}
               <div className="mt-2 grid grid-cols-2 gap-2">
@@ -94,20 +101,8 @@ export default function Home() {
           )}
         </div>
 
-        {/* 2. Week progress */}
-        <Card title={`This week · ${weekSlots.filter((x) => x.status === "done").length}/${weekSlots.length}`} icon={Target}>
-          <div className="space-y-2">
-            {weekSlots.map((x) => (
-              <div key={x.dayKey} className="flex items-center gap-3 text-sm">
-                <span className={cx("h-2.5 w-2.5 rounded-full", x.status === "done" ? "bg-acc" : x.status === "skipped" ? "bg-faint" : x === next ? "bg-ink" : "bg-card3")} />
-                <span className={cx("flex-1", x.status === "skipped" && "text-faint line-through")}>{x.dayName}</span>
-                {x === next && <Badge tone="info">next</Badge>}
-                {x.status === "done" && <Badge tone="acc">done</Badge>}
-              </div>
-            ))}
-          </div>
-          {week && <p className="mt-3 border-t border-line pt-3 text-xs text-mute">{week.brief}</p>}
-        </Card>
+        {/* 2. This week (adaptive) */}
+        <div><WeekPlanner compact /></div>
 
         {/* 3. Key numbers */}
         <div className="grid grid-cols-2 gap-3 md:col-span-3 md:grid-cols-4">
@@ -140,7 +135,7 @@ export default function Home() {
         </Card>
       </div>
 
-      <StartSheet open={sheet === "start"} slot={target} kind={target && target !== next ? (target.status === "open" ? "picked" : "extra") : "planned"} onClose={() => setSheet(null)} />
+      <StartSheet open={sheet === "start"} slot={target} kind={target && target.dayKey !== s.next?.dayKey ? (target.status === "open" ? "picked" : "extra") : "planned"} onClose={() => setSheet(null)} />
       <MissedSheet open={sheet === "missed"} slot={target} onClose={() => setSheet(null)} onDone={() => { reload(); reloadD(); }} />
       <PickSheet open={sheet === "pick"} s={s} onClose={() => setSheet(null)} onPick={(x) => { setTarget(x); setSheet("start"); }} />
     </div>

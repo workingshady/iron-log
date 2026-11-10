@@ -93,6 +93,20 @@ const D6: E[] = [
   { ex: "neck", s: ["1x15", "1x20", "2x20", "1x15"], rest: 60, fin: true, t: "Light & slow" },
 ];
 
+// Optional "Grip & Wrist" extra (12-15 min, 2×/week): every direction the wrist moves + finger and grip holds.
+// Do it after Chest+Back / Shoulders+Arms or on a rest day — NOT before or the day before Pull (grip must be fresh).
+const X1: E[] = [
+  { ex: "finger_curl", s: ["2x12-15", "3x12-15", "3x12-15", "2x12"], rest: 60, t: "Roll to the fingertips, roll back up", t3: "Last set: lengthened partials" },
+  { ex: "bb_wrist_curl_behind", s: ["2x10-12", "3x10-12", "3x10-12", "1x12"], rest: 60, t: "Heavy flexors" },
+  { ex: "rev_wrist_curl", s: ["2x15", "3x15", "3x15-20", "1x15"], rest: 45, t: "Extensors protect the elbow" },
+  { ex: "db_pro_sup", s: ["2x12", "2x12", "3x12", "1x12"], rest: 45, t: "Slow, each side" },
+  { ex: "radial_dev", s: ["2x15", "2x15", "2x15-20", "1x15"], rest: 45, t: "Light, wrist only" },
+  { ex: "db_hold", s: ["2x30s", "2x40s", "3x40s", "1x30s"], rest: 60, t: "Heaviest dumbbells you can hold" },
+];
+const extras = (n: number): DayPlan[] => [
+  { key: "X1", name: "Grip & Wrist", focus: "Optional extra · 12-15 min · forearm size + tough wrists", items: make(n, X1) },
+];
+
 const days = (n: number): DayPlan[] => [
   { key: "D1", name: "Push", focus: "Chest + shoulder strength · close-grip replaces dips", items: make(n, D1) },
   { key: "D2", name: "Pull", focus: "Back width + pull-up builder + traps", items: make(n, D2) },
@@ -103,10 +117,10 @@ const days = (n: number): DayPlan[] => [
 
 export const v2: Program = {
   id: "ppl-arnold",
-  version: "2.2.0",
+  version: "2.3.0",
   name: "PPL × Arnold · Intensive v2",
   changelog:
-    "2.2: from your first Push — close-grip earlier with safety, laterals before shoulder press, ab wheel moved off Push, smarter weight engine (per-hand dumbbells, RIR-aware). 2.1: barbell row → machine row on Pull day (same growth, saves the lower back for Legs the next day). 2.0: No dips, pull-ups, bands or assisted machine. Per-session volume capped at ~11 sets per muscle, weekly volume spread for more growth. Stretch-biased picks, seated leg curl, techniques only on last isolation sets, small muscles as finishers, pull-up roadmap.",
+    "2.3: Grip & Wrist extra session (6 forearm/grip exercises), football-aware week planner. 2.2: from your first Push — close-grip earlier with safety, laterals before shoulder press, ab wheel moved off Push, smarter weight engine (per-hand dumbbells, RIR-aware). 2.1: barbell row → machine row on Pull day (same growth, saves the lower back for Legs the next day). 2.0: No dips, pull-ups, bands or assisted machine. Per-session volume capped at ~11 sets per muscle, weekly volume spread for more growth. Stretch-biased picks, seated leg curl, techniques only on last isolation sets, small muscles as finishers, pull-up roadmap.",
   order: ["D1", "D2", "D3", "D5", "D6"],
   schedules: {
     "A (Mon start)": ["rest", "D1", "D2", "D3", "rest", "D5", "D6"],
@@ -130,9 +144,9 @@ export const v2: Program = {
     "Missed a day → do the next session, don't double up. Sharp pain → stop, swap, log it.",
   ],
   weeks: [
-    { n: 1, name: "Ramp-in", brief: "Hard but no failure: RIR 2 on everything. Find working weights. Every rep strict and counted.", days: days(1) },
-    { n: 2, name: "Build", brief: "More sets. Isolation RIR 1, big lifts RIR 2. Beat last week by a rep or a weight step.", days: days(2) },
-    { n: 3, name: "Overload", brief: "Hardest week. Isolation to RIR 0-1, techniques on the LAST set only. Big lifts stay at RIR 1.", days: days(3) },
-    { n: 4, name: "Deload + test", brief: "Half the sets, RIR 3. Do the tests (More → Tests) before Day 1 and Day 6. Recover, then v3.", days: days(4) },
+    { n: 1, name: "Ramp-in", brief: "Hard but no failure: RIR 2 on everything. Find working weights. Every rep strict and counted.", days: days(1), extras: extras(1) },
+    { n: 2, name: "Build", brief: "More sets. Isolation RIR 1, big lifts RIR 2. Beat last week by a rep or a weight step.", days: days(2), extras: extras(2) },
+    { n: 3, name: "Overload", brief: "Hardest week. Isolation to RIR 0-1, techniques on the LAST set only. Big lifts stay at RIR 1.", days: days(3), extras: extras(3) },
+    { n: 4, name: "Deload + test", brief: "Half the sets, RIR 3. Do the tests (More → Tests) before Day 1 and Day 6. Recover, then v3.", days: days(4), extras: extras(4) },
   ],
 };

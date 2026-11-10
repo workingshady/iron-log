@@ -97,6 +97,12 @@ export const EX_MUSCLES: Record<string, M> = {
   reverse_curl: { p: ["forearm"], s: ["biceps"] },
   leg_extension: { p: ["quadriceps"] },
   seated_leg_curl: { p: ["hamstring"] },
+  finger_curl: { p: ["forearm"] },
+  bb_wrist_curl_behind: { p: ["forearm"] },
+  db_pro_sup: { p: ["forearm"] },
+  radial_dev: { p: ["forearm"] },
+  towel_hang: { p: ["forearm"], s: ["upper-back"] },
+  db_hold: { p: ["forearm"], s: ["trapezius"] },
 };
 
 /** Fractional weekly sets per muscle from {exercise → sets}. */

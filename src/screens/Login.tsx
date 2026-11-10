@@ -14,6 +14,7 @@ export default function Login({ onIn }: { onIn: () => void }) {
     try {
       await send("POST", "/login", { passcode: code });
       onIn();
+      location.reload(); // re-detect real vs DEV mode before showing data
     } catch (e) {
       setErr((e as Error).message);
     } finally {

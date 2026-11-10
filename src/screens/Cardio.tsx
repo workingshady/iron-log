@@ -127,7 +127,7 @@ export default function Cardio() {
           {logs?.map((l) => (
             <div key={l.id} className="flex items-center gap-3 border-b border-line/60 py-2 text-sm last:border-0">
               <span className="w-20 shrink-0 text-xs text-mute">{niceDate(l.date)}</span>
-              <span className="min-w-0 flex-1 truncate">{PROTOCOLS[l.protocol]?.name ?? l.protocol}</span>
+              <span className="min-w-0 flex-1 truncate">{l.protocol === "football" ? "⚽ Football" : PROTOCOLS[l.protocol]?.name ?? l.protocol}</span>
               <span className={cx("text-xs num", l.status === "skipped" ? "text-bad" : l.status === "partial" ? "text-warn" : "text-acc")}>
                 {l.status === "skipped" ? "skipped" : `${Math.round(l.minutes ?? 0)} min · ${l.kcalMachine ?? l.kcalEst ?? "?"} kcal`}
               </span>

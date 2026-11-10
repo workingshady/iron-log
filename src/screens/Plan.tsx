@@ -12,6 +12,7 @@ import { HowTo } from "../components/HowTo";
 import { TechNote } from "../components/Terms";
 import { StartSheet } from "../components/StartSheets";
 import { BodyMap } from "../components/BodyMap";
+import { WeekPlanner } from "../components/WeekPlanner";
 
 /** Rough session length: each set ≈ 40 s of work + its rest; superset partners share the rest. */
 const estMinutes = (d: DayPlan) => Math.round(d.items.reduce((a, x) => a + x.sets * (40 + x.rest), 0) / 60) + 8; // + warm-up
@@ -34,6 +35,8 @@ export default function Plan() {
   return (
     <div className="min-w-0">
       <PageHead icon={CalendarDays} title="Plan" sub={`${CURRENT.name} · v${CURRENT.version}`} />
+
+      <div className="mb-3"><WeekPlanner /></div>
 
       {/* weeks */}
       <div className="mb-3 grid grid-cols-4 gap-1 rounded-xl bg-card p-1">
@@ -131,6 +134,31 @@ export default function Plan() {
         })}
       </div>
 
+      {/* optional extras */}
+      {(week.extras ?? []).map((x) => (
+        <section key={x.key} className="mt-3 rounded-2xl border border-dashed border-vio/40 bg-card p-4">
+          <div className="flex items-center gap-2">
+            <h2 className="flex-1 text-lg font-bold">{x.name} <span className="ml-1 rounded-full bg-vio/15 px-2 py-0.5 text-[11px] font-medium text-vio">optional extra</span></h2>
+            {!s?.active && <Btn kind="soft" icon={Play} className="min-h-10 px-3 text-sm" onClick={() => setStart({ week: curWeek, dayKey: x.key, dayName: x.name, focus: x.focus, items: x.items.length, status: "open" })}>Start</Btn>}
+          </div>
+          <p className="text-xs text-mute">{x.focus} · after Chest+Back / Shoulders+Arms or on a rest day — never before Pull.</p>
+          <ul className="mt-2 space-y-1.5">
+            {x.items.map((rx, i) => {
+              const it = toItem(rx.ex, rx);
+              return (
+                <li key={i} className="flex items-center gap-3">
+                  <button onClick={() => setHow(it)} className="shrink-0"><Thumb yt={it.yt[0]} className="h-9 w-12" /></button>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold">{it.name}</div>
+                    <div className="text-xs text-mute num">{targetLabel(rx)} · {restLabel(rx.rest)}</div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ))}
+
       {/* muscle map */}
       <Card className="mt-3">
         <button onClick={() => setShowMap(!showMap)} className="flex w-full items-center gap-2 text-left text-sm font-semibold text-mute">
@@ -157,7 +185,7 @@ export default function Plan() {
       </Sheet>
 
       {how && <HowTo item={how} open onClose={() => setHow(null)} />}
-      <StartSheet open={!!start} slot={start} kind={start && !(s?.next?.week === start.week && s?.next?.dayKey === start.dayKey) ? (start.status === "open" ? "picked" : "extra") : "planned"} onClose={() => setStart(null)} />
+      <StartSheet open={!!start} slot={start} kind={start?.dayKey.startsWith("X") ? "extra" : start && !(s?.next?.week === start.week && s?.next?.dayKey === start.dayKey) ? (start.status === "open" ? "picked" : "extra") : "planned"} onClose={() => setStart(null)} />
     </div>
   );
 }

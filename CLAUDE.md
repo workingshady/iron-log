@@ -21,6 +21,12 @@ Commands: `npm run dev` · `npm run check` (validate program + types) · `npm ru
 - Derived: `/api/dashboard` (calendar, forgiving streak: planned-rest/sick misses don't break it, adherence, creatine), `/api/insights` (`worker/insights.ts` rules + sets per muscle group from `program/groups.ts`).
 - Plan position = the first (week, day) in `program.order` with no `done`/`skipped` session for this program id. `missed` does **not** advance it.
 
+## Modes & databases
+- `DB` (iron-log) = real data. `DB_DEV` (iron-log-dev) = test data, used when logged in with the `DEV_PASSCODE` secret (cookie prefixed `dev.`). Every handler uses `db(c)` which picks the right one. Never seed, reset or experiment on `DB`; use DEV mode (`POST /api/dev/seed` refills it).
+- Migrations must be applied to BOTH: `wrangler d1 migrations apply iron-log --remote` and `... iron-log-dev --remote`. Take `wrangler d1 export iron-log --remote --output private/backups/...` before migrating real data; additive schema changes only, data mappings via custom migrations (see 0005).
+- Week planner: `shared/weekplan.ts` (scenarios: `npx tsx scripts/test-weekplan.ts`); marks stored in settings `weekMarks`. Football games are cardio rows with protocol `football`.
+- Recommendations from an export: `npx tsx scripts/recs-from-export.ts private/exports/<date> <week>`.
+
 ## Review workflow (when asked to analyse data / make the next version)
 1. `npm run export`, then read `private/exports/<latest>/summary.md` first, then the JSON as needed.
 2. Look at the following, per exercise and per week:

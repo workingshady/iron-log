@@ -22,4 +22,5 @@ export const EX_GROUP: Record<string, Group> = {
   close_grip_bench: "Triceps", deficit_pushup: "Chest", neutral_pulldown: "Back", straight_arm_pulldown: "Back", db_pullover: "Back",
   wide_cable_row: "Back", machine_row: "Back", lean_lateral: "Shoulders", cable_y_raise: "Shoulders", kelso_shrug: "Traps",
   reverse_curl: "Forearms/Grip", leg_extension: "Quads", seated_leg_curl: "Hamstrings/Glutes",
+  finger_curl: "Forearms/Grip", bb_wrist_curl_behind: "Forearms/Grip", db_pro_sup: "Forearms/Grip", radial_dev: "Forearms/Grip", towel_hang: "Forearms/Grip", db_hold: "Forearms/Grip",
 };

@@ -2,6 +2,12 @@
 
 Each version: what changed, and the data that justified it.
 
+## ppl-arnold@2.3.0 · 2026-11-10
+- **Grip & Wrist extra** (optional, 12-15 min, ≤2×/week): finger curls, behind-the-back wrist curls, reverse wrist curls, pronation/supination, radial deviation, heavy holds. Never before / the day before Pull (grip must be fresh).
+- **Adaptive football week** (shared/weekplan.ts): mark football/busy days, sessions re-fit with heavy legs ≥1 day away on both sides (48 h guidance), Legs-lite or skip-for-sport when it can't fit, football logged as cardio. New excuse "Played sport / football".
+- **Weights engine**: ACSM rule — 2 steps (max +10%) when you beat the top of the range by 2+ reps.
+- **DEV mode**: second passcode → separate test database + dummy data.
+
 ## ppl-arnold@2.2.0 · 2026-11-10 — first data review (1 session: W1 Push, 2026-11-09)
 Data: 22 sets, 69 min, 14 notes, 142 taps. Changes come straight from it:
 - **Close-grip bench moved from last to 3rd.** Done last it fell to 40 kg × 7, 7, 5 at RIR 0 and "the bar was gone fall". Fresh + safety pins / spotter, stop 1-2 reps early.

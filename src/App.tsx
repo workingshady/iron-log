@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { CloudOff } from "lucide-react";
-import { get, onPending, Unauthorized } from "./lib/api";
+import { get, isDev, onPending, setMode, Unauthorized } from "./lib/api";
 import { cx } from "./lib/util";
 import { MAIN, MORE, MORE_TAB } from "./nav";
 import Login from "./screens/Login";
@@ -40,7 +40,9 @@ export default function App() {
   const [pending, setPending] = useState(0);
 
   useEffect(() => {
-    get("/me").then(() => setAuth("in")).catch((e) => setAuth(e instanceof Unauthorized ? "out" : "in"));
+    get<{ dev?: boolean }>("/me")
+      .then((r) => { if (setMode(!!r.dev)) location.reload(); else setAuth("in"); })
+      .catch((e) => setAuth(e instanceof Unauthorized ? "out" : "in"));
   }, []);
   // show the "waiting to sync" badge only if writes stay stuck (offline / >6 s), not for normal in-flight saves
   const [raw, setRaw] = useState(0);
@@ -71,6 +73,11 @@ export default function App() {
         <NavList items={MORE} route={route} />
       </aside>
 
+      {isDev() && (
+        <div className="sticky top-0 z-40 flex items-center justify-center gap-2 bg-warn px-3 py-1 text-xs font-bold text-black md:pl-60">
+          DEV MODE · test database with dummy data · your real tracking is untouched
+        </div>
+      )}
       {pending > 0 && (
         <div className="fixed right-3 top-[max(0.75rem,env(safe-area-inset-top))] z-40 inline-flex items-center gap-1.5 rounded-full bg-warn px-2.5 py-1 text-xs font-semibold text-black">
           <CloudOff size={13} /> {pending} waiting to sync

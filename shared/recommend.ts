@@ -142,7 +142,10 @@ export function recommend(
   const rirOk = loggedRir.length ? Math.min(...loggedRir) >= rir : true;
   const allTop = top != null && atTop.length >= 2 && atTop.length >= Math.min(rx.sets, work.length) && atTop.every((s) => (s.reps ?? 0) >= top);
   if (allTop && rirOk) {
-    const jump = h?.effort === "easy" ? step * 2 : step;
+    // ACSM: add 2-10% once you beat the target by 1-2 reps → 2 steps when 2+ reps over the top or "Easy", capped at +10%
+    const over = avgReps - top!;
+    const steps = h?.effort === "easy" || over >= 2 ? 2 : 1;
+    const jump = Math.max(step, Math.min(step * steps, Math.floor((lastW * 0.1) / step) * step || step));
     return { ...base, weightKg: lastW + jump, reps: bot ?? top, kind: "up", why: `Hit ${top} reps on every set${loggedRir.length ? ` with ≥${rir} left` : ""} → +${jump} kg${unit}` };
   }
 

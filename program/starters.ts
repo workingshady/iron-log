@@ -15,6 +15,7 @@ export const STARTER: Record<string, number> = {
   // arms / forearms
   ez_curl: 0.4, db_curl: 0.15, incline_curl: 0.13, hammer_curl: 0.16, reverse_curl: 0.3, wrist_curl: 0.3, rev_wrist_curl: 0.15,
   // traps / carries
+  finger_curl: 0.5, bb_wrist_curl_behind: 0.6, db_pro_sup: 0.06, radial_dev: 0.06,
   bb_shrug: 1.2, db_shrug: 0.4, kelso_shrug: 0.25, farmer_carry: 0.3,
   // legs
   squat: 1.1, rdl: 1.1, leg_press: 2.0, hack_squat: 1.2, leg_extension: 0.6, seated_leg_curl: 0.5, leg_curl: 0.45,

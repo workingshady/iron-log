@@ -7,13 +7,15 @@ import { login, requireAuth } from "./auth";
 import { CURRENT, EXERCISES, programVersionId } from "../program";
 import { buildPlan } from "../shared/plan";
 import { buildInsights, muscleSets } from "./insights";
+import { seedDev } from "./devseed";
 import { shownKg, totalKg } from "../shared/load";
 import type {
   AppState, HistoryRow, PlanItem, ProgressData, ProgressPoint, Session, SessionBundle, SetLog, SlotInfo,
 } from "../shared/api";
 
 const app = new Hono<Env>().basePath("/api");
-const db = (c: { env: Env["Bindings"] }) => drizzle(c.env.DB, { schema: t });
+/** Real database, or the separate test database in DEV mode. */
+const db = (c: { env: Env["Bindings"]; var: Env["Variables"] }) => drizzle(c.var.dev ? c.env.DB_DEV : c.env.DB, { schema: t });
 type DB = ReturnType<typeof db>;
 
 const now = () => Date.now();
@@ -57,7 +59,14 @@ async function slots(d: DB): Promise<SlotInfo[]> {
 
 app.post("/login", login);
 app.use("*", async (c, next) => (c.req.path === "/api/login" ? next() : requireAuth(c, next)));
-app.get("/me", (c) => c.json({ ok: true }));
+app.get("/me", (c) => c.json({ ok: true, dev: c.var.dev }));
+
+/** DEV mode only: fill the test database with ~3 weeks of realistic dummy training. */
+app.post("/dev/seed", async (c) => {
+  if (!c.var.dev) return c.json({ error: "Only in DEV mode" }, 403);
+  const n = await seedDev(db(c), c.req.query("today") ?? new Date().toISOString().slice(0, 10));
+  return c.json({ ok: true, rows: n });
+});
 
 // ---------------------------------------------------------------- state
 

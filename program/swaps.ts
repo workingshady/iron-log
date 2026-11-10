@@ -99,6 +99,10 @@ const H: Record<string, SwapHint> = {
   "seated_leg_curl>leg_curl": { ratio: 0.9 },
   "seated_leg_curl>nordic_curl": { reps: [3, 6] },
   "leg_curl>seated_leg_curl": { ratio: 1.1 },
+  "finger_curl>wrist_curl": { ratio: 1.0 },
+  "bb_wrist_curl_behind>wrist_curl": { ratio: 0.8 },
+  "towel_hang>dead_hang": { note: "Same time target" },
+  "db_hold>farmer_carry": { ratio: 1.0, note: "30 m instead of seconds" },
   "pulldown>neutral_pulldown": { ratio: 1.05 },
   "pulldown>straight_arm_pulldown": { ratio: 0.45, reps: [12, 15] },
 };

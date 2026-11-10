@@ -27,6 +27,7 @@ export function validate(p: Program): string[] {
       if (!p.order.includes(d.key)) errs.push(`W${w.n} ${d.key}: not in program.order`);
       d.items.forEach((it: Rx) => seen(it.ex, `W${w.n} ${d.key}`));
     }
+  for (const w of p.weeks) for (const d of w.extras ?? []) d.items.forEach((it: Rx) => seen(it.ex, `W${w.n} extra ${d.key}`));
   for (const e of Object.values(EXERCISES)) {
     (e.alts ?? []).forEach((a) => seen(a, `alts of ${e.key}`));
     if (!EX_MUSCLES[e.key]) errs.push(`${e.key}: missing in program/muscles.ts`);

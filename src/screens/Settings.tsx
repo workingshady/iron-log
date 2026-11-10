@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { CalendarDays, Download, FlaskConical, LogOut, Settings as Gear, TriangleAlert, Dumbbell } from "lucide-react";
 import type { AppState } from "../../shared/api";
-import { send, track } from "../lib/api";
+import { send, track, isDev, clearScreenCache } from "../lib/api";
 import { useLoad } from "../lib/useLoad";
-import { cx } from "../lib/util";
+import { cx, today } from "../lib/util";
 import { Btn, Card, NumInput, PageHead } from "../components/ui";
 
 export default function Settings() {
@@ -83,8 +83,20 @@ export default function Settings() {
           <Btn kind="soft" icon={LogOut} className="mt-3 w-full" onClick={async () => { await send("POST", "/logout"); location.reload(); }}>Log out this device</Btn>
         </Card>
 
+        {isDev() && (
+          <section className="rounded-2xl border border-warn/50 bg-warn/10 p-4 md:col-span-2">
+            <div className="font-semibold text-warn">DEV mode — test database</div>
+            <p className="mt-1 text-sm text-mute">Everything here is fake and separate from your real tracking. Fill it with ~3 weeks of dummy workouts (every set type, notes, pain, football, cardio, creatine) to try every feature. Log out and use your normal passcode to go back.</p>
+            <Btn kind="primary" className="mt-3 w-full" disabled={busy} onClick={async () => {
+              if (!confirm("Replace ALL test data with fresh dummy data?")) return;
+              setBusy(true);
+              try { await send("POST", `/dev/seed?today=${today()}`); clearScreenCache(); location.hash = "/"; location.reload(); } catch (e) { alert((e as Error).message); setBusy(false); }
+            }}>{busy ? "Seeding…" : "Fill with dummy data"}</Btn>
+          </section>
+        )}
+
         <section className="rounded-2xl border border-bad/40 bg-bad/5 p-4 md:col-span-2">
-          <div className="mb-2 flex items-center gap-2 font-semibold text-bad"><TriangleAlert size={18} /> Reset — delete ALL data</div>
+          <div className="mb-2 flex items-center gap-2 font-semibold text-bad"><TriangleAlert size={18} /> Reset — delete ALL {isDev() ? "TEST" : "REAL"} data</div>
           <p className="text-sm text-mute">Wipes every workout, set, missed day, body log, test, journal entry, creatine log, click log and setting from the database. Use this after testing, before you start for real. It cannot be undone.</p>
           <div className="mt-3 flex flex-col gap-2 md:flex-row">
             <input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder='Type DELETE to confirm' className="min-h-12 flex-1 rounded-xl bg-card2 px-3 outline-none focus:ring-2 focus:ring-bad" />

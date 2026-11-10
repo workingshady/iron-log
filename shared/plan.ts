@@ -20,7 +20,8 @@ export function toItem(exKey: string, rx: Omit<Rx, "ex">): PlanItem {
 }
 
 export function buildPlan(p: Program, week: number, dayKey: string): { name: string; items: PlanItem[] } {
-  const d = p.weeks.find((x) => x.n === week)?.days.find((x) => x.key === dayKey);
+  const w = p.weeks.find((x) => x.n === week);
+  const d = w?.days.find((x) => x.key === dayKey) ?? w?.extras?.find((x) => x.key === dayKey);
   if (!d) throw new Error(`No ${dayKey} in week ${week}`);
   return { name: d.name, items: d.items.map(({ ex, ...rx }) => toItem(ex, rx)) };
 }

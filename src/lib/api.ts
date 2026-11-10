@@ -28,19 +28,30 @@ export async function send<T = unknown>(method: string, url: string, body?: unkn
 // ---------------------------------------------------------------- outbox
 
 type Job = { k: string; method: string; url: string; body?: unknown; tries: number };
-const OUTBOX = "il_outbox";
+// Real and DEV (test) modes keep separate phone storage, so test writes can never sync into real data.
+let DEV = false;
+try { DEV = localStorage.getItem("il_mode") === "dev"; } catch { /* ignore */ }
+export const isDev = () => DEV;
+/** Called once after /me tells us the mode. Returns true if the mode changed (caller reloads). */
+export function setMode(dev: boolean): boolean {
+  if (dev === DEV) return false;
+  try { localStorage.setItem("il_mode", dev ? "dev" : "real"); } catch { /* ignore */ }
+  DEV = dev;
+  return true;
+}
+const OUTBOX_KEY = () => (DEV ? "il_outbox_dev" : "il_outbox");
 const listeners = new Set<(n: number) => void>();
 
 function load(): Job[] {
   try {
-    return JSON.parse(localStorage.getItem(OUTBOX) ?? "[]");
+    return JSON.parse(localStorage.getItem(OUTBOX_KEY()) ?? "[]");
   } catch {
     return [];
   }
 }
 function save(q: Job[]) {
   try {
-    localStorage.setItem(OUTBOX, JSON.stringify(q));
+    localStorage.setItem(OUTBOX_KEY(), JSON.stringify(q));
   } catch {
     /* storage full / private mode: nothing we can do */
   }
@@ -127,7 +138,7 @@ const BUILD = typeof __BUILD__ !== "undefined" ? __BUILD__ : "dev";
 export const cache = {
   get<T>(k: string): T | null {
     try {
-      const raw = JSON.parse(localStorage.getItem(`il_c_${k}`) ?? "null");
+      const raw = JSON.parse(localStorage.getItem(`il_c_${DEV ? "dev_" : ""}${k}`) ?? "null");
       return raw && raw.__b === BUILD ? (raw.v as T) : null;
     } catch {
       return null;
@@ -135,11 +146,11 @@ export const cache = {
   },
   set(k: string, v: unknown) {
     try {
-      localStorage.setItem(`il_c_${k}`, JSON.stringify({ __b: BUILD, v }));
+      localStorage.setItem(`il_c_${DEV ? "dev_" : ""}${k}`, JSON.stringify({ __b: BUILD, v }));
     } catch {
       /* storage full: drop old screen caches and retry once */
       clearScreenCache();
-      try { localStorage.setItem(`il_c_${k}`, JSON.stringify({ __b: BUILD, v })); } catch { /* give up */ }
+      try { localStorage.setItem(`il_c_${DEV ? "dev_" : ""}${k}`, JSON.stringify({ __b: BUILD, v })); } catch { /* give up */ }
     }
   },
 };

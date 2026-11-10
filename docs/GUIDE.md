@@ -62,6 +62,22 @@ Each exercise shows **Today: 75 kg × 6** plus *why*, and the inputs are pre-fil
 - **Rest-pause**: same weight, rest 15-20 s, log the mini-set reps (don't add them to the main set).
 - **Extra set**: a normal set beyond the plan; the rest timer runs.
 
+## Football weeks (adaptive week)
+Plan (top) and Home show **This week** as 7 tiles. Tap a day → **⚽ Football** or **Busy**. The week re-fits itself:
+- No lifting on a football day. **Heavy Legs never the day before, the day of, or the day after football**; 2 days before only if nothing else fits (≥48 h between a match and heavy leg work).
+- Sessions keep program order when they can — otherwise Legs is moved later and an upper day comes first.
+- Your schedule's rest days stay rest days unless the sessions wouldn't fit. Max 3 hard days in a row (football counts).
+- Shoulders + Arms next to a football day → skip the leg booster (split squats).
+- If Legs can't fit safely: **Legs-lite** (squat + RDL + calves, 2 sets) on the safest day, or **Skip Legs this week (football)** — football already loaded your legs. Other sessions that don't fit move to next week (the week stretches).
+- After the game, tap the day → **Log the game** (minutes + intensity). It counts as cardio (~7 METs).
+Home's main card follows the adapted plan ("Adapted week: Legs moved…").
+
+## Grip & Wrist (optional extra)
+Plan → **Grip & Wrist** (12-15 min, up to 2×/week): barbell finger curls (roll the bar to your fingertips and back), behind-the-back wrist curls, reverse wrist curls, dumbbell pronation/supination, radial deviation (hammer lever), heavy dumbbell holds. It covers every direction the wrist moves plus grip. Do it after Chest+Back / Shoulders+Arms or on a rest day — never before Pull or the day before Pull (grip must be fresh for pulling). It starts as an *extra* and never moves your place in the plan. Weekly forearm work without it: Pull dead hangs, Legs farmer's carries, Chest+Back wrist curls, Shoulders+Arms reverse curls.
+
+## DEV / test mode
+Log in with the **DEV passcode** instead of yours → an orange "DEV MODE" bar, a **separate test database**, and separate phone storage. Settings → **Fill with dummy data** loads ~3 weeks of fake training (all set types, notes, pain, football, cardio, creatine). Try anything; your real tracking is never touched. Log out and use your normal passcode to go back.
+
 ## Inside a workout
 - **Tap an exercise** to open or close it. After each set, the app moves you to the right place: superset partners alternate A1 → A2 → A1, then it goes to the next exercise.
 - **The order for each set:** check the suggested kg/reps (already filled in) → do the set → tap **reps left in the tank** (RIR, optional) → **Log set**. Faded rows below show the sets still to come.

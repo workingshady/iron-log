@@ -177,12 +177,26 @@ const list: Exercise[] = [
     cues: ["Knee in line with the machine pivot", "Squeeze 1 s at the top", "3 s down"], alts: ["leg_press", "goblet_squat"] },
   { key: "seated_leg_curl", name: "Seated Leg Curl", metric: "weight_reps", muscles: "Hamstrings (grows more than lying — Maeo 2021)", yt: "Z5pRnXaCjpM",
     cues: ["Lean slightly forward for more stretch", "Knee on the pivot", "Curl fully", "3 s down"], alts: ["leg_curl", "nordic_curl"] },
+
+  // ---------------- forearms, wrists & grip (v2.3 "Grip & Wrist" extra) ----------------
+  { key: "finger_curl", name: "Barbell Finger Curl (roll-up)", metric: "weight_reps", muscles: "Finger flexors — crushing grip, forearm size", yt: "gMGqYTG9C0c",
+    cues: ["Sit, forearms resting on thighs or a bench, palms up", "Let the bar roll down to your fingertips", "Roll it back up into a fist, then curl the wrist", "Slow, full range"], alts: ["wrist_curl", "bb_wrist_curl_behind"] },
+  { key: "bb_wrist_curl_behind", name: "Behind-the-Back Barbell Wrist Curl", metric: "weight_reps", muscles: "Wrist flexors (heavy) — forearm thickness", yt: "sVLVLcsfWSo",
+    cues: ["Stand, bar behind you, palms facing back", "Let it roll to the fingers", "Curl the wrists up and squeeze", "Arms straight, no shrugging"], alts: ["wrist_curl", "finger_curl"] },
+  { key: "db_pro_sup", name: "Dumbbell Pronation / Supination", metric: "weight_reps", muscles: "Forearm rotators — wrist strength & elbow health", yt: "a7Y6mk9G-zY", perSide: true,
+    cues: ["Forearm on a bench, wrist past the edge", "Hold ONE end of a dumbbell (like a hammer)", "Rotate slowly palm-up ↔ palm-down", "Choke up on the handle to make it easier"], alts: ["wrist_roller", "rev_wrist_curl"] },
+  { key: "radial_dev", name: "Dumbbell Radial Deviation (hammer lever)", metric: "weight_reps", muscles: "Thumb-side wrist (brachioradialis area) — wrestling wrist strength", perSide: true,
+    cues: ["Stand, arm by your side, hold ONE end of a dumbbell, weight in front", "Lift the front end up by tilting the wrist only", "Arm stays still", "Light — this is a small joint"], alts: ["hammer_curl", "db_pro_sup"] },
+  { key: "towel_hang", name: "Towel Hang", metric: "time", muscles: "Crushing grip, forearms, pull-up grip",
+    cues: ["Loop 1-2 towels over the bar", "Grip the towels and hang", "Shoulders engaged", "Too hard → one hand on towel, one on bar"], alts: ["dead_hang", "db_hold"] },
+  { key: "db_hold", name: "Heavy Dumbbell Hold", metric: "time", muscles: "Grip endurance, traps, forearms", step: 2.5,
+    cues: ["Heaviest dumbbells you can hold 30 s", "Stand tall, shoulders down", "Squeeze the handles hard", "Chalk if you have it"], alts: ["farmer_carry", "plate_pinch"] },
 ];
 
 /** Exercises done with two dumbbells (or two handles): the app asks for kg PER HAND. */
 export const PAIRS = new Set([
   "db_bench", "incline_db", "db_ohp", "db_lateral", "db_curl", "incline_curl", "hammer_curl", "db_shrug",
-  "rear_delt_fly", "cs_row", "db_rdl", "farmer_carry", "bss", "walking_lunge", "kelso_shrug",
+  "rear_delt_fly", "cs_row", "db_rdl", "farmer_carry", "bss", "walking_lunge", "kelso_shrug", "db_hold",
 ]);
 for (const e of list) if (PAIRS.has(e.key)) e.pair = true;
 

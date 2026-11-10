@@ -59,6 +59,8 @@ export interface WeekPlan {
   name: string;
   brief: string;
   days: DayPlan[];
+  /** Optional add-on sessions (e.g. Grip & Wrist). Done any day, never move your place in the plan. */
+  extras?: DayPlan[];
 }
 
 export interface TestDef {

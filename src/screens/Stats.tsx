@@ -171,7 +171,7 @@ export default function Stats() {
                 <span className="w-16 shrink-0 text-xs text-mute">{niceDate(p.date)}</span>
                 <span className="flex-1">
                   <b className="text-bad">{p.area}</b> · {EXERCISES[p.exKey]?.name ?? p.exKey} · {["", "mild", "moderate", "sharp"][p.level ?? 1]}
-                  {p.note && <span className="block text-xs text-mute">{p.note}</span>}
+                  {p.note && <span dir="auto" className="bidi block text-xs text-mute">{p.note}</span>}
                 </span>
               </div>
             ))}

@@ -1,6 +1,7 @@
 // Plain-language findings computed from the raw data. Each insight = one sentence + a tone.
 // Add a new rule: push another {tone, title, text} in buildInsights.
 import { EXERCISES } from "../program/exercises";
+import { TOPICS } from "../shared/notes";
 import { EX_GROUP, GROUPS } from "../program/groups";
 import { EXCUSES } from "../shared/lists";
 import { shownKg } from "../shared/load";
@@ -87,10 +88,10 @@ export function buildInsights(sess: S[], sets: X[], body: B[], intake: I[], creT
 
   // 2c. what your NOTES say (keyword groups — read every note, find repeats)
   const NOTE_RULES: { re: RegExp; tone: Insight["tone"]; title: string; fix: string }[] = [
-    { re: /tight|stiff|tense|pump/i, tone: "warn", title: "Tightness / stiffness", fix: "Warm that area up (light sets + band work) and start the exercise 1 step lighter. Pain that stays → swap the exercise." },
-    { re: /pain|hurt|hurn|sharp|ache/i, tone: "bad", title: "Pain words in notes", fix: "Log it with the Pain chip too (area + level) so the app lowers the weight next time." },
-    { re: /forg[oe]t to count|lost count|lose count|count.{0,30}estimate|estimate is \d/i, tone: "warn", title: "Lost count of reps", fix: "Use 'Count reps for me' (tap per rep or 3 s tempo beeper) — numbers drive the next weight." },
-    { re: /cheat|use my back|swing|momentum|half rep|partial/i, tone: "warn", title: "Cheated reps", fix: "Tap 'Cheated / partial' on that set — it's then ignored for weight decisions. Next time: one step lighter, strict." },
+    { re: new RegExp(`pump|${TOPICS.tight.source}`, "i"), tone: "warn", title: "Tightness / stiffness", fix: "Warm that area up (light sets + band work) and start the exercise 1 step lighter. Pain that stays → swap the exercise." },
+    { re: new RegExp(`hurn|${TOPICS.pain.source}`, "i"), tone: "bad", title: "Pain words in notes", fix: "Log it with the Pain chip too (area + level) so the app lowers the weight next time." },
+    { re: new RegExp(`estimate is [0-9]|${TOPICS.count.source}`, "i"), tone: "warn", title: "Lost count of reps", fix: "Use 'Count reps for me' (tap per rep or 3 s tempo beeper) — numbers drive the next weight." },
+    { re: new RegExp(`use my back|${TOPICS.cheat.source}`, "i"), tone: "warn", title: "Cheated reps", fix: "Tap 'Cheated / partial' on that set — it's then ignored for weight decisions. Next time: one step lighter, strict." },
     { re: /drop|dropp/i, tone: "info", title: "Drop sets written in notes", fix: "Use the 'Drop set' button so the lighter part is logged as its own set (keeps the main set honest)." },
     { re: /rest|then another|after \d+ ?min|play \d+ reps and rest/i, tone: "info", title: "Rest-pause written in notes", fix: "Use the 'Rest-pause' button for the extra mini-set instead of adding the reps together." },
     { re: /bar.{0,20}(fall|slip)|gone fall|dropp?ed the bar|almost dropped|no spotter/i, tone: "bad", title: "Bar safety", fix: "Close to failure on bench/close-grip: use safety pins, a Smith machine or dumbbells, and stop at RIR 1 when alone." },

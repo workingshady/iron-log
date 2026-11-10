@@ -161,7 +161,8 @@ export const journal = sqliteTable("journal", {
   id: text("id").primaryKey(),
   date: text("date").notNull(),
   text: text("text").notNull(),
-  tags: text("tags"),
+  tags: text("tags"), // comma-separated: "pain,sleep" (old rows: one tag)
+  mood: integer("mood"), // 1-5 (😣 → 😄), optional
   sessionId: text("session_id"),
   createdAt: integer("created_at").notNull(),
 });

@@ -3,6 +3,8 @@ export type Env = {
     DB: D1Database;
     /** Separate test database used when logged in with DEV_PASSCODE. Real data is never touched in dev mode. */
     DB_DEV: D1Database;
+    /** Workers AI: Whisper speech-to-text for voice notes. */
+    AI: Ai;
     APP_PASSCODE: string;
     DEV_PASSCODE?: string;
   };

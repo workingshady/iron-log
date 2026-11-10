@@ -343,6 +343,63 @@ app.get("/progress", async (c) => {
   return c.json(out);
 });
 
+// ---------------------------------------------------------------- notes (everything you wrote, one feed)
+/** All notes from everywhere: journal, set notes, workout notes, cardio, body, tests. Newest first. */
+app.get("/notes", async (c) => {
+  const d = db(c);
+  const [jr, st, ss, ca, bo, te] = await Promise.all([
+    d.select().from(t.journal).orderBy(desc(t.journal.createdAt)).limit(500),
+    d.select({ id: t.sets.id, note: t.sets.note, exKey: t.sets.exKey, at: t.sets.doneAt, sessionId: t.sets.sessionId, kg: t.sets.weightKg, reps: t.sets.reps, painArea: t.sets.painArea, painLevel: t.sets.painLevel, date: t.sessions.date, dayName: t.sessions.dayName })
+      .from(t.sets).innerJoin(t.sessions, eq(t.sets.sessionId, t.sessions.id))
+      .where(and(eq(t.sets.deleted, 0), sql`(${t.sets.note} is not null and ${t.sets.note} != '') or ${t.sets.painArea} is not null`)).orderBy(desc(t.sets.doneAt)).limit(500),
+    d.select().from(t.sessions).where(sql`${t.sessions.note} is not null and ${t.sessions.note} != ''`).orderBy(desc(t.sessions.date)).limit(300),
+    d.select().from(t.cardio).where(sql`${t.cardio.note} is not null and ${t.cardio.note} != ''`).orderBy(desc(t.cardio.date)).limit(300),
+    d.select().from(t.body).where(sql`${t.body.note} is not null and ${t.body.note} != ''`).orderBy(desc(t.body.date)).limit(300),
+    d.select().from(t.tests).where(sql`${t.tests.note} is not null and ${t.tests.note} != ''`).limit(300),
+  ]);
+  type N = { id: string; kind: "journal" | "set" | "workout" | "cardio" | "body" | "test"; date: string; at: number; text: string; tag?: string | null; mood?: number | null; title?: string; link?: string; pain?: string | null };
+  const out: N[] = [
+    ...jr.map((x) => ({ id: x.id, kind: "journal" as const, date: x.date, at: x.createdAt, text: x.text, tag: x.tags, mood: x.mood })),
+    ...st.map((x) => ({ id: x.id, kind: "set" as const, date: x.date, at: x.at, text: x.note ?? "", title: `${EXERCISES[x.exKey]?.name ?? x.exKey}${x.kg != null || x.reps != null ? ` · ${x.kg ?? "BW"}×${x.reps ?? "–"}` : ""}`, link: `/s/${x.sessionId}`, pain: x.painArea ? `${x.painArea} ${["", "mild", "moderate", "sharp"][x.painLevel ?? 1]}` : null })),
+    ...ss.map((x) => ({ id: x.id, kind: "workout" as const, date: x.date, at: x.endedAt ?? x.startedAt ?? x.createdAt, text: x.note ?? "", title: `W${x.week} · ${x.dayName}`, link: `/s/${x.id}` })),
+    ...ca.map((x) => ({ id: x.id, kind: "cardio" as const, date: x.date, at: x.endedAt ?? x.createdAt, text: x.note ?? "", title: x.protocol === "football" ? "Football" : "Cardio" })),
+    ...bo.map((x) => ({ id: x.date, kind: "body" as const, date: x.date, at: x.updatedAt, text: x.note ?? "", title: x.weightKg ? `${x.weightKg} kg` : "Body" })),
+    ...te.map((x) => ({ id: x.id, kind: "test" as const, date: x.date, at: x.createdAt, text: x.note ?? "", title: `${x.testKey.replace(/_/g, " ")} ${x.value} ${x.unit}` })),
+  ];
+  out.sort((a, b) => (b.date === a.date ? b.at - a.at : b.date < a.date ? -1 : 1));
+  return c.json(out);
+});
+
+// ---------------------------------------------------------------- voice → text (Whisper on Workers AI)
+// Body = the recorded audio (webm/ogg/mp4/wav). ?lang=auto|ar|en. The prompt is mixed Egyptian Arabic + gym English,
+// which nudges Whisper to keep English gym words in English inside Arabic sentences (code-switching).
+const MIXED_PROMPT = "تمرين النهارده: bench press 60 kg، 3 sets of 8. الكتف الشمال واجعني شوية في الـ incline. RIR 2, lat pulldown كان heavy. Slept 6 hours, تعبان شوية.";
+app.post("/transcribe", async (c) => {
+  if (!c.env.AI) return c.json({ error: "Voice-to-text isn't set up on the server." }, 501);
+  const buf = new Uint8Array(await c.req.arrayBuffer());
+  if (buf.byteLength < 800) return c.json({ error: "Recording too short." }, 400);
+  if (buf.byteLength > 4_000_000) return c.json({ error: "Recording too long (max ~3 min)." }, 413);
+  let bin = "";
+  for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+  const lang = c.req.query("lang");
+  try {
+    const r = (await c.env.AI.run("@cf/openai/whisper-large-v3-turbo", {
+      audio: btoa(bin),
+      task: "transcribe",
+      vad_filter: true,
+      initial_prompt: lang === "en" ? "Bench press 60 kg, 3 sets of 8, RIR 2. Left shoulder a bit tight." : MIXED_PROMPT,
+      ...(lang === "ar" || lang === "en" ? { language: lang } : {}),
+    } as never)) as { text?: string; transcription_info?: { language?: string; duration?: number } };
+    let text = (r.text ?? "").replace(/\s+/g, " ").trim();
+    if (text && (MIXED_PROMPT.includes(text) || text.includes("الكتف الشمال واجعني شوية في الـ incline"))) text = ""; // Whisper echoing the hint on near-silence
+    if (!/[؀-ۿ]/.test(text)) text = text.replace(/،/g, ",").replace(/؟/g, "?"); // English-only: no Arabic punctuation from the prompt
+    return c.json({ text, lang: r.transcription_info?.language ?? null, seconds: r.transcription_info?.duration ?? null });
+  } catch (e) {
+    const msg = String((e as Error)?.message ?? e);
+    return c.json({ error: /limit|quota|429|capacity/i.test(msg) ? "Daily free voice limit reached — type or use the keyboard mic." : "Couldn't transcribe — try again or type it." }, 502);
+  }
+});
+
 // ---------------------------------------------------------------- body, tests, journal
 
 app.get("/body", async (c) => c.json(await db(c).select().from(t.body).orderBy(desc(t.body.date)).limit(120)));
@@ -369,6 +426,16 @@ app.get("/journal", async (c) => c.json(await db(c).select().from(t.journal).ord
 app.post("/journal", async (c) => {
   const b = await c.req.json<typeof t.journal.$inferInsert>();
   await db(c).insert(t.journal).values({ ...b, createdAt: now() }).onConflictDoNothing();
+  return c.json({ ok: true });
+});
+app.put("/journal/:id", async (c) => {
+  const b = await c.req.json<{ text?: string; tags?: string | null; date?: string; mood?: number | null }>();
+  const patch: Partial<typeof t.journal.$inferInsert> = {};
+  if (typeof b.text === "string" && b.text.trim()) patch.text = b.text.trim();
+  if (b.tags !== undefined) patch.tags = b.tags;
+  if (b.date) patch.date = b.date;
+  if (b.mood !== undefined) patch.mood = b.mood == null ? null : Math.min(5, Math.max(1, Math.round(b.mood)));
+  if (Object.keys(patch).length) await db(c).update(t.journal).set(patch).where(eq(t.journal.id, c.req.param("id")));
   return c.json({ ok: true });
 });
 app.delete("/journal/:id", async (c) => {

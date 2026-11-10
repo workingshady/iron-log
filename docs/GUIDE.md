@@ -110,6 +110,19 @@ Log in with the **DEV passcode** instead of yours → an orange "DEV MODE" bar, 
 - **Finished cards** collapse to a one-line summary (e.g. "75×6 · 75×6 · 75×5").
 - **Finish screen** compares each exercise with last time and shows how many got stronger.
 
+## Notes & Journal (More → Notes & Journal)
+- **Every note in one place**: journal entries, set notes, workout notes, cardio, body and test notes, newest first, grouped by day. Tap a set or workout title to open that session.
+- **Search** works in Arabic and English and ignores Arabic spelling variants (أ/إ/ا, ة/ه, ى/ي, tashkeel). Matches are highlighted. Filter chips: Journal · Set notes · Workouts · Cardio · Body · Tests · Pain.
+- **Mood** (😣 → 😄, optional) on each entry; the strip on top shows the last 14 days. **Tags**: pick several. Dashed blue tags (“+ pain”) are suggestions from your words, in Arabic or English — nothing is tagged without your tap.
+- Tap ✏️ on a journal entry to edit text, mood or tags, or delete it.
+
+## Voice notes (🎤 next to every note box)
+- Tap 🎤, talk (up to 2 min), tap ■. The audio is sent to Whisper on Cloudflare (free, ~200 min/day) and the text is added to the note. Nothing is stored except the text.
+- **Language** (Settings → Voice notes, or the chips under the journal box): **عربي + English** (default, for mixed sentences like “الكتف واجعني في الـ incline”), **عربي** only, or **English** only.
+- Tested: Egyptian Arabic, English, and mixed sentences come back word-for-word, with English gym words kept in English.
+- **Offline** it uses the phone's own recognizer (one language at a time). If the mic is blocked, allow it for the site in Chrome settings.
+- Arabic and mixed text show right-to-left automatically, line by line.
+
 ## Plan screen
 - **This week's days**: each day with its muscle-group chips (sets per group). Tap a day to see the exercises.
 - **4-week progression**: one table per day, exercises × W1-W4 (sets × reps), with the current week highlighted. Week 3 is the hardest, Week 4 is the deload.

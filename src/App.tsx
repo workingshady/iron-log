@@ -31,7 +31,7 @@ function useRoute() {
 
 const PAGES: Record<string, () => React.ReactElement | null> = {
   "/": Home, "/plan": Plan, "/history": History, "/stats": Stats, "/body": Body, "/creatine": Creatine,
-  "/tests": Tests, "/journal": Journal, "/learn": Learn, "/settings": Settings, "/more": More, "/cardio": Cardio,
+  "/tests": Tests, "/journal": Journal, "/notes": Journal, "/learn": Learn, "/settings": Settings, "/more": More, "/cardio": Cardio,
 };
 
 export default function App() {

@@ -25,7 +25,7 @@ export const MORE: NavItem[] = [
   { path: "/creatine", label: "Creatine", icon: FlaskConical, sub: "Grams per day — aim for your daily target" },
   { path: "/body", label: "Body & habits", icon: Ruler, sub: "Weight, waist, sleep, protein, steps, water" },
   { path: "/tests", label: "Tests", icon: Trophy, sub: "Benchmarks: pull-ups, dips, hangs… compare over time" },
-  { path: "/journal", label: "Journal", icon: NotebookPen, sub: "Free notes — how training and life are going" },
+  { path: "/journal", label: "Notes & Journal", icon: NotebookPen, sub: "Every note in one place · mood · voice (عربي + English) · search" },
   { path: "/learn", label: "Learn", icon: BookOpen, sub: "What terms mean, warm-up, levels, what-if, nutrition" },
   { path: "/settings", label: "Settings", icon: Settings, sub: "Schedule, targets, export, reset" },
 ];

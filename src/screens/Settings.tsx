@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { CalendarDays, Download, FlaskConical, LogOut, Settings as Gear, TriangleAlert, Dumbbell, UserRound } from "lucide-react";
+import { CalendarDays, Download, FlaskConical, LogOut, Mic, Settings as Gear, TriangleAlert, Dumbbell, UserRound } from "lucide-react";
 import type { AppState } from "../../shared/api";
 import { DOW, orderedDows, weekConfig } from "../../shared/week";
 import { send, track, isDev, clearScreenCache } from "../lib/api";
 import { useLoad } from "../lib/useLoad";
 import { cx, today } from "../lib/util";
 import { Btn, Card, NumInput, PageHead, Chips } from "../components/ui";
+import { VOICE_LANGS, getVoiceLang, setVoiceLang, type VoiceLang } from "../components/Voice";
 
 export default function Settings() {
   const { data: s, setData } = useLoad<AppState>("/state");
@@ -17,6 +18,7 @@ export default function Settings() {
   const [ez, setEz] = useState<string | null>(null);
   const [confirmText, setConfirmText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [vlang, setVlang] = useState<VoiceLang>(getVoiceLang());
   if (!s) return null;
   if (!profLoaded) {
     setProf({ name: s.settings.profileName ?? "Shady", height: s.settings.heightCm ?? "174", weight: s.settings.bodyKg ?? "80", level: s.settings.level ?? "returning" });
@@ -95,6 +97,11 @@ export default function Settings() {
             <Btn kind="soft" onClick={() => cre && Number(cre) > 0 && set("creatineTarget", cre)}>Save</Btn>
           </div>
           <p className="mt-2 text-xs text-mute">3-5 g is the researched range.</p>
+        </Card>
+
+        <Card title="Voice notes" icon={Mic}>
+          <Chips small options={VOICE_LANGS.map((l) => ({ id: l.id, label: l.label }))} value={vlang} onChange={(v) => { if (!v) return; setVoiceLang(v as VoiceLang); setVlang(v as VoiceLang); track("voice_lang", { lang: v }); }} />
+          <p className="mt-2 text-xs text-mute">{VOICE_LANGS.find((l) => l.id === vlang)?.hint}. Tap 🎤 next to any note, talk, tap again — Whisper (free, on Cloudflare) writes it out. Offline it falls back to the phone's own recognizer (one language).</p>
         </Card>
 
         <Card title="Equipment — bar weights" icon={Dumbbell}>

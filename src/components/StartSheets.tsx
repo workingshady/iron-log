@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { VoiceButton, appendText } from "./Voice";
 import {
   Battery, Bed, Briefcase, CalendarOff, Clock, Frown, HeartPulse, Moon, Plane, Play, Sun, Thermometer, Users, Warehouse, Zap, CircleHelp,
   type LucideIcon,
@@ -88,7 +89,10 @@ export function MissedSheet({ open, slot, onClose, onDone }: { open: boolean; sl
       <Label>Reason</Label>
       <Chips small tone="bad" options={excuseOptions} value={excuse} onChange={setExcuse} />
       <Label>Note (optional)</Label>
-      <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} className="w-full rounded-xl bg-card2 p-3 outline-none focus:ring-2 focus:ring-acc" />
+      <div className="flex gap-1.5">
+        <textarea dir="auto" value={note} onChange={(e) => setNote(e.target.value)} rows={2} className="min-w-0 flex-1 rounded-xl bg-card2 p-3 outline-none focus:ring-2 focus:ring-acc" />
+        <VoiceButton onText={(t) => setNote((v) => appendText(v, t))} />
+      </div>
       <label className="mt-4 flex items-start gap-3 rounded-xl bg-card2 p-3 text-sm">
         <input type="checkbox" checked={skip} onChange={(e) => setSkip(e.target.checked)} className="mt-0.5 h-5 w-5 accent-[#c8f560]" />
         <span>

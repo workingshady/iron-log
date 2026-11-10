@@ -51,7 +51,7 @@ export default function History() {
                       <Ic size={18} className="shrink-0 text-bad" />
                       <span className="min-w-0 flex-1">
                         <span className="block">{r.status === "skipped" ? "Skipped" : "Missed"} {r.dayName} · <span className="text-bad">{EXCUSES.find((e) => e.id === r.excuse)?.label ?? r.excuse}</span></span>
-                        {r.note && <span className="block truncate text-xs text-mute">{r.note}</span>}
+                        {r.note && <span dir="auto" className="bidi block truncate text-xs text-mute">{r.note}</span>}
                       </span>
                       <span className="text-xs text-mute">{niceDate(r.date)}</span>
                     </div>

@@ -9,12 +9,13 @@ import { beep, clock, cx, kg, niceDate, restLabel, roundTo, unlockAudio, vibrate
 import { Btn, Chips, Label, NumInput, Sheet, Thumb, scale } from "../components/ui";
 import { TechNote, InfoDot } from "../components/Terms";
 import { TERMS } from "../../program/learn";
-import { ArrowDown, ArrowLeftRight, ArrowUp, Check, Hash, Mic, ChevronLeft, Clock, Dumbbell, Equal, Flame, Layers, MessageSquare, MoreHorizontal, NotebookPen, PlayCircle, Plus, Repeat, Ruler, SkipForward, Sparkles, Timer, TrendingDown, TrendingUp, TriangleAlert, Trophy } from "lucide-react";
+import { ArrowDown, ArrowLeftRight, ArrowUp, Check, Hash, ChevronLeft, Clock, Dumbbell, Equal, Flame, Layers, MessageSquare, MoreHorizontal, NotebookPen, PlayCircle, Plus, Repeat, Ruler, SkipForward, Sparkles, Timer, TrendingDown, TrendingUp, TriangleAlert, Trophy } from "lucide-react";
 import { e1rm, isBarbell, plates, recommend, warmups, type ExHistory, type Rec, type RecKind } from "../../shared/recommend";
 import { CURRENT } from "../../program";
 import { barOf, barsFrom, basisFor, kgHelp, kgLabel, loadOf, shownKg, type Bars } from "../../shared/load";
 import type { AppState } from "../../shared/api";
 import { useLoad } from "../lib/useLoad";
+import { VoiceButton, appendText } from "../components/Voice";
 import { ExerciseSheet, SetupNote } from "../components/ExerciseSheet";
 import { totalKg } from "../../shared/load";
 import { ListOrdered } from "lucide-react";
@@ -658,7 +659,7 @@ function useDraft(it: PlanItem, sets: SetLog[], last: { sets: SetLog[] } | undef
   }, [it, sets, last, rec]);
 }
 
-function SetInput({ it, d, setD, n, total, bars, onLog, hidden }: { it: PlanItem; d: Draft; setD: (d: Draft) => void; n: number; total: number; bars: Bars; onLog?: () => void; hidden?: boolean }) {
+function SetInput({ it, d, setD, n, total, bars, onLog, hidden }: { it: PlanItem; d: Draft; setD: React.Dispatch<React.SetStateAction<Draft>>; n: number; total: number; bars: Bars; onLog?: () => void; hidden?: boolean }) {
   const [hold, setHold] = useState<number | null>(null);
   const [perSide, setPerSide] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
@@ -771,8 +772,8 @@ function SetInput({ it, d, setD, n, total, bars, onLog, hidden }: { it: PlanItem
       {noteOpen || d.note ? (
         <div className="mt-3">
           <div className="flex gap-1.5">
-            <textarea value={d.note} onChange={(e) => setD({ ...d, note: e.target.value })} rows={2} placeholder="Note for this set (e.g. shoulder tight, lost count, bar slipped)" className="min-w-0 flex-1 rounded-xl bg-card2 p-2.5 text-sm outline-none focus:ring-2 focus:ring-acc" />
-            <VoiceButton onText={(t) => setD({ ...d, note: [d.note, t].filter(Boolean).join(" ") })} />
+            <textarea dir="auto" value={d.note} onChange={(e) => setD({ ...d, note: e.target.value })} rows={2} placeholder="Note for this set (e.g. shoulder tight, lost count, bar slipped)" className="min-w-0 flex-1 rounded-xl bg-card2 p-2.5 text-sm outline-none focus:ring-2 focus:ring-acc" />
+            <VoiceButton onText={(t) => setD((v) => ({ ...v, note: appendText(v.note, t) }))} />
           </div>
           <div className="mt-1.5 flex flex-wrap gap-1">
             {QUICK_NOTES.map((q) => (
@@ -941,7 +942,10 @@ function SetSheet({ set, onClose, onSave }: { set: SetLog; onClose: () => void; 
         ))}
       </div>
       <Label>Note</Label>
-      <textarea value={x.note ?? ""} onChange={(e) => setX({ ...x, note: e.target.value || null })} rows={2} placeholder="e.g. left shoulder clicks at the bottom" className="w-full rounded-xl bg-card2 p-3 outline-none focus:ring-2 focus:ring-acc" />
+      <div className="flex gap-1.5">
+        <textarea dir="auto" value={x.note ?? ""} onChange={(e) => setX({ ...x, note: e.target.value || null })} rows={2} placeholder="e.g. left shoulder clicks at the bottom" className="min-w-0 flex-1 rounded-xl bg-card2 p-3 outline-none focus:ring-2 focus:ring-acc" />
+        <VoiceButton onText={(t) => setX((v) => ({ ...v, note: appendText(v.note, t) }))} />
+      </div>
       <Label>Pain?</Label>
       <Chips small options={PAIN_AREAS.map((a) => ({ id: a, label: a }))} value={x.painArea} onChange={(a) => setX({ ...x, painArea: a, painLevel: a ? x.painLevel ?? 1 : null })} />
       {x.painArea && (
@@ -1008,7 +1012,10 @@ function FinishSheet({ s, sets, last, elapsed, onClose, onSave, onDelete }: {
       <Label>Bodyweight (optional)</Label>
       <NumInput value={bw} onChange={setBw} placeholder="kg" />
       <Label>Session note</Label>
-      <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder="How it went, life stuff, what to change…" className="w-full rounded-xl bg-card2 p-3 outline-none focus:ring-2 focus:ring-acc" />
+      <div className="flex gap-1.5">
+        <textarea dir="auto" value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder="How it went, life stuff, what to change… (عربي / English)" className="min-w-0 flex-1 rounded-xl bg-card2 p-3 outline-none focus:ring-2 focus:ring-acc" />
+        <VoiceButton onText={(t) => setNote((v) => appendText(v, t))} />
+      </div>
       <div className="mt-6 grid gap-2">
         {live ? (
           <>
@@ -1031,33 +1038,6 @@ const QUICK_NOTES: { t: string; cheat?: boolean }[] = [
 ];
 
 /** Speak a note (Chrome on Android uses Google's speech engine). Falls back to the keyboard mic. */
-function VoiceButton({ onText }: { onText: (t: string) => void }) {
-  const [on, setOn] = useState(false);
-  type SR = { lang: string; interimResults: boolean; onresult: (e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void; onend: () => void; onerror: () => void; start: () => void };
-  const Ctor = (window as unknown as { SpeechRecognition?: new () => SR; webkitSpeechRecognition?: new () => SR }).SpeechRecognition ?? (window as unknown as { webkitSpeechRecognition?: new () => SR }).webkitSpeechRecognition;
-  if (!Ctor) return null;
-  return (
-    <button
-      onClick={() => {
-        try {
-          const r = new Ctor();
-          r.lang = navigator.language || "en-US";
-          r.interimResults = false;
-          r.onresult = (e) => onText(Array.from(e.results).map((x) => x[0].transcript).join(" "));
-          r.onend = () => setOn(false);
-          r.onerror = () => { setOn(false); alert("Voice didn't work here — use the mic on your keyboard instead."); };
-          setOn(true);
-          r.start();
-        } catch { setOn(false); }
-      }}
-      className={cx("flex w-11 shrink-0 items-center justify-center rounded-xl", on ? "animate-pulse bg-bad text-black" : "bg-card2 text-info")}
-      aria-label="Speak a note"
-    >
-      <Mic size={18} />
-    </button>
-  );
-}
-
 /** Everything logged this session, in order, with time, rest and notes — tap to edit. */
 function SessionLog({ plan, sets, onClose, onSet }: { plan: PlanItem[]; sets: SetLog[]; onClose: () => void; onSet: (s: SetLog) => void }) {
   const KIND: Record<string, string> = { N: "", W: "warm-up", D: "drop", F: "failure", R: "rest-pause" };
@@ -1072,7 +1052,7 @@ function SessionLog({ plan, sets, onClose, onSet }: { plan: PlanItem[]; sets: Se
               <span className="min-w-0 flex-1 text-sm">
                 <span className="font-semibold">{plan[x.itemIdx]?.name ?? x.exKey}</span>{KIND[x.kind] ? <span className="text-xs text-info"> · {KIND[x.kind]}</span> : null}
                 <span className="block text-xs text-mute num">{fmtSet(x)}{x.rir != null ? ` · RIR ${x.rir}` : ""}{x.strict === 0 ? " · cheated" : ""}{k > 0 && x.restBeforeS != null ? ` · rested ${clock(x.restBeforeS * 1000)}` : ""}</span>
-                {x.note && <span className="block text-xs text-ink/80">“{x.note}”</span>}
+                {x.note && <span dir="auto" className="bidi block text-xs text-ink/80">{x.note}</span>}
               </span>
             </button>
           </li>

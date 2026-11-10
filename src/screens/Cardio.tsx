@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { VoiceButton, appendText } from "../components/Voice";
 import { Check, ChevronDown, Flame, Footprints, Minus, Pause, Play, Plus, Square, Timer, Trash2, TriangleAlert, X } from "lucide-react";
 import type { AppState, CardioLog, DashboardData, HistoryRow } from "../../shared/api";
 import { CARDIO_PLAN, CARDIO_TIPS, PROTOCOLS, estimateKcal, segments, type CardioProtocol, type SegKind } from "../../program/cardio";
@@ -344,7 +345,10 @@ function LogSheet({ s, kg, onClose, onSaved }: { s: { protocol: string; minutes:
       </div>
       <Label>How hard overall? (1-10)</Label>
       <Chips small options={scale(1, 10)} value={rpe} onChange={setRpe} />
-      <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Note (optional)" className="mt-3 w-full rounded-xl bg-card2 p-3 outline-none focus:ring-2 focus:ring-acc" />
+      <div className="mt-3 flex gap-1.5">
+        <textarea dir="auto" value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Note (optional)" className="min-w-0 flex-1 rounded-xl bg-card2 p-3 outline-none focus:ring-2 focus:ring-acc" />
+        <VoiceButton onText={(t) => setNote((v) => appendText(v, t))} />
+      </div>
       <Btn kind="primary" icon={Check} className="mt-4 w-full" onClick={save}>Save</Btn>
     </Sheet>
   );

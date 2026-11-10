@@ -22,5 +22,7 @@
       "migrations_dir": "migrations"
     }
   ],
+  // Workers AI (free: 10k neurons/day ≈ 200 min of Whisper) — voice notes → text, Arabic + English + mixed.
+  "ai": { "binding": "AI" },
   "observability": { "enabled": true }
 }

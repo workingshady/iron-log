@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { VoiceButton, appendText } from "../components/Voice";
 import { Bed, Beef, Droplets, Footprints, Ruler, Scale, Zap } from "lucide-react";
 import { queue, track } from "../lib/api";
 import { useLoad } from "../lib/useLoad";
@@ -63,7 +64,10 @@ export default function Body() {
           </div>
           <Label icon={Zap}>Energy today (1 low · 5 great)</Label>
           <Chips small options={scale(1, 5)} value={energy} onChange={setEnergy} />
-          <textarea value={f.note ?? ""} onChange={(e) => setF({ ...f, note: e.target.value })} rows={2} placeholder="Note (optional)" className="mt-3 w-full rounded-xl bg-card2 p-3 outline-none focus:ring-2 focus:ring-acc" />
+          <div className="mt-3 flex gap-1.5">
+            <textarea dir="auto" value={f.note ?? ""} onChange={(e) => setF({ ...f, note: e.target.value })} rows={2} placeholder="Note (optional)" className="min-w-0 flex-1 rounded-xl bg-card2 p-3 outline-none focus:ring-2 focus:ring-acc" />
+            <VoiceButton onText={(t) => setF((v) => ({ ...v, note: appendText(v.note, t) }))} />
+          </div>
           <Btn kind="primary" className="mt-3 w-full" onClick={save}>{saved ? "Saved ✓" : `Save ${date === today() ? "today" : niceDate(date)}`}</Btn>
         </Card>
 

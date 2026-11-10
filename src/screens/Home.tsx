@@ -12,7 +12,8 @@ import { clock, cx, niceDate, today } from "../lib/util";
 import { Btn, Card, PageHead, Stat, Thumb } from "../components/ui";
 import { weekConfig } from "../../shared/week";
 import { Heatmap } from "../components/Heatmap";
-import { Bars, LineChart } from "../components/Chart";
+import { LineChart } from "../components/Chart";
+import { LiftTrends, WeeklyTrend, useAnalytics } from "../components/Analytics";
 import { MissedSheet, PickSheet, StartSheet } from "../components/StartSheets";
 import { WeekPlanner, useWeekPlan } from "../components/WeekPlanner";
 
@@ -25,6 +26,7 @@ export default function Home() {
   const [sheet, setSheet] = useState<null | "start" | "missed" | "pick">(null);
   const [target, setTarget] = useState<SlotInfo | null>(null);
   const { plan: wp } = useWeekPlan();
+  const { data: an } = useAnalytics(s ? weekConfig(s.settings, s.schedules).weekStart : 1);
 
   if (!s) return <p className="py-20 text-center text-mute">{error ?? "Loading…"}</p>;
   // TODAY follows the adapted week (football, moved sessions, rest), never a fixed weekday
@@ -146,8 +148,11 @@ export default function Home() {
         </Card>
 
         {/* 6. Trends */}
-        <Card title="Hard sets per week" icon={Dumbbell} className="md:col-span-2">
-          {p?.weeks.length ? <Bars data={p.weeks.map((w) => ({ x: w.start, y: w.sets }))} unit="sets" /> : <p className="text-sm text-mute">Shows after your first workout.</p>}
+        <Card title="Strength · 4 weeks" icon={TrendingUp} right={<a href="#/stats" className="inline-flex min-h-11 items-center text-xs font-normal text-info">all lifts →</a>}>
+          {an ? <LiftTrends lifts={an.lifts} max={3} /> : <p className="text-sm text-mute">Loading…</p>}
+        </Card>
+        <Card title="Hard sets per week" icon={Dumbbell}>
+          {an && p?.weeks.length ? <WeeklyTrend weeks={an.weeks} only="hardSets" /> : <p className="text-sm text-mute">Shows after your first workout.</p>}
         </Card>
         <Card title="Bodyweight" icon={Scale}>
           {d && d.body.length > 1 ? (

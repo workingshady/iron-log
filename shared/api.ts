@@ -169,3 +169,31 @@ export interface InsightsData {
   insights: { tone: "good" | "warn" | "bad" | "info"; title: string; text: string }[];
   muscles: { groups: readonly string[]; weeks: { week: number; sets: Record<string, number>; ex: Record<string, number> }[] };
 }
+
+/** One "what goes with good sessions" comparison (worker/analytics.ts). An association, never proof. */
+export interface AnalyticsLink {
+  id: string;
+  label: string;
+  hi: { label: string; n: number; mean: number };
+  lo: { label: string; n: number; mean: number };
+  /** hi.mean − lo.mean */
+  diff: number;
+  /** "%" = session performance vs your own baseline · "reps" = reps lost to the next set at the same weight */
+  unit: "%" | "reps";
+  better: "higher" | "lower";
+  /** |diff| > 2 × standard error of the difference: big enough to take seriously (still not proof). */
+  clear: boolean;
+}
+
+/** GET /api/analytics: dashboard numbers by calendar week (formulas in worker/analytics.ts). */
+export interface AnalyticsData {
+  weeks: { start: string; sessions: number; missed: number; hardSets: number; tonnage: number; minutes: number | null; prs: number }[];
+  muscles: { groups: string[]; small: string[]; weeks: { start: string; sets: Record<string, number> }[] };
+  lifts: { exKey: string; name: string; pair: boolean; e1rm: number; best: number; change4w: number | null; sessions: number; last: string; points: { date: string; e1rm: number }[] }[];
+  effort: { rir: number[]; logged: number; total: number };
+  links: AnalyticsLink[];
+  pending: { label: string; have: number; need: number }[];
+  perfSessions: number;
+  prs: { date: string; exKey: string; name: string; kg: number | null; reps: number | null; e1rm: number | null }[];
+  adherence4w: number | null;
+}

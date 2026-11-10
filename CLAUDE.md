@@ -18,7 +18,7 @@ Commands: `npm run dev` · `npm run check` (validate program + types) · `npm ru
 - `feedback`: per exercise per session (`id = sessionId:itemIdx`): `effort` easy|right|hard|too_much, `joints` fine|achy|pain (RP-style autoregulation).
 - `events`: every tap (`set_done`, `set_edit`, `set_undo`, `rest_start/adjust/skip/done`, `ex_swap` {from,to,reason}, `ex_skip`, `ex_move`, `video_open`, `session_*`…).
 - `body` (optional, any day), `tests`, `journal`, `intake` (creatine grams: item/amount/unit per entry), `settings` (schedule, creatineTarget), `program_versions` (a snapshot of each version used).
-- Derived: `/api/dashboard` (calendar, forgiving streak: planned-rest/sick misses don't break it, adherence, creatine), `/api/insights` (`worker/insights.ts` rules + sets per muscle group from `program/groups.ts`).
+- Derived: `/api/dashboard` (calendar, forgiving streak: planned-rest/sick misses don't break it, adherence, creatine), `/api/insights` (`worker/insights.ts` rules + sets per muscle group from `program/groups.ts`), `/api/analytics` (`worker/analytics.ts`: calendar-week trends, fractional hard sets per muscle, e1RM trends, "what goes with good workouts" associations; formulas documented in the file, test with `npx tsx scripts/test-analytics.ts`).
 - Plan position = the first (week, day) in `program.order` with no `done`/`skipped` session for this program id. `missed` does **not** advance it.
 
 ## Modes & databases

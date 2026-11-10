@@ -58,7 +58,9 @@ Each exercise shows **Today: 75 kg × 6** plus *why*, and the inputs are pre-fil
 **Recommended vs actual:** every set stores what the app recommended when you logged it. Stats → *Recommended vs actual* shows each session with **beat / hit / close / missed**; the monthly review uses it to tune the rules.
 
 ## Extra sets, drop sets, rest-pause
-- **Drop set**: opens a small panel already ~25% lighter → type reps → Log. Tap again for a double drop. No rest timer, you stay on the exercise.
+- **Drop set**: pick **Drop by** (10/20/25/30/40 %) and **single / double / triple**. The chain is shown (e.g. 25 → 20 → 15 kg, rounded to weights you can load) and each drop is pre-filled — just type reps and Log. Your choice is remembered per exercise. No rest between drops; the rest timer starts when the chain ends (or tap Done).
+- **Programmed drops** ("Last set: drop set"): after that last set the drop panel opens by itself — go straight away, or tap *Skip drop*.
+- Drops and rest-pause minis **belong to their set**: they're shown indented under it (↳ drop 1, ↳ drop 2), don't count as planned sets, don't change the next set's pre-filled weight, and don't drive the weight recommendation. Summaries read `60×8 (↓45×6 ↓35×5)`.
 - **Rest-pause**: same weight, rest 15-20 s, log the mini-set reps (don't add them to the main set).
 - **Extra set**: a normal set beyond the plan; the rest timer runs.
 
@@ -103,7 +105,7 @@ Log in with the **DEV passcode** instead of yours → an orange "DEV MODE" bar, 
 - **Holds** (dead hang, hollow, plates): tap **⏱ Time the hold** to start, and tap again to stop. The seconds fill in.
 - **Bands / assisted**: type the band colour or assist kg in the left box.
 - **Exercise strip** (top, under the timer): every exercise with done/total. Tap one to jump to it. Green = done, amber = started.
-- **Supersets** are framed together with a label ("Superset A · do A1 then A2 back-to-back, rest after the pair").
+- **Supersets**: framed together with a header — *Superset A · round 2 of 3* and a dot per round. Log A1 → the app jumps to A2 with **no rest**. Log A2 → the round is complete → the **rest timer** starts (the longest rest in the group) and says "Round 3 · A1 …". Works in any order and with uneven set counts. Each exercise keeps its own history and weight recommendation.
 - **Session log** (the list icon next to the timer): every set in the order you did it, with time, kind, RIR, rest and note. Tap a row to edit it.
 - **Your setup** (📍): seat height, pin, grip, saved per exercise and shown every session. Edit it on the card or in the exercise sheet.
 - **Notes, fast**: tap a tag chip (e.g. "lost count", "cheated reps", "too heavy") or the 🎤 to speak (Chrome on Android). "Cheated reps" also marks the set as not strict.

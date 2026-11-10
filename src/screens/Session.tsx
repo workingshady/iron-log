@@ -4,7 +4,7 @@ import { NOTE_TAGS, PAIN_AREAS, SET_KINDS, type SetKind } from "../../shared/lis
 import { targetLabel, toItem } from "../../shared/plan";
 import { EXERCISES } from "../../program/exercises";
 import { DEFAULT_SWAP_NOTE, SWAP_REASONS, swapHint } from "../../program/swaps";
-import { cache, get, queue, track, uid } from "../lib/api";
+import { cache, get, queue, send, track, uid } from "../lib/api";
 import { beep, clock, cx, kg, niceDate, restLabel, roundTo, unlockAudio, vibrate } from "../lib/util";
 import { Btn, Chips, Label, NumInput, Sheet, Thumb, scale } from "../components/ui";
 import { TechNote, InfoDot } from "../components/Terms";
@@ -18,12 +18,14 @@ import { useLoad } from "../lib/useLoad";
 import { VoiceButton, appendText } from "../components/Voice";
 import { ExerciseSheet, SetupNote } from "../components/ExerciseSheet";
 import { totalKg } from "../../shared/load";
-import { ListOrdered } from "lucide-react";
+import { Link2, ListOrdered } from "lucide-react";
 import { RestTimer, loadRest, saveRest, type Rest } from "../components/RestTimer";
 import { go } from "../nav";
 
 type Draft = { weight: string; reps: string; seconds: string; meters: string; assist: string; rir: string; strict: string; note: string };
-const workSets = (sets: SetLog[], i: number) => sets.filter((s) => s.itemIdx === i && s.kind !== "W");
+/** Sets that count toward the plan: drops and rest-pause minis belong to their parent set; warm-ups don't count. */
+const isWork = (s: SetLog) => s.kind !== "W" && s.kind !== "D" && s.kind !== "R";
+const workSets = (sets: SetLog[], i: number) => sets.filter((s) => s.itemIdx === i && isWork(s));
 
 export default function SessionScreen({ id }: { id: string }) {
   const ck = `bundle_${id}`;
@@ -39,6 +41,7 @@ export default function SessionScreen({ id }: { id: string }) {
   const [undo, setUndo] = useState<{ set: SetLog; pr: string | null; warn?: boolean } | null>(null);
   const lastTap = useRef(0);
   const [sheet, setSheet] = useState<null | { k: "how" | "menu" | "swap"; i: number } | { k: "set"; s: SetLog } | { k: "finish" } | { k: "log" }>(null);
+  const [autoDrop, setAutoDrop] = useState<number | null>(null);
 
   const setRest = (r: Rest | null) => { saveRest(r); setRestState(r); };
 
@@ -109,6 +112,7 @@ export default function SessionScreen({ id }: { id: string }) {
   const total = plan.filter((p) => !p.skipped).reduce((a, p) => a + p.sets, 0);
   const done = plan.reduce((a, p, i) => a + (p.skipped ? 0 : Math.min(p.sets, workSets(sets, i).length)), 0);
 
+
   function logSet(i: number, d: Draft, kind: SetKind = "N") {
     const tap = Date.now();
     if (tap - lastTap.current < 900) return; // double-tap guard
@@ -166,16 +170,35 @@ export default function SessionScreen({ id }: { id: string }) {
     track("set_done", { ex: it.ex, i, setNo: set.setNo, kind, weight, reps, seconds: set.seconds, meters: set.meters, assist: set.assist, restBeforeS: set.restBeforeS }, id);
 
     const after = [...sets, set];
-    // drop / rest-pause / warm-up are part of the current set → stay here, no rest timer
+    // drop / rest-pause / warm-up are part of the current set → stay here, no rest timer (it starts when you tap Done)
     if (kind === "D" || kind === "R" || kind === "W") { if (kind !== "W") setRest(null); return; }
-    const isExtra = workSets(sets, i).length >= it.sets; // extra set beyond the plan → stay, normal rest
+    // programmed "Last set: drop set" → open the drop panel right away (no rest in between), move on after Done
+    if (live && kind === "N" && it.tech && /drop set/i.test(it.tech) && workSets(after, i).length === it.sets) {
+      setRest(null); setAutoDrop(i); setOpen(i);
+      track("drop_prompt", { ex: it.ex }, id);
+      return;
+    }
+    moveOn(i, after, t, workSets(sets, i).length >= it.sets);
+  }
+
+  /** After a set (or a drop / rest-pause chain): go to the right exercise and start the right rest. */
+  function moveOn(i: number, after: SetLog[], t: number, isExtra = false) {
+    const it = plan[i];
     const nx = isExtra ? i : nextIdx(plan, after, i);
-    if (nx !== i) setOpen(nx);
-    if (live && it.rest > 0 && nx >= 0) {
+    if (nx !== i && nx >= 0) {
+      setOpen(nx);
+      if (sameGroup(plan, i, nx)) setTimeout(() => document.getElementById(`ex-${nx}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+    }
+    const r = isExtra ? { rest: it.rest, round: null } : restAfter(plan, after, i);
+    if (live && r.rest > 0 && nx >= 0) {
       const nxIt = plan[nx];
-      setRest({ sessionId: id, startedAt: t, endAt: t + it.rest * 1000, planned: it.rest, next: `${nxIt.name} · set ${workSets(after, nx).length + 1}` });
-      track("rest_start", { planned: it.rest }, id);
-    } else setRest(null);
+      const label = nxIt.tag && r.round ? `Round ${r.round + 1} · ${nxIt.tag} ${nxIt.name}` : `${nxIt.name} · set ${workSets(after, nx).length + 1}`;
+      setRest({ sessionId: id, startedAt: t, endAt: t + r.rest * 1000, planned: r.rest, next: label });
+      track("rest_start", { planned: r.rest, superset: it.tag ?? null, round: r.round }, id);
+    } else {
+      setRest(null);
+      if (live && nx >= 0 && nx !== i && sameGroup(plan, i, nx)) track("superset_switch", { from: it.tag, to: plan[nx].tag }, id);
+    }
   }
 
   const elapsed = s.startedAt ? (s.endedAt ?? Date.now()) - s.startedAt : 0;
@@ -214,9 +237,7 @@ export default function SessionScreen({ id }: { id: string }) {
       <div className="space-y-2">
         {plan.map((it, i) => (
           <div key={`${i}-${it.ex}`} id={`ex-${i}`} className={cx("scroll-mt-36", it.tag && plan[i - 1]?.tag?.[0] === it.tag[0] && "-mt-1 border-l-2 border-info/50 pl-2", it.tag && plan[i + 1]?.tag?.[0] === it.tag[0] && plan[i - 1]?.tag?.[0] !== it.tag[0] && "border-l-2 border-info/50 pl-2")}>
-          {it.tag && plan[i + 1]?.tag?.[0] === it.tag[0] && plan[i - 1]?.tag?.[0] !== it.tag[0] && (
-            <div className="mb-1 mt-3 text-[11px] font-semibold uppercase tracking-wide text-info">Superset {it.tag[0]} · do {it.tag[0]}1 then {it.tag[0]}2 back-to-back, rest after the pair</div>
-          )}
+          {it.tag && plan[i + 1]?.tag?.[0] === it.tag[0] && plan[i - 1]?.tag?.[0] !== it.tag[0] && <SupersetHead plan={plan} sets={sets} i={i} />}
           {it.finisher && !plan[i - 1]?.finisher && (
             <div className="mb-2 mt-5 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-mute">
               <Flame size={13} className="text-warn" /> Finishers · small muscles, 5-10 min <span className="h-px flex-1 bg-line" />
@@ -239,6 +260,13 @@ export default function SessionScreen({ id }: { id: string }) {
             open={open === i}
             onToggle={() => { setOpen(open === i ? -2 : i); track("ex_open", { i, ex: it.ex }, id); }}
             onLog={(d, kind) => logSet(i, d, kind)}
+            autoDrop={autoDrop === i}
+            onChainDone={(n) => {
+              if (autoDrop === i) setAutoDrop(null);
+              // rest starts when the drop / rest-pause chain ends (or right away if you skipped the drop)
+              const all = sets;
+              if (n > 0 || autoDrop === i) moveOn(i, all, Date.now(), workSets(all, i).length > it.sets);
+            }}
             onSet={(set) => setSheet({ k: "set", s: set })}
             onHow={() => { setSheet({ k: "how", i }); track("video_open", { ex: it.ex }, id); }}
             onMenu={() => setSheet({ k: "menu", i })}
@@ -353,6 +381,20 @@ function firstOpen(plan: PlanItem[], sets: SetLog[], fallback: number) {
   return k >= 0 ? k : fallback;
 }
 /** Superset-aware: A1 → A2 → A1 …, otherwise stay until done, then the next unfinished one. */
+const sameGroup = (plan: PlanItem[], a: number, b: number) => !!plan[a]?.tag && plan[a].tag![0] === plan[b]?.tag?.[0];
+const groupOf = (plan: PlanItem[], i: number) => (plan[i].tag ? plan.map((p, k) => ({ p, k })).filter(({ p }) => p.tag?.[0] === plan[i].tag![0] && !p.skipped) : [{ p: plan[i], k: i }]);
+/**
+ * Superset rest rule (best practice): no rest between A1 → A2; the rest starts when the ROUND is complete
+ * (every partner that still has this round has done it), and it is the longest rest in the group.
+ * Works in any order (A2 first) and with uneven set counts.
+ */
+function restAfter(plan: PlanItem[], after: SetLog[], i: number): { rest: number; round: number | null } {
+  if (!plan[i].tag) return { rest: plan[i].rest, round: null };
+  const g = groupOf(plan, i);
+  const k = workSets(after, i).length;
+  const roundDone = g.every(({ k: j }) => j === i || workSets(after, j).length >= Math.min(k, plan[j].sets));
+  return roundDone ? { rest: Math.max(...g.map(({ p }) => p.rest)), round: k } : { rest: 0, round: k };
+}
 function nextIdx(plan: PlanItem[], sets: SetLog[], i: number) {
   const tag = plan[i].tag;
   if (tag) {
@@ -371,6 +413,19 @@ function topWeight(cur: SetLog[], last?: SetLog[]) {
   const w = [...cur, ...(last ?? [])].map((x) => shownKg(x) ?? 0);
   return w.length ? Math.max(...w) || null : null;
 }
+/** Work sets with their drops / rest-pause minis attached: "60×8 · 60×7 (↓45×6 ↓35×5)". */
+function fmtChain(sets: SetLog[]) {
+  const out: string[] = [];
+  for (const x of sets) {
+    if (x.kind === "W") continue;
+    if ((x.kind === "D" || x.kind === "R") && out.length) {
+      const last = out.pop()!;
+      const add = `${x.kind === "D" ? "↓" : "+"}${fmtSet(x)}`;
+      out.push(last.endsWith(")") ? `${last.slice(0, -1)} ${add})` : `${last} (${add})`);
+    } else out.push(fmtSet(x));
+  }
+  return out.join(" · ");
+}
 function fmtSet(x: Pick<SetLog, "exKey" | "weightKg" | "reps" | "seconds" | "meters" | "assist"> & { kgBasis?: string | null }) {
   const parts: string[] = [];
   if (x.assist) parts.push(x.assist);
@@ -388,18 +443,20 @@ const REC_TONE: Record<RecKind, string> = { up: "text-acc", hold: "text-info", d
 const REC_ICON: Record<RecKind, typeof TrendingUp> = { up: TrendingUp, hold: Equal, down: TrendingDown, start: Sparkles, deload: TrendingDown, estimate: Sparkles };
 const KIND_LABEL: Record<string, string> = { W: "warm-up", D: "drop", F: "failure", R: "rest-p." };
 
-function ExerciseCard({ i, it, sets, last, rec, live, bars, feedback, open, onToggle, onLog, onSet, onFeedback, onHow, onMenu }: {
+function ExerciseCard({ i, it, sets, last, rec, live, bars, feedback, open, onToggle, onLog, onSet, onFeedback, onHow, onMenu, autoDrop, onChainDone }: {
   i: number; it: PlanItem; sets: SetLog[]; last?: { date: string; sets: SetLog[] }; rec: Rec; live: boolean; bars: Bars;
+  autoDrop?: boolean; onChainDone?: (logged: number) => void;
   feedback?: { effort: string | null; joints: string | null };
   open: boolean; onToggle: () => void; onLog: (d: Draft, k?: SetKind) => void; onSet: (s: SetLog) => void;
   onFeedback: (f: { effort: string | null; joints: string | null }) => void; onHow: () => void; onMenu: () => void;
 }) {
-  const work = sets.filter((s) => s.kind !== "W");
+  const work = sets.filter(isWork);
   const complete = work.length >= it.sets;
   const draft = useDraft(it, sets, last, rec);
   const [d, setD] = useState<Draft>(draft);
   const [showWarm, setShowWarm] = useState(false);
   const [extra, setExtra] = useState<null | "D" | "R" | "N">(null);
+  useEffect(() => { if (autoDrop) setExtra("D"); }, [autoDrop]);
   const lastRef = useRef(sets.length);
   useEffect(() => {
     if (sets.length !== lastRef.current) { lastRef.current = sets.length; setD(draft); }
@@ -423,7 +480,7 @@ function ExerciseCard({ i, it, sets, last, rec, live, bars, feedback, open, onTo
         <span className="min-w-0 flex-1">
           <span className={cx("block truncate font-semibold", it.skipped && "line-through")}>{it.name}</span>
           <span className="block truncate text-xs text-mute">
-            {complete && !open ? <span className="text-acc">{work.map((x) => fmtSet(x)).join(" · ")}</span> : <>
+            {complete && !open ? <span className="text-acc">{fmtChain(sets)}</span> : <>
             {targetLabel(it)} · <Clock size={10} className="inline" /> {restLabel(it.rest)}
             {!complete && recText && <span className={cx("ml-1", REC_TONE[rec.kind])}>· {recText}</span>}</>}
           </span>
@@ -444,7 +501,7 @@ function ExerciseCard({ i, it, sets, last, rec, live, bars, feedback, open, onTo
               <RecIcon size={14} className="mt-0.5 shrink-0" />
               <span><b>{recText ? `Today: ${recText}` : "Today"}</b> — {rec.why}</span>
             </div>
-            {last && <div className="text-mute">Last time ({niceDate(last.date)}): {last.sets.filter((x) => x.kind !== "W").map(fmtSet).join(" · ")}</div>}
+            {last && <div className="text-mute">Last time ({niceDate(last.date)}): {fmtChain(last.sets)}</div>}
             {it.swappedFrom && <div className="text-mute">Swapped from {EXERCISES[it.swappedFrom]?.name ?? it.swappedFrom}{it.swapReason ? ` (${it.swapReason})` : ""}</div>}
             {it.tech && <TechNote text={it.tech} />}
             <SetupNote exKey={it.ex} compact />
@@ -474,9 +531,13 @@ function ExerciseCard({ i, it, sets, last, rec, live, bars, feedback, open, onTo
 
           {/* 3. the sequence: done sets → current set → remaining sets */}
           <div className="space-y-1.5">
-            {sets.map((x, k) => (
-              <button key={x.id} onClick={() => onSet(x)} className="flex min-h-11 w-full items-center gap-3 rounded-xl bg-card2 px-3 text-left">
-                <span className="w-14 text-xs text-mute">{x.kind === "N" ? `Set ${sets.slice(0, k + 1).filter((y) => y.kind === "N").length}` : KIND_LABEL[x.kind]}</span>
+            {sets.map((x, k) => {
+              const child = (x.kind === "D" || x.kind === "R") && k > 0;
+              let nth = 0;
+              if (child) for (let j = k; j >= 0 && (sets[j].kind === x.kind); j--) nth++;
+              return (
+              <button key={x.id} onClick={() => onSet(x)} className={cx("flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left", child ? "ml-5 w-[calc(100%-1.25rem)] border-l-2 border-info/60 bg-info/[0.06]" : "bg-card2")}>
+                <span className={cx("w-14 text-xs", child ? "text-info" : "text-mute")}>{x.kind === "N" ? `Set ${sets.slice(0, k + 1).filter((y) => y.kind === "N").length}` : child ? `↳ ${KIND_LABEL[x.kind]}${nth > 1 || sets[k + 1]?.kind === x.kind ? ` ${nth}` : ""}` : KIND_LABEL[x.kind]}</span>
                 <span className="flex-1 font-semibold num">{fmtSet(x)}</span>
                 {!!x.pr && <Trophy size={14} className="text-warn" />}
                 {x.strict === 0 && <span className="rounded bg-bad/20 px-1.5 text-[10px] text-bad">cheat</span>}
@@ -484,7 +545,8 @@ function ExerciseCard({ i, it, sets, last, rec, live, bars, feedback, open, onTo
                 {x.restBeforeS != null && k > 0 && <span className="text-xs text-faint">{clock(x.restBeforeS * 1000)}</span>}
                 {x.painLevel ? <TriangleAlert size={15} className="text-bad" /> : x.note ? <NotebookPen size={15} className="text-mute" /> : null}
               </button>
-            ))}
+              );
+            })}
           </div>
 
           {!complete && extra !== "N" && work.length > 0 && (() => {
@@ -512,7 +574,7 @@ function ExerciseCard({ i, it, sets, last, rec, live, bars, feedback, open, onTo
           )}
 
           {/* 4. after the last set: quick RP-style check (feeds next time's recommendation) */}
-          {complete && live && <FeedbackRow value={feedback} onChange={onFeedback} />}
+          {complete && live && !extra && <FeedbackRow value={feedback} onChange={onFeedback} />}
 
           {/* 5. secondary actions */}
           {extra ? (
@@ -520,9 +582,11 @@ function ExerciseCard({ i, it, sets, last, rec, live, bars, feedback, open, onTo
               mode={extra}
               it={it}
               last={[...sets].reverse().find((x) => x.kind !== "W")}
+              parent={[...sets].reverse().find((x) => x.kind === "N")}
               bars={bars}
+              auto={!!autoDrop}
               onLog={(dd) => onLog({ ...d, ...dd, rir: "", strict: "" }, extra)}
-              onDone={() => setExtra(null)}
+              onDone={(n) => { const m = extra; setExtra(null); if (m !== "N") onChainDone?.(n); }}
             />
           ) : (
             <div className="mt-3 grid grid-cols-3 gap-1.5 text-sm">
@@ -548,35 +612,99 @@ function ExerciseCard({ i, it, sets, last, rec, live, bars, feedback, open, onTo
   );
 }
 
+const DROP_PCTS = [10, 20, 25, 30, 40];
+/** Your drop-set style per exercise (settings "drop:<exKey>" = "pct,drops"), e.g. "25,2". Default 25 % × 1 drop. */
+function useDropPref(exKey: string) {
+  const { data: st, setData } = useLoad<AppState>("/state");
+  const raw = st?.settings?.[`drop:${exKey}`] ?? "";
+  const [p, n] = raw.split(",").map(Number);
+  const pct = DROP_PCTS.includes(p) ? p : 25, drops = n >= 1 && n <= 3 ? n : 1;
+  const save = (pc: number, dr: number) => {
+    const v = `${pc},${dr}`;
+    setData((x) => (x ? { ...x, settings: { ...x.settings, [`drop:${exKey}`]: v } } : x));
+    send("PUT", `/settings/drop:${exKey}`, { value: v });
+    track("drop_pref", { ex: exKey, pct: pc, drops: dr });
+  };
+  return { pct, drops, save };
+}
+/** Drop weights from the parent set: each drop pct % lighter than the one before, rounded DOWN to a weight you can load. */
+export function dropChain(base: number, pct: number, drops: number, step: number): number[] {
+  const out: number[] = [];
+  let w = base;
+  for (let k = 0; k < drops; k++) {
+    w = Math.max(step, Math.floor((w * (1 - pct / 100)) / step + 1e-9) * step);
+    out.push(+w.toFixed(2));
+  }
+  return out;
+}
+
 /** Inline entry for drop sets, rest-pause mini-sets and extra sets — pre-filled, one tap to log, chainable. */
-function ExtraInput({ mode, it, last, bars, onLog, onDone }: {
-  mode: "D" | "R" | "N"; it: PlanItem; last?: SetLog; bars: Bars; onLog: (d: Partial<Draft>) => void; onDone: () => void;
+function ExtraInput({ mode, it, last, parent, bars, auto, onLog, onDone }: {
+  mode: "D" | "R" | "N"; it: PlanItem; last?: SetLog; parent?: SetLog; bars: Bars; auto?: boolean; onLog: (d: Partial<Draft>) => void; onDone: (logged: number) => void;
 }) {
   const step = loadOf(it.ex) === "pair" ? Math.max(2.5, it.step) : it.step;
-  const lastKg = last ? shownKg(last) : null;
-  const prefill = () => {
-    if (mode === "D" && lastKg) return String(Math.max(step, Math.floor((lastKg * 0.75) / step + 1e-9) * step));
-    return lastKg != null ? String(lastKg) : "";
-  };
-  const [w, setW] = useState(prefill);
-  const [r, setR] = useState(mode === "R" ? "3" : mode === "N" && last?.reps != null ? String(last.reps) : "");
+  const pref = useDropPref(it.ex);
+  const [pct, setPct] = useState(pref.pct);
+  const [drops, setDrops] = useState(pref.drops);
   const [count, setCount] = useState(0);
-  useEffect(() => { setW(prefill()); }, [last?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const weighted = it.metric === "weight_reps";
+  const parentKg = parent ? shownKg(parent) : null;
+  const lastKg = last ? shownKg(last) : null;
+  const chain = mode === "D" && parentKg ? dropChain(parentKg, pct, Math.max(drops, count + 1), step) : [];
+  const prefill = (c = count) => (mode === "D" ? (chain.length ? String(dropChain(parentKg!, pct, c + 1, step)[c]) : lastKg != null ? String(lastKg) : "") : lastKg != null ? String(lastKg) : "");
+  const [w, setW] = useState(() => prefill(0));
+  const [r, setR] = useState(mode === "R" ? "3" : mode === "N" && last?.reps != null ? String(last.reps) : "");
+  useEffect(() => { setW(prefill()); }, [last?.id, pct]); // eslint-disable-line react-hooks/exhaustive-deps
   const title = { D: "Drop set", R: "Rest-pause mini-set", N: "Extra set" }[mode];
   const hint = {
-    D: "Right after the set: ~25% lighter, reps to near failure.",
+    D: weighted ? "No rest: strip the weight and keep going to ~1 rep in the tank." : "No rest: switch to an easier version and keep going.",
     R: "Same weight · rest 15-20 s · a few more reps.",
     N: "Counts as a normal set (rest timer runs).",
   }[mode];
-  const weighted = it.metric === "weight_reps";
   const bump = (v: string, by: number, set: (x: string) => void) => set(String(Math.max(0, +(Number(v || 0) + by).toFixed(2))));
+  const unit = loadOf(it.ex) === "pair" ? "/hand" : "";
+  const pick = (pc: number, dr: number) => { setPct(pc); setDrops(dr); pref.save(pc, dr); };
+  const target = mode === "D" ? Math.max(drops, count) : 0;
   return (
     <div className="mt-3 rounded-xl border border-info/50 bg-info/[0.05] p-3">
       <div className="flex items-center justify-between text-xs">
-        <span className="font-semibold text-info">{title}{count > 0 ? ` · ${count} logged` : ""}</span>
-        <button onClick={onDone} className="rounded-full bg-card2 px-3 py-1 text-mute">Done</button>
+        <span className="font-semibold text-info">
+          {title}
+          {mode === "D" ? ` · drop ${Math.min(count + 1, target)} of ${target}` : count > 0 ? ` · ${count} logged` : ""}
+        </span>
+        <button onClick={() => onDone(count)} className="min-h-9 rounded-full bg-card2 px-3 text-mute">{count > 0 || mode === "N" ? "Done" : auto ? "Skip drop" : "Cancel"}</button>
       </div>
+      {auto && count === 0 && <p className="mt-1 text-[11px] font-semibold text-warn">Program says: last set = drop set. Go now — no rest.</p>}
       <p className="mt-1 text-[11px] text-mute">{hint}</p>
+
+      {mode === "D" && weighted && parentKg != null && (
+        <div className="mt-2 space-y-2">
+          <div className="flex items-center gap-1.5">
+            <span className="w-14 shrink-0 text-[11px] text-mute">Drop by</span>
+            {DROP_PCTS.map((x) => (
+              <button key={x} onClick={() => pick(x, drops)} className={cx("min-h-9 flex-1 rounded-lg text-xs num", pct === x ? "bg-info font-semibold text-black" : "bg-card2 text-mute")}>{x}%</button>
+            ))}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-14 shrink-0 text-[11px] text-mute">Drops</span>
+            {[1, 2, 3].map((x) => (
+              <button key={x} onClick={() => pick(pct, x)} className={cx("min-h-9 flex-1 rounded-lg text-xs", drops === x ? "bg-info font-semibold text-black" : "bg-card2 text-mute")}>{x === 1 ? "single" : x === 2 ? "double" : "triple"}</button>
+            ))}
+          </div>
+          {/* the chain: set → drop 1 → drop 2 … (current one highlighted) */}
+          <div className="flex flex-wrap items-center gap-1 text-xs num">
+            <span className="rounded-md bg-card2 px-2 py-1 text-mute">{kg(parentKg)}{unit}</span>
+            {chain.map((x, k) => (
+              <span key={k} className="inline-flex items-center gap-1">
+                <span className="text-faint">→</span>
+                <span className={cx("rounded-md px-2 py-1", k < count ? "bg-acc/15 text-acc line-through decoration-acc/50" : k === count ? "bg-info/20 font-semibold text-info" : "bg-card2 text-mute")}>{kg(x)}{unit}</span>
+              </span>
+            ))}
+            <span className="ml-1 text-[11px] text-faint">rounded to {kg(step)} kg steps</span>
+          </div>
+        </div>
+      )}
+
       <div className="mt-2 flex gap-2">
         {weighted && (
           <div className="min-w-0 flex-1">
@@ -601,17 +729,42 @@ function ExtraInput({ mode, it, last, bars, onLog, onDone }: {
         onClick={() => {
           if (!r) return;
           onLog({ weight: weighted ? w : "", reps: r, note: "" });
-          setCount((c) => c + 1);
-          if (mode === "N") onDone();
-          else if (mode === "R") setR("3");
-          else setR("");
+          const c = count + 1;
+          setCount(c);
+          if (mode === "N") return onDone(c);
+          if (mode === "R") return setR("3");
+          setR("");
+          if (c >= drops) { onDone(c); return; } // planned chain finished → rest starts
+          if (parentKg != null) setW(String(dropChain(parentKg, pct, c + 1, step)[c]));
         }}
         disabled={!r}
         className="mt-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-info font-semibold text-black disabled:opacity-40"
       >
-        <Check size={18} /> Log {title.toLowerCase()}{mode === "D" && count > 0 ? " (another)" : ""}
+        <Check size={18} /> Log {mode === "D" ? `drop ${count + 1}` : title.toLowerCase()}{mode === "D" && count + 1 >= drops ? " · then rest" : ""}
       </button>
-      {mode === "D" && count > 0 && <p className="mt-1 text-center text-[11px] text-faint">Weight dropped again by ~25% for a double drop — or tap Done.</p>}
+      {mode === "D" && count > 0 && count < drops && <p className="mt-1 text-center text-[11px] text-faint">Next drop is ready — go straight away, or tap Done to stop here.</p>}
+    </div>
+  );
+}
+
+/** Superset header: round tracker (dots per round) + who's next. Rest only after the round. */
+function SupersetHead({ plan, sets, i }: { plan: PlanItem[]; sets: SetLog[]; i: number }) {
+  const g = groupOf(plan, i);
+  const rounds = Math.max(...g.map(({ p }) => p.sets));
+  const doneRounds = Math.min(...g.map(({ k, p }) => Math.min(rounds, workSets(sets, k).length + (rounds - p.sets))));
+  const allDone = g.every(({ k, p }) => workSets(sets, k).length >= p.sets);
+  const letter = plan[i].tag![0];
+  const rest = Math.max(...g.map(({ p }) => p.rest));
+  return (
+    <div className="mb-1.5 mt-3">
+      <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-info">
+        <Link2 size={13} /> Superset {letter}
+        <span className="font-normal normal-case text-mute">{allDone ? "· done" : `· round ${Math.min(doneRounds + 1, rounds)} of ${rounds}`}</span>
+        <span className="ml-auto flex gap-1">
+          {Array.from({ length: rounds }, (_, r) => <span key={r} className={cx("h-2 w-2 rounded-full", r < doneRounds ? "bg-acc" : r === doneRounds && !allDone ? "bg-info" : "bg-card3")} />)}
+        </span>
+      </div>
+      <div className="mt-0.5 text-[11px] text-mute">{g.map(({ p }) => p.tag).join(" → ")} back-to-back, no rest between · rest {restLabel(rest)} after each round</div>
     </div>
   );
 }
@@ -639,9 +792,9 @@ function FeedbackRow({ value, onChange, compact }: { value?: { effort: string | 
 
 function useDraft(it: PlanItem, sets: SetLog[], last: { sets: SetLog[] } | undefined, rec: Rec): Draft {
   return useMemo(() => {
-    const work = sets.filter((s) => s.kind !== "W");
+    const work = sets.filter(isWork);
     const prevHere = work[work.length - 1];
-    const prevLast = last?.sets.filter((s) => s.kind !== "W");
+    const prevLast = last?.sets.filter(isWork);
     const lastSame = prevLast?.[Math.min(work.length, (prevLast?.length ?? 1) - 1)];
     const tReps = it.reps == null ? null : Array.isArray(it.reps) ? it.reps[1] : it.reps;
     const v = (x: number | null | undefined) => (x == null ? "" : String(x));
@@ -982,7 +1135,7 @@ function FinishSheet({ s, sets, last, elapsed, onClose, onSave, onDelete }: {
     <Sheet open onClose={onClose} title={live ? "Finish workout" : "Session"}>
       <div className="grid grid-cols-3 gap-2 text-center">
         <div className="rounded-xl bg-card2 py-3"><div className="text-lg font-bold num">{clock(elapsed)}</div><div className="text-[11px] text-mute">time</div></div>
-        <div className="rounded-xl bg-card2 py-3"><div className="text-lg font-bold num">{sets.filter((x) => x.kind !== "W").length}</div><div className="text-[11px] text-mute">sets</div></div>
+        <div className="rounded-xl bg-card2 py-3"><div className="text-lg font-bold num">{sets.filter(isWork).length}</div><div className="text-[11px] text-mute">sets</div></div>
         <div className="rounded-xl bg-card2 py-3"><div className="text-lg font-bold num">{Math.round(vol)}</div><div className="text-[11px] text-mute">kg volume</div></div>
       </div>
       {cmp.length > 0 && (
@@ -1050,7 +1203,7 @@ function SessionLog({ plan, sets, onClose, onSet }: { plan: PlanItem[]; sets: Se
             <button onClick={() => onSet(x)} className="flex w-full items-start gap-3 rounded-lg px-1 py-1.5 text-left hover:bg-card2">
               <span className="w-12 shrink-0 text-[11px] text-mute num">{new Date(x.doneAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</span>
               <span className="min-w-0 flex-1 text-sm">
-                <span className="font-semibold">{plan[x.itemIdx]?.name ?? x.exKey}</span>{KIND[x.kind] ? <span className="text-xs text-info"> · {KIND[x.kind]}</span> : null}
+                {x.kind === "D" || x.kind === "R" ? <span className="text-info">↳ </span> : null}<span className={x.kind === "D" || x.kind === "R" ? "text-mute" : "font-semibold"}>{plan[x.itemIdx]?.name ?? x.exKey}</span>{KIND[x.kind] ? <span className="text-xs text-info"> · {KIND[x.kind]}</span> : null}
                 <span className="block text-xs text-mute num">{fmtSet(x)}{x.rir != null ? ` · RIR ${x.rir}` : ""}{x.strict === 0 ? " · cheated" : ""}{k > 0 && x.restBeforeS != null ? ` · rested ${clock(x.restBeforeS * 1000)}` : ""}</span>
                 {x.note && <span dir="auto" className="bidi block text-xs text-ink/80">{x.note}</span>}
               </span>

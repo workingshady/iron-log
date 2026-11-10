@@ -26,16 +26,41 @@ Your personal training tracker. It runs free on Cloudflare (Workers + D1). On yo
 
 **Colors mean one thing each:** green = done / main button · amber = in progress / tips · red = pain, missed, delete · blue = rest timer & explanations · violet = creatine.
 
-## Recommended weights (every set, every exercise)
-Each exercise shows **Today: 70 kg × 5** plus *why*, and the inputs are pre-filled with it:
-- **Green ↑**: you hit the top of the rep range on every set at the target RIR, so add one step (two if you said "Easy").
-- **Blue =**: same weight, beat last time by 1 rep.
-- **Amber ↓**: missed reps on 2+ sets, joint pain, or felt "Too much", so go one step lighter.
-- If the rep target changes between weeks (e.g. 8 → 6), the weight is recalculated from your estimated max at the target RIR.
-- **Deload week** = ~10% lighter.
-- **First time** on an exercise: no number yet ("pick a weight you could do 2-3 more reps with"), unless you've done a related lift (e.g. bench → dumbbell press estimate).
+## Entering weight (it depends on the equipment)
+| Equipment | What to type | Example |
+|---|---|---|
+| Barbell (bench, squat, RDL, OHP, close-grip) | **Total incl. the bar** (20 kg default), or tap **per side** and type one side's plates | 20 kg plate each side → 60 |
+| EZ / curl bar | Total incl. the EZ bar (Settings → bar weights; EZ bars vary 5-14 kg) | 10 kg bar + 5 each side → 20 |
+| Two dumbbells | **One dumbbell = per hand** | two 20s → 20 |
+| One dumbbell / cable / machine | The number on the dumbbell / pin | rope at 25 → 25 |
+| Bodyweight | Empty, or only the extra weight | +10 plate → 10 |
 
-You'll also see them on **Plan** (→ next to each exercise) and on **Home** (Today's targets).
+Your Nov 9 dumbbell sets were typed as totals (40 = 20 each hand). They are **kept exactly as logged** and tagged `total`; the app shows them halved.
+
+## Recommended weights (every set, every exercise, every day)
+Each exercise shows **Today: 75 kg × 6** plus *why*, and the inputs are pre-filled. The same numbers are on **Plan** (→), **Home** (Today's targets) and **Stats → Next session**.
+
+| Colour | Rule | Example (your data) |
+|---|---|---|
+| 🟢 +1 step | Top of the rep range on every set with ≥ target reps in reserve | bench 3×6 @75 with 2 left → 77.5 |
+| 🟢 +2 steps | same + you tapped "Easy" | |
+| 🔵 same, +1 rep | inside the range, or 1 rep short | incline 22.5/hand × 9, 7 → 22.5 × 9 |
+| 🔵 same, own it | top reps but at RIR 0 when the target was 2 | bench 75×6 @0 → stay 75 |
+| 🟠 ~3% lighter per missing rep | average 2+ reps below the range (max −15%, rounded down) | triceps 30 × 10, 8, 5, 5 → 25 × 10 · close-grip 40 × 7, 7, 5 → 37.5 × 8 |
+| 🟠 1 step lighter | pain, or "Joints: Pain" | |
+| ⚪ from your max | rep target changes a lot between weeks | e1RM 90, 6 reps @RIR 2 → 70 |
+| ⚪ starting estimate | never done it: from your bench est. max (or bodyweight) × a strength-standard ratio, −10% safety, ~3 reps left | pulldown 50 × 8 · machine row 50 · squat 70 × 6 · RDL 70 × 8 · leg press 115 × 12 |
+| ⚪ deload | week 4 | −10% |
+
+**Ignored for decisions:** warm-ups, drop sets, rest-pause mini-sets, sets marked **Cheated**.
+**Math:** est. max = kg × (1 + (reps + RIR)/30). RIR trusted only 0-3 (people under-call it by ~1 rep and are worst far from failure). Dumbbells move in 2.5 kg steps per hand.
+
+**Recommended vs actual:** every set stores what the app recommended when you logged it. Stats → *Recommended vs actual* shows each session with **beat / hit / close / missed**; the monthly review uses it to tune the rules.
+
+## Extra sets, drop sets, rest-pause
+- **Drop set**: opens a small panel already ~25% lighter → type reps → Log. Tap again for a double drop. No rest timer, you stay on the exercise.
+- **Rest-pause**: same weight, rest 15-20 s, log the mini-set reps (don't add them to the main set).
+- **Extra set**: a normal set beyond the plan; the rest timer runs.
 
 ## Inside a workout
 - **Tap an exercise** to open or close it. After each set, the app moves you to the right place: superset partners alternate A1 → A2 → A1, then it goes to the next exercise.
@@ -44,6 +69,7 @@ You'll also see them on **Plan** (→ next to each exercise) and on **Home** (To
 - **Plates per side** appear for barbell lifts (20 kg bar).
 - **🏆 PR**: beat your best estimated max, reps or hold time, and it lights up. PRs are listed when you finish and in Stats.
 - **Quick check** after the last set of each exercise: how hard (Easy / Just right / Hard / Too much) and joints (Fine / Achy / Pain). Optional, two taps. It tunes next time's weight.
+- **Add a note** under the set before logging (e.g. "shoulder tight", "lost count") — no need to edit afterwards.
 - **Tap a logged set** to edit everything about it: kg, reps, seconds, set type (warm-up / normal / drop / failure / rest-pause), RIR, quick tags, a free **note**, and **pain** (area + mild/moderate/sharp). You can delete it here too.
 - **Undo**: right after logging, an "Undo" button shows for 6 seconds.
 - **Extra: Set / Drop set / Warm-up**: log sets beyond the plan. Tap ⓘ to see what a drop set is. Warm-ups don't count toward volume.

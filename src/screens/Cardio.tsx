@@ -76,7 +76,7 @@ export default function Cardio() {
           <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
             <Btn kind="primary" icon={Play} onClick={() => { unlockAudio(); const l = { id: uid(), protocol: proto.key, startedAt: Date.now(), pausedAt: null, pausedMs: 0, speedAdj: 0 }; setLive(l); track("cardio_start", { protocol: proto.key }); }}>Start timer</Btn>
             <Btn kind="soft" icon={Check} onClick={() => setLogSheet({ protocol: proto.key, minutes: proto.minutes, status: "done" })}>Done already</Btn>
-            <Btn kind="soft" icon={X} onClick={() => { queue("PUT", `/cardio/${uid()}`, { date: today(), protocol: proto.key, status: "skipped", minutes: 0 }, `cardio skip ${Date.now()}`); track("cardio_skip", { protocol: proto.key }); setTimeout(() => { reload(); reloadDash(); }, 700); }}>Skip today</Btn>
+            <Btn kind="soft" icon={X} onClick={() => { if ((logs ?? []).some((l) => l.date === today() && l.protocol === proto.key && l.status === "skipped")) return; queue("PUT", `/cardio/skip-${today()}-${proto.key}`, { date: today(), protocol: proto.key, status: "skipped", minutes: 0 }, `cardio skip ${today()} ${proto.key}`); track("cardio_skip", { protocol: proto.key }); setTimeout(() => { reload(); reloadDash(); }, 700); }}>Skip today</Btn>
           </div>
         </Card>
 

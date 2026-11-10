@@ -68,6 +68,8 @@ export interface SetLog {
   suggested?: string | null;
   pr?: number;
   strict?: number | null;
+  /** "per_hand" | "total" for dumbbell pairs (see worker/db/schema.ts). */
+  kgBasis?: string | null;
   deleted?: number;
 }
 

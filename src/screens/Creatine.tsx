@@ -21,6 +21,9 @@ export default function Creatine() {
 
   function add(amount: number) {
     if (!(amount > 0 && amount <= 50)) return alert("Enter 0.5-50 g");
+    const last = (rows ?? []).filter((r) => r.date === today()).sort((a, b) => b.at - a.at)[0];
+    if (last && Date.now() - last.at < 2000) return; // double-tap guard
+    if (last && Date.now() - last.at < 10 * 60_000 && !confirm(`You logged ${last.amount} g a few minutes ago. Add another ${amount} g?`)) return;
     const row = { id: uid(), date: today(), item: "creatine", amount, unit: "g", at: Date.now() };
     setData([{ ...row }, ...(rows ?? [])]);
     queue("POST", "/intake", row, `intake ${row.id}`);

@@ -29,6 +29,20 @@
       "when": 1794233547420,
       "tag": "0003_cardio_strict",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1794298897076,
+      "tag": "0004_kg_basis",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1794298923069,
+      "tag": "0005_tag_legacy_dumbbell_totals",
+      "breakpoints": true
     }
   ]
 }

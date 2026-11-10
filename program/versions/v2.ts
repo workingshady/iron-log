@@ -30,13 +30,14 @@ function make(n: number, list: E[]): Rx[] {
 }
 
 const D1: E[] = [
+  // v2.2 order from your first session: close-grip moved up (done last it failed at 40 kg and the bar nearly fell),
+  // laterals before the shoulder press (the order you chose), ab wheel moved out (session ran 69 min, core got skipped).
   { ex: "bench", s: ["3x5-6", "4x5-6", "4x4-6", "2x5"], rest: 180, heavy: true, t: "2 s down, touch chest, drive up" },
   { ex: "incline_db", s: ["3x8-10", "3x8-10", "4x8-10", "2x10"], rest: 120, t: "Deep stretch at the bottom", t3: "Last set: rest-pause" },
-  { ex: "db_ohp", s: ["3x8-10", "3x8-10", "3x8-10", "2x8"], rest: 120 },
-  { ex: "close_grip_bench", s: ["2x8", "3x8", "3x6-8", "2x8"], rest: 120, heavy: true, t: "Replaces dips · elbows tucked" },
+  { ex: "close_grip_bench", s: ["2x8", "3x8", "3x6-8", "2x8"], rest: 120, heavy: true, t: "Safety pins or spotter · stop 1-2 reps early · elbows tucked" },
   { ex: "db_lateral", s: ["3x12-15", "4x12-15", "4x12-15", "2x15"], rest: 60, t: "Lead with elbows, 2 s down", t3: "Last set: lengthened partials" },
-  { ex: "oh_tri_ext", s: ["3x10-12", "3x10-12", "3x10-12", "2x12"], rest: 75, t: "Full stretch behind the head", t3: "Last set: drop set" },
-  { ex: "ab_wheel", s: ["3x8", "3x10", "3x12", "2x8"], rest: 75, noRir: true },
+  { ex: "db_ohp", s: ["3x8-10", "3x8-10", "3x8-10", "2x8"], rest: 120, t: "Strict reps only — no bouncing" },
+  { ex: "oh_tri_ext", s: ["3x10-12", "3x10-12", "3x10-12", "2x12"], rest: 75, t: "Rope or 1 dumbbell · elbows forward · stop where the shoulder feels tight", t3: "Last set: drop set" },
   { ex: "deficit_pushup", s: ["1xmax", "2xmax", "2xmax", "1xmax"], rest: 60, fin: true, t: "Burnout: strict, stop 1 rep before form breaks" },
 ];
 
@@ -102,10 +103,10 @@ const days = (n: number): DayPlan[] => [
 
 export const v2: Program = {
   id: "ppl-arnold",
-  version: "2.1.0",
+  version: "2.2.0",
   name: "PPL × Arnold · Intensive v2",
   changelog:
-    "2.1: barbell row → machine row on Pull day (same growth, saves the lower back for Legs the next day). 2.0: No dips, pull-ups, bands or assisted machine. Per-session volume capped at ~11 sets per muscle, weekly volume spread for more growth. Stretch-biased picks, seated leg curl, techniques only on last isolation sets, small muscles as finishers, pull-up roadmap.",
+    "2.2: from your first Push — close-grip earlier with safety, laterals before shoulder press, ab wheel moved off Push, smarter weight engine (per-hand dumbbells, RIR-aware). 2.1: barbell row → machine row on Pull day (same growth, saves the lower back for Legs the next day). 2.0: No dips, pull-ups, bands or assisted machine. Per-session volume capped at ~11 sets per muscle, weekly volume spread for more growth. Stretch-biased picks, seated leg curl, techniques only on last isolation sets, small muscles as finishers, pull-up roadmap.",
   order: ["D1", "D2", "D3", "D5", "D6"],
   schedules: {
     "A (Mon start)": ["rest", "D1", "D2", "D3", "rest", "D5", "D6"],

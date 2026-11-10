@@ -179,3 +179,35 @@ export const VERDICTS: { ex: string; verdict: "keep" | "optional" | "changed"; w
   { ex: "Standing overhead press", verdict: "keep", why: "Strength. Seated / machine are equal for size — swap if the lower back is tired." },
   { ex: "Cable Y-raise", verdict: "optional", why: "Variety for side delts; no direct growth study. Plain cable laterals are fine." },
 ];
+
+
+/** How to enter weight for each kind of equipment. */
+export const KG_ENTRY: { what: string; enter: string; example: string }[] = [
+  { what: "Barbell (bench, squat, RDL, OHP, close-grip)", enter: "Total INCLUDING the bar (Olympic bar 20 kg by default), or tap 'per side' and type the plates on one side.", example: "20 kg plate each side → 20 + 2×20 = 60 kg." },
+  { what: "EZ / curl bar", enter: "Total including the EZ bar (set its weight in Settings — they vary 5-14 kg).", example: "10 kg EZ bar + 5 kg each side → 20 kg." },
+  { what: "Two dumbbells (incline press, laterals, curls…)", enter: "ONE dumbbell's weight — per hand.", example: "Two 20 kg dumbbells → type 20 (not 40)." },
+  { what: "One dumbbell / cable / machine", enter: "The number on the dumbbell, pin or stack.", example: "Rope on the cable, pin at 25 → 25." },
+  { what: "Bodyweight (push-ups, hangs)", enter: "Leave kg empty; add only extra weight (vest, plate).", example: "Push-ups with a 10 kg plate → 10." },
+];
+
+/** How the app picks today's weight — every rule, with an example. */
+export const REC_RULES: { rule: string; when: string; example: string; tone: "up" | "hold" | "down" | "info" }[] = [
+  { tone: "up", rule: "Go up one step", when: "You hit the TOP of the rep range on every set and had at least the target reps in reserve.", example: "Bench 3×6 @ 75 kg, last set 2 left (target RIR 2) → 77.5 kg × 5-6." },
+  { tone: "up", rule: "Go up two steps", when: "Same, and you tapped 'Easy' in the quick check after the exercise.", example: "Laterals 3×15 @ 10/hand + 'Easy' → 15/hand." },
+  { tone: "hold", rule: "Same weight, beat the reps", when: "You're inside the rep range — add 1 rep per session until you hit the top.", example: "Incline 22.5/hand × 9, 7 → same weight, aim for 9-10." },
+  { tone: "hold", rule: "Same weight, own it", when: "You hit the top reps but went to failure (RIR 0) when the target was 2.", example: "Bench 75 × 6 at RIR 0 → stay at 75 until it's 75 × 6 with 2 left." },
+  { tone: "down", rule: "Lighter by ~3% per missing rep", when: "Your average reps at the top weight were below the bottom of the range (max −15%, rounded down to a real weight).", example: "Overhead triceps 30 kg × 10, 8, 5, 5 (avg 7, target 10+) → about 9% lighter → 25 kg × 10." },
+  { tone: "down", rule: "One step lighter", when: "Pain (moderate or sharp) or 'Joints: Pain' last time.", example: "Shoulder pain on OHP → 2.5 kg lighter; if it hurts again, swap the exercise." },
+  { tone: "info", rule: "Recalculated from your max", when: "The rep target changes a lot between weeks (e.g. 8-10 → 5-6).", example: "Est. max 90 kg, target 6 reps @ RIR 2 → 90 ÷ (1 + 8/30) ≈ 70 kg." },
+  { tone: "info", rule: "Deload week", when: "Week 4.", example: "About 10% lighter, easy sets." },
+  { tone: "info", rule: "First time (starting estimate)", when: "No history yet: the app estimates from a lift you HAVE done (e.g. your bench) or from your bodyweight, rounded DOWN, aimed at ~3 reps left. Treat set 1 as a test and adjust.", example: "Bench est. max 90 kg → machine row start ≈ 50 kg; bodyweight 80 kg → lat pulldown start ≈ 45 kg." },
+  { tone: "info", rule: "What's ignored", when: "Warm-ups, drop sets, rest-pause mini-sets and sets you marked 'Cheated' don't move the next weight.", example: "Seated DB press 15/hand × 10 (cheated, 5+5) → next weight is based on the strict 12.5 × 10." },
+];
+
+/** The estimated-max math. */
+export const REC_MATH = [
+  "Estimated max (e1RM) = weight × (1 + (reps + reps-in-reserve) ÷ 30) — the Epley formula with your RIR added back.",
+  "RIR is only trusted from 0 to 3: far from failure everyone guesses badly, and most people under-call RIR by about 1 rep (Zourdos 2021).",
+  "Weight for a target = e1RM ÷ (1 + (target reps + target RIR) ÷ 30), rounded to real steps (barbell 2.5 kg, dumbbells 2.5 kg per hand, small cable/isolation 1 kg).",
+  "Every logged set stores what the app recommended at that moment, so Stats → 'Recommended vs actual' and the monthly review can check the suggestions and tune these rules.",
+];

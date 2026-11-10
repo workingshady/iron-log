@@ -7,6 +7,7 @@ import { login, requireAuth } from "./auth";
 import { CURRENT, EXERCISES, programVersionId } from "../program";
 import { buildPlan } from "../shared/plan";
 import { buildInsights, muscleSets } from "./insights";
+import { shownKg, totalKg } from "../shared/load";
 import type {
   AppState, HistoryRow, PlanItem, ProgressData, ProgressPoint, Session, SessionBundle, SetLog, SlotInfo,
 } from "../shared/api";
@@ -186,9 +187,11 @@ async function liftHistory(d: DB, keys: string[] | null, excludeSession = "") {
     const h = hist[s.exKey];
     if (!h) hist[s.exKey] = { date, sets: [s as SetLog], sessionId: s.sessionId };
     else if (h.sessionId === s.sessionId) h.sets.unshift(s as SetLog);
+    if (s.strict === 0 || s.kind === "D" || s.kind === "R") continue; // records only from honest straight sets
     const b = (best[s.exKey] ??= { e1rm: 0, weightKg: 0, reps: 0, seconds: 0 });
-    if (s.weightKg && s.reps && s.reps <= 12) b.e1rm = Math.max(b.e1rm, Math.round(s.weightKg * (1 + s.reps / 30) * 10) / 10);
-    b.weightKg = Math.max(b.weightKg, s.weightKg ?? 0);
+    const w = shownKg(s);
+    if (w && s.reps && s.reps <= 12) b.e1rm = Math.max(b.e1rm, Math.round(w * (1 + s.reps / 30) * 10) / 10);
+    b.weightKg = Math.max(b.weightKg, w ?? 0);
     b.reps = Math.max(b.reps, s.reps ?? 0);
     b.seconds = Math.max(b.seconds, s.seconds ?? 0);
   }
@@ -252,10 +255,16 @@ app.get("/history", async (c) => {
   const agg = await d.select({
     sessionId: t.sets.sessionId,
     n: sql<number>`count(*)`,
-    vol: sql<number>`coalesce(sum(case when ${t.sets.kind} != 'W' then coalesce(${t.sets.weightKg},0) * coalesce(${t.sets.reps},0) else 0 end),0)`,
+    vol: sql<number>`0`,
     pains: sql<number>`sum(case when ${t.sets.painLevel} > 0 then 1 else 0 end)`,
   }).from(t.sets).where(eq(t.sets.deleted, 0)).groupBy(t.sets.sessionId);
   const m = new Map(agg.map((a) => [a.sessionId, a]));
+  const volRows = await d.select({ sessionId: t.sets.sessionId, exKey: t.sets.exKey, weightKg: t.sets.weightKg, kgBasis: t.sets.kgBasis, reps: t.sets.reps, kind: t.sets.kind })
+    .from(t.sets).where(eq(t.sets.deleted, 0));
+  for (const v of volRows) {
+    const a = m.get(v.sessionId);
+    if (a && v.kind !== "W") a.vol += totalKg(v) * (v.reps ?? 0);
+  }
   const out: HistoryRow[] = rows.map((r) => ({
     id: r.id, date: r.date, week: r.week, dayKey: r.dayKey, dayName: r.dayName, status: r.status as HistoryRow["status"],
     kind: r.kind as HistoryRow["kind"], startedAt: r.startedAt, endedAt: r.endedAt, excuse: r.excuse, note: r.note, rpe: r.rpe,
@@ -282,13 +291,13 @@ app.get("/progress", async (c) => {
     const p = ex.get(s.sessionId) ?? { date, sessionId: s.sessionId, bestWeight: null, bestReps: null, bestSeconds: null, bestMeters: null, e1rm: null, volume: 0, sets: 0 };
     ex.set(s.sessionId, p);
     p.sets++;
-    const w = s.weightKg ?? 0, r = s.reps ?? 0;
-    p.volume += w * r;
-    if (s.weightKg != null && (p.bestWeight == null || s.weightKg > p.bestWeight)) p.bestWeight = s.weightKg;
+    const w = shownKg(s) ?? 0, r = s.reps ?? 0;
+    p.volume += totalKg(s) * r;
+    if (w && (p.bestWeight == null || w > p.bestWeight)) p.bestWeight = w;
     if (s.reps != null && (p.bestReps == null || s.reps > p.bestReps)) p.bestReps = s.reps;
     if (s.seconds != null && (p.bestSeconds == null || s.seconds > p.bestSeconds)) p.bestSeconds = s.seconds;
     if (s.meters != null && (p.bestMeters == null || s.meters > p.bestMeters)) p.bestMeters = s.meters;
-    if (w > 0 && r > 0 && r <= 12) {
+    if (w > 0 && r > 0 && r <= 12 && s.strict !== 0 && s.kind !== "D" && s.kind !== "R") {
       const e = Math.round(w * (1 + r / 30) * 10) / 10; // Epley
       if (p.e1rm == null || e > p.e1rm) p.e1rm = e;
     }
@@ -308,7 +317,7 @@ app.get("/progress", async (c) => {
     const w = weeks.get(week);
     if (w && s.kind !== "W") {
       w.sets++;
-      w.volume += (s.weightKg ?? 0) * (s.reps ?? 0);
+      w.volume += totalKg(s) * (s.reps ?? 0);
     }
   }
   const exc = new Map<string, number>();
@@ -391,6 +400,12 @@ app.delete("/intake/:id", async (c) => {
 app.get("/cardio", async (c) => c.json(await db(c).select().from(t.cardio).orderBy(desc(t.cardio.date), desc(t.cardio.createdAt)).limit(200)));
 app.put("/cardio/:id", async (c) => {
   const b = await c.req.json<Partial<typeof t.cardio.$inferInsert>>();
+  if (b.status === "skipped") {
+    // a skip is once per day per protocol: ignore repeat taps instead of storing duplicates
+    const dup = await db(c).select({ id: t.cardio.id }).from(t.cardio)
+      .where(and(eq(t.cardio.date, b.date!), eq(t.cardio.protocol, b.protocol!), eq(t.cardio.status, "skipped"), ne(t.cardio.id, c.req.param("id")))).limit(1);
+    if (dup.length) return c.json({ ok: true, duplicate: true });
+  }
   if (b.minutes != null && (b.minutes < 0 || b.minutes > 300)) return c.json({ error: "minutes 0-300" }, 400);
   const row = { ...b, id: c.req.param("id"), date: b.date!, protocol: b.protocol!, status: b.status ?? "done", createdAt: b.createdAt ?? now() };
   const { id: _i, ...upd } = row;
@@ -466,6 +481,41 @@ app.get("/insights", async (c) => {
     insights: buildInsights(sess, sets, body, intake, Number(st[0]?.value ?? 5), today),
     muscles: muscleSets(sess.filter((s) => s.status !== "missed"), sets),
   });
+});
+
+// ---------------------------------------------------------------- plan vs actual
+
+/** Per session and exercise: what the app recommended (stored on each set) vs what was actually done. */
+app.get("/targets", async (c) => {
+  const d = db(c);
+  const sess = await d.select().from(t.sessions).where(inArray(t.sessions.status, ["done", "abandoned"])).orderBy(desc(t.sessions.date), desc(t.sessions.createdAt)).limit(30);
+  if (!sess.length) return c.json([]);
+  const rows = await d.select().from(t.sets).where(and(inArray(t.sets.sessionId, sess.map((x) => x.id)), eq(t.sets.deleted, 0))).orderBy(t.sets.doneAt);
+  const out = sess.map((x) => {
+    const plan = (j<PlanItem[]>(x.plan) ?? []);
+    const items = plan.map((it, i) => {
+      const ss = rows.filter((r) => r.sessionId === x.id && r.itemIdx === i);
+      const work = ss.filter((r) => r.kind === "N" || r.kind === "F");
+      const sug = j<{ weightKg: number | null; reps: number | null; seconds: number | null; kind: string }>(work[0]?.suggested ?? ss[0]?.suggested ?? null);
+      const shown = work.map((r) => ({ kg: shownKg(r), reps: r.reps, seconds: r.seconds, rir: r.rir, strict: r.strict }));
+      const topKg = Math.max(0, ...shown.map((r) => r.kg ?? 0)) || null;
+      const atTop = shown.filter((r) => (r.kg ?? 0) === (topKg ?? 0));
+      const avgReps = atTop.length ? atTop.reduce((a, r) => a + (r.reps ?? 0), 0) / atTop.length : null;
+      let verdict: "first" | "beat" | "hit" | "close" | "missed" | "skipped" = "first";
+      if (it.skipped || !work.length) verdict = "skipped";
+      else if (sug?.weightKg != null && topKg != null) {
+        const wDiff = topKg - sug.weightKg, rDiff = (avgReps ?? 0) - (sug.reps ?? 0);
+        verdict = wDiff > 0.01 || (Math.abs(wDiff) < 0.01 && rDiff >= 1) ? "beat" : Math.abs(wDiff) < 0.01 && rDiff > -0.5 ? "hit" : (Math.abs(wDiff) < 0.01 && rDiff >= -1.5) ? "close" : "missed";
+      } else if (sug?.reps != null && avgReps != null && sug.kind !== "start") verdict = avgReps >= sug.reps ? "hit" : "missed";
+      return {
+        exKey: it.ex, name: it.name, target: { sets: it.sets, reps: it.reps ?? null, rir: it.rir ?? null }, suggested: sug,
+        done: shown, topKg, avgReps: avgReps == null ? null : Math.round(avgReps * 10) / 10, sets: work.length, verdict,
+        cheated: work.filter((r) => r.strict === 0).length, notes: ss.filter((r) => r.note).map((r) => r.note as string),
+      };
+    });
+    return { id: x.id, date: x.date, week: x.week, dayName: x.dayName, items };
+  });
+  return c.json(out);
 });
 
 // ---------------------------------------------------------------- reset & logout

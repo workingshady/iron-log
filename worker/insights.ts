@@ -3,11 +3,12 @@
 import { EXERCISES } from "../program/exercises";
 import { EX_GROUP, GROUPS } from "../program/groups";
 import { EXCUSES } from "../shared/lists";
+import { shownKg } from "../shared/load";
 
 export interface Insight { tone: "good" | "warn" | "bad" | "info"; title: string; text: string }
 
 type S = { id: string; date: string; week: number; status: string; excuse: string | null; startedAt: number | null; endedAt: number | null; readiness: string | null; rpe: number | null; plan: string };
-type X = { sessionId: string; exKey: string; itemIdx: number; kind: string; weightKg: number | null; reps: number | null; seconds: number | null; rir: number | null; restBeforeS: number | null; doneAt: number; painArea: string | null; painLevel: number | null; swappedFrom: string | null; strict?: number | null; suggested?: string | null };
+type X = { sessionId: string; exKey: string; itemIdx: number; kind: string; weightKg: number | null; reps: number | null; seconds: number | null; rir: number | null; restBeforeS: number | null; doneAt: number; painArea: string | null; painLevel: number | null; swappedFrom: string | null; strict?: number | null; suggested?: string | null; note?: string | null };
 type B = { date: string; weightKg: number | null; sleepH: number | null; proteinG: number | null };
 type I = { date: string; amount: number };
 
@@ -41,8 +42,9 @@ export function buildInsights(sess: S[], sets: X[], body: B[], intake: I[], creT
   const bySess = new Map<string, Map<string, number>>();
   const order = new Map(sess.map((s) => [s.id, s.date]));
   for (const x of work) {
-    if (!x.weightKg || !x.reps || x.reps > 12) continue;
-    const e = x.weightKg * (1 + x.reps / 30);
+    const wk = shownKg(x as never);
+    if (!wk || !x.reps || x.reps > 12 || x.strict === 0 || x.kind === "D" || x.kind === "R") continue;
+    const e = wk * (1 + x.reps / 30);
     const m = bySess.get(x.exKey) ?? new Map<string, number>();
     m.set(x.sessionId, Math.max(m.get(x.sessionId) ?? 0, e));
     bySess.set(x.exKey, m);
@@ -79,6 +81,39 @@ export function buildInsights(sess: S[], sets: X[], body: B[], intake: I[], creT
   const answered = work.filter((x) => x.strict != null);
   const cheated = answered.filter((x) => x.strict === 0);
   if (answered.length >= 5) out.push({ tone: cheated.length / answered.length > 0.15 ? "warn" : "good", title: `Strict form on ${Math.round(((answered.length - cheated.length) / answered.length) * 100)}% of sets`, text: cheated.length ? `${cheated.length} cheated set${cheated.length > 1 ? "s" : ""}. Lighten the weight a step and own every rep.` : "Clean reps — the numbers you log are real progress." });
+
+  // 2c. what your NOTES say (keyword groups — read every note, find repeats)
+  const NOTE_RULES: { re: RegExp; tone: Insight["tone"]; title: string; fix: string }[] = [
+    { re: /tight|stiff|tense|pump/i, tone: "warn", title: "Tightness / stiffness", fix: "Warm that area up (light sets + band work) and start the exercise 1 step lighter. Pain that stays → swap the exercise." },
+    { re: /pain|hurt|hurn|sharp|ache/i, tone: "bad", title: "Pain words in notes", fix: "Log it with the Pain chip too (area + level) so the app lowers the weight next time." },
+    { re: /forg[oe]t to count|lost count|lose count|count.{0,30}estimate|estimate is \d/i, tone: "warn", title: "Lost count of reps", fix: "Use 'Count reps for me' (tap per rep or 3 s tempo beeper) — numbers drive the next weight." },
+    { re: /cheat|use my back|swing|momentum|half rep|partial/i, tone: "warn", title: "Cheated reps", fix: "Tap 'Cheated / partial' on that set — it's then ignored for weight decisions. Next time: one step lighter, strict." },
+    { re: /drop|dropp/i, tone: "info", title: "Drop sets written in notes", fix: "Use the 'Drop set' button so the lighter part is logged as its own set (keeps the main set honest)." },
+    { re: /rest|then another|after \d+ ?min|play \d+ reps and rest/i, tone: "info", title: "Rest-pause written in notes", fix: "Use the 'Rest-pause' button for the extra mini-set instead of adding the reps together." },
+    { re: /bar.{0,20}(fall|slip)|gone fall|dropp?ed the bar|almost dropped|no spotter/i, tone: "bad", title: "Bar safety", fix: "Close to failure on bench/close-grip: use safety pins, a Smith machine or dumbbells, and stop at RIR 1 when alone." },
+    { re: /first time|never done|new exercise/i, tone: "info", title: "New exercise learning curve", fix: "First 2-3 sessions on a new lift: stay at RIR 2-3 and focus on the groove — strength comes fast after." },
+  ];
+  const notes = sets.filter((x) => x.note && x.note.trim()).map((x) => ({ ex: x.exKey, text: x.note!.trim() }));
+  for (const r of NOTE_RULES) {
+    const hits = notes.filter((n) => r.re.test(n.text));
+    if (!hits.length) continue;
+    const exs = [...new Set(hits.map((h) => EXERCISES[h.ex]?.name ?? h.ex))].slice(0, 3).join(", ");
+    out.push({ tone: r.tone, title: `${r.title} (${hits.length} note${hits.length > 1 ? "s" : ""})`, text: `${exs}: "${hits[0].text.slice(0, 70)}${hits[0].text.length > 70 ? "…" : ""}". ${r.fix}` });
+  }
+
+  // 2d. data quality
+  const bySessEx = new Map<string, X[]>();
+  for (const x of work) bySessEx.set(`${x.sessionId}|${x.exKey}`, [...(bySessEx.get(`${x.sessionId}|${x.exKey}`) ?? []), x]);
+  let rirJumps = 0;
+  for (const list of bySessEx.values()) {
+    const l = [...list].sort((a, b) => a.doneAt - b.doneAt);
+    for (let i = 1; i < l.length; i++) if (l[i].rir != null && l[i - 1].rir != null && l[i].weightKg === l[i - 1].weightKg && l[i].reps === l[i - 1].reps && Math.abs(l[i].rir! - l[i - 1].rir!) >= 3) rirJumps++;
+  }
+  if (rirJumps) out.push({ tone: "info", title: "RIR jumped on identical sets", text: `${rirJumps}× the same weight × reps went from "4+ left" to "0 left". Fatigue builds, but a 4-rep swing usually means the first rating was a guess. Rate RIR right after the last rep.` });
+  const planned = new Map<string, number>();
+  for (const sess of done) { try { (JSON.parse(sess.plan) as { sets: number; skipped?: boolean }[]).forEach((p, i) => planned.set(`${sess.id}|${i}`, p.skipped ? -1 : p.sets)); } catch { /* ignore */ } }
+  const skippedEx = [...planned.values()].filter((v) => v === -1).length;
+  if (skippedEx) out.push({ tone: "warn", title: `${skippedEx} planned exercise${skippedEx > 1 ? "s" : ""} skipped`, text: "Usually the last ones (core / finishers) when the session runs long. Keep rests on the timer, or do core at home on rest days." });
 
   // 3. real rest vs planned
   const planRest = new Map<string, number[]>();

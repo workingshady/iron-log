@@ -1,9 +1,9 @@
 import { useState, type ReactNode } from "react";
 import {
-  BookOpen, CheckCircle2, ChevronDown, ExternalLink, Flame, Footprints, HelpCircle, ListChecks, Route, ShieldAlert, Sparkles, Target, Utensils, Workflow, XCircle,
+  BookOpen, Calculator, CheckCircle2, Scale, ChevronDown, ExternalLink, Flame, Footprints, HelpCircle, ListChecks, Route, ShieldAlert, Sparkles, Target, Utensils, Workflow, XCircle,
   type LucideIcon,
 } from "lucide-react";
-import { CARDIO_GUIDE, GROW_RULES, VERDICTS, NUTRITION, PULLUP_ROADMAP, SAFETY, SESSION_FLOW, TERMS, WARMUP, WHAT_IF, WHY_V2 } from "../../program/learn";
+import { CARDIO_GUIDE, GROW_RULES, VERDICTS, KG_ENTRY, REC_RULES, REC_MATH, NUTRITION, PULLUP_ROADMAP, SAFETY, SESSION_FLOW, TERMS, WARMUP, WHAT_IF, WHY_V2 } from "../../program/learn";
 import { CURRENT } from "../../program";
 import { cx } from "../lib/util";
 import { PageHead } from "../components/ui";
@@ -57,6 +57,36 @@ export default function Learn() {
               </li>
             ))}
           </ol>
+        </S>
+
+        <S id="kg" tone="acc" icon={Scale} title="How to enter weight" sub="Barbell vs EZ bar vs dumbbells vs machine — per hand or total?">
+          <div className="space-y-2">
+            {KG_ENTRY.map((k) => (
+              <div key={k.what} className="rounded-xl bg-card2 p-3 text-sm">
+                <div className="font-semibold">{k.what}</div>
+                <div className="mt-0.5">{k.enter}</div>
+                <div className="mt-1 rounded-lg bg-acc/10 px-2.5 py-1.5 text-xs text-acc">e.g. {k.example}</div>
+              </div>
+            ))}
+          </div>
+          <a href="#/settings" className="mt-2 inline-block text-sm text-info">Set your bar weights →</a>
+        </S>
+
+        <S id="recs" tone="info" icon={Calculator} title="How today's weight is picked" sub="Every rule behind the recommended weight, with examples">
+          <div className="space-y-2">
+            {REC_RULES.map((r) => (
+              <div key={r.rule} className="rounded-xl bg-card2 p-3 text-sm">
+                <div className={cx("font-semibold", r.tone === "up" ? "text-acc" : r.tone === "down" ? "text-warn" : r.tone === "hold" ? "text-info" : "text-ink")}>{r.rule}</div>
+                <div className="text-mute">{r.when}</div>
+                <div className="mt-1 text-xs">e.g. {r.example}</div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 rounded-xl border border-line p-3 text-xs text-mute">
+            <div className="mb-1 font-semibold text-ink">The math</div>
+            <ul className="space-y-1">{REC_MATH.map((m) => <li key={m}>• {m}</li>)}</ul>
+          </div>
+          <a href="#/stats" className="mt-2 inline-block text-sm text-info">See recommended vs actual →</a>
         </S>
 
         <S id="rules" tone="warn" icon={Target} title="Rules that make you grow" sub="Counting, form, finishing every set — with examples">

@@ -1,0 +1,1 @@
+ALTER TABLE `sets` ADD `kg_basis` text;

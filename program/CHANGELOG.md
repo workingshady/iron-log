@@ -2,6 +2,17 @@
 
 Each version: what changed, and the data that justified it.
 
+## ppl-arnold@2.2.0 · 2026-11-10 — first data review (1 session: W1 Push, 2026-11-09)
+Data: 22 sets, 69 min, 14 notes, 142 taps. Changes come straight from it:
+- **Close-grip bench moved from last to 3rd.** Done last it fell to 40 kg × 7, 7, 5 at RIR 0 and "the bar was gone fall". Fresh + safety pins / spotter, stop 1-2 reps early.
+- **Laterals before seated DB press**: the order you chose in the session (logged as 4 "move" taps).
+- **Ab wheel removed from Push**: session ran 69 min and both core + push-up finisher were skipped. Core stays on Legs (knee raises) and Chest+Back (hollow hold).
+- **Overhead triceps cue**: you used a rope and noted the shoulder felt tight / stuck mid-range at 30 kg (10, 8, 5, 5 reps) → app now suggests ~25 kg × 10 and the cue says stop where the shoulder feels tight.
+- **Weights engine v2.2** (shared/recommend.ts): dumbbells per hand (your notes showed totals: 40 = 20 each hand), barbell/EZ totals include the bar (bar weights in Settings), cheated / drop / rest-pause sets excluded from progression, RIR-adjusted estimated max with RIR trusted only 0-3, ~3% lighter per missing rep when a lift was too heavy.
+- **Logging fixes from the data**: note field before logging (20+ sets were edited afterwards to add notes), Rest-pause button (you did 5 + 5 reps and logged 10), cardio "Skip" can't duplicate (4 duplicate rows from repeat taps — kept, ignored in stats), creatine double-tap guard.
+
+Next session recommendations (W2 Push): bench 75 kg × 6 · incline 22.5/hand × 9 · close-grip 37.5 kg × 8 · laterals 10/hand × 15 · seated DB press 12.5/hand × 10 · overhead triceps 25 kg × 10.
+
 ## ppl-arnold@2.1.0 · 2026-11-09
 - Pull day: barbell row → **machine row** (chest-supported). Same growth as barbell rows, much less lower-back fatigue — and Legs (squat + RDL) is the next day. Barbell row stays as an alternative. Source: free weight ≈ machine for hypertrophy (Haugen 2023 meta-analysis); Barbell Medicine on chest-supported rows.
 - Bench press kept on purpose as the strength anchor (≈17% more load than dumbbells, best progression); dumbbell + machine presses carry the growth work.

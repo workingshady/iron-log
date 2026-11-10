@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CalendarDays, Download, FlaskConical, LogOut, Settings as Gear, TriangleAlert } from "lucide-react";
+import { CalendarDays, Download, FlaskConical, LogOut, Settings as Gear, TriangleAlert, Dumbbell } from "lucide-react";
 import type { AppState } from "../../shared/api";
 import { send, track } from "../lib/api";
 import { useLoad } from "../lib/useLoad";
@@ -9,6 +9,8 @@ import { Btn, Card, NumInput, PageHead } from "../components/ui";
 export default function Settings() {
   const { data: s, reload } = useLoad<AppState>("/state");
   const [cre, setCre] = useState<string | null>(null);
+  const [bar, setBar] = useState<string | null>(null);
+  const [ez, setEz] = useState<string | null>(null);
   const [confirmText, setConfirmText] = useState("");
   const [busy, setBusy] = useState(false);
   if (!s) return null;
@@ -59,6 +61,20 @@ export default function Settings() {
             <Btn kind="soft" onClick={() => cre && Number(cre) > 0 && set("creatineTarget", cre)}>Save</Btn>
           </div>
           <p className="mt-2 text-xs text-mute">3-5 g is the researched range.</p>
+        </Card>
+
+        <Card title="Equipment — bar weights" icon={Dumbbell}>
+          <p className="mb-2 text-xs text-mute">Bars count in the total you enter. EZ bars vary from 5 to 14 kg — weigh yours or read the label. Fixed-weight bars: set 0 and enter the number printed on the bar.</p>
+          <div className="grid grid-cols-2 gap-2">
+            <div><div className="mb-1 text-[11px] text-mute">Olympic bar (kg)</div><NumInput value={bar ?? s.settings.barKg ?? "20"} onChange={setBar} /></div>
+            <div><div className="mb-1 text-[11px] text-mute">EZ / curl bar (kg)</div><NumInput value={ez ?? s.settings.ezKg ?? "10"} onChange={setEz} /></div>
+          </div>
+          <Btn kind="soft" className="mt-2 w-full" onClick={async () => {
+            const b = Number(bar ?? s.settings.barKg ?? 20), e = Number(ez ?? s.settings.ezKg ?? 10);
+            if (!(b >= 0 && b <= 30 && e >= 0 && e <= 30)) return alert("Bar weights 0-30 kg");
+            await set("barKg", String(b)); await set("ezKg", String(e));
+          }}>Save bar weights</Btn>
+          <p className="mt-2 text-xs text-mute">Dumbbells: always enter the weight of ONE dumbbell (per hand).</p>
         </Card>
 
         <Card title="Your data" icon={Download}>

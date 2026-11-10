@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Activity, AlertTriangle, BarChart3, CalendarOff, ChevronRight, Dumbbell, Lightbulb, Minus, TrendingDown, TrendingUp, Trophy } from "lucide-react";
 import type { InsightsData, Lifts, ProgressData } from "../../shared/api";
 import { InsightList, MuscleChart } from "../components/Insights";
+import { PlanVsActual } from "../components/Targets";
 import { BodyMap } from "../components/BodyMap";
 import { CURRENT } from "../../program";
 import { today } from "../lib/util";
@@ -125,6 +126,8 @@ export default function Stats() {
             </button>
           )}
         </Card>
+
+        <PlanVsActual />
 
         {lifts && Object.keys(lifts.best).length > 0 && (
           <Card title="Personal records (all time)" icon={Trophy} className="md:col-span-2">

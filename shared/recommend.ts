@@ -1,119 +1,162 @@
-// Recommended load per set. Pure functions, used by the workout screen, Plan and Home.
+// Recommended load per set. Pure functions, used by the workout screen, Plan, Home and Stats.
 //
-// Rules (double progression + RIR, see docs/GUIDE.md):
-//  1. All work sets hit the TOP of the rep range at ≥ target RIR → add one weight step (two if "easy").
-//  2. Otherwise keep the weight and aim for +1 rep (up to the top of the range).
-//  3. Two or more sets fell below the BOTTOM of the range → drop one step.
-//  4. Target reps changed a lot vs last time (e.g. 8 → 5) → recompute from estimated 1RM:
-//     kg = e1RM ÷ (1 + (reps + RIR) / 30)   (Epley, with reps-in-reserve added back)
-//  5. Deload week → ~10% lighter. Joint pain / "too much" last time → hold or −1 step.
-//  6. No history → estimate from a related lift (swap ratio) or ask for an RIR-3 starting set.
+// v2.2 rules (double progression + RIR autoregulation; see docs/GUIDE.md "Recommended weights"):
+//  0. Only honest work sets count: warm-ups, drop/rest-pause parts and sets marked "cheated" are ignored.
+//     Weights are compared in the unit the app shows: dumbbell pairs PER HAND (old "total" logs halved,
+//     shared/load.ts), barbells/EZ bars as total incl. the bar, machines/cables as the stack number.
+//  1. Hit the TOP of the rep range on every set at >= target RIR → +1 weight step (+2 if you said "Easy").
+//  2. Average reps at the top weight fell SHORT of the bottom of the range → ~3% lighter per missing rep
+//     (max −15%), rounded DOWN to a real weight step.
+//  3. Rep target changed by 2+ (e.g. 8 → 5 next week) → from your estimated max: kg = e1RM ÷ (1 + (reps + RIR)/30).
+//     e1RM is RIR-adjusted Epley; RIR is trusted only 0-3 (far from failure it's unreliable — Zourdos 2021;
+//     lifters usually under-call RIR by ~1). Unknown RIR is treated as 1.
+//  4. Otherwise keep the weight and beat the reps (+1, up to the top of the range).
+//  5. Deload week → ~10% lighter. Joint pain / "too much" → hold or one step lighter.
+//  6. No history → estimate from a related lift you've done (swap ratios), else "pick a weight with ~3 left".
 import { EXERCISES } from "../program/exercises";
 import { swapHint } from "../program/swaps";
 import type { Rx } from "../program/types";
 import type { SetLog } from "./api";
+import { normalize } from "./load";
+import { STARTER } from "../program/starters";
 
 export type RecKind = "up" | "hold" | "down" | "start" | "deload" | "estimate";
 export interface Rec {
-  weightKg: number | null;
+  weightKg: number | null; // in the exercise's shown unit (per hand for dumbbell pairs)
   reps: number | null;
   seconds: number | null;
   kind: RecKind;
   why: string;
+  /** Estimated max behind the decision (same unit), if any. */
+  e1rm?: number | null;
 }
 export interface ExHistory {
   date: string;
-  sets: SetLog[]; // work sets of the most recent session with this exercise
+  sets: SetLog[]; // sets of the most recent session with this exercise
   effort?: string | null; // easy | right | hard | too_much
   joints?: string | null; // fine | achy | pain
 }
 
 const round = (n: number, step: number) => Math.max(0, Math.round(n / step) * step);
+const roundDown = (n: number, step: number) => Math.max(0, Math.floor(n / step + 1e-9) * step);
 const topOf = (r: Rx["reps"]) => (r == null ? null : Array.isArray(r) ? r[1] : r);
 const botOf = (r: Rx["reps"]) => (r == null ? null : Array.isArray(r) ? r[0] : r);
 const rirOf = (r: Rx["rir"]) => (r == null ? 2 : Array.isArray(r) ? r[0] : r);
 export const e1rm = (kg: number, reps: number) => kg * (1 + reps / 30);
+/** RIR-adjusted estimated max. RIR above 3 is capped (unreliable far from failure); unknown RIR → 1. */
+export const e1rmRir = (kg: number, reps: number, rir: number | null | undefined) => kg * (1 + (reps + Math.min(rir ?? 1, 3)) / 30);
+const fmt = (n: number) => `${+n.toFixed(2)}`;
+
+/** Work sets that count for progression decisions (normalized units). */
+export function honestSets(sets: SetLog[]): SetLog[] {
+  return sets.filter((s) => (s.kind === "N" || s.kind === "F") && !s.deleted && s.strict !== 0).map(normalize);
+}
 
 export function recommend(
   ex: string,
   rx: Pick<Rx, "sets" | "reps" | "seconds" | "meters" | "rir">,
   hist: Record<string, ExHistory | undefined>,
-  opts: { deload?: boolean; step?: number } = {},
+  opts: { deload?: boolean; step?: number; bodyKg?: number | null } = {},
 ): Rec {
   const e = EXERCISES[ex];
-  const step = opts.step ?? e?.step ?? 2.5;
+  // dumbbell pairs move in real dumbbell jumps (your gym: 2.5 kg) even if the exercise step is smaller
+  const step = Math.max(opts.step ?? e?.step ?? 2.5, e?.pair ? 2.5 : 0);
   const h = hist[ex];
-  const work = (h?.sets ?? []).filter((s) => s.kind !== "W" && !s.deleted);
+  const all = (h?.sets ?? []).filter((s) => s.kind !== "W" && !s.deleted).map(normalize);
+  const work = honestSets(h?.sets ?? []);
   const top = topOf(rx.reps), bot = botOf(rx.reps), rir = rirOf(rx.rir);
   const metric = e?.metric ?? "weight_reps";
+  const unit = e?.pair ? " per hand" : "";
 
-  // ---- holds / carries / bodyweight ----
   if (metric === "time") {
-    const best = Math.max(0, ...work.map((s) => s.seconds ?? 0));
+    const best = Math.max(0, ...all.map((s) => s.seconds ?? 0));
     if (!best) return { weightKg: null, reps: null, seconds: rx.seconds ?? null, kind: "start", why: "First time: hold for the target time." };
-    const allHit = work.length >= rx.sets && work.every((s) => (s.seconds ?? 0) >= (rx.seconds ?? 0));
+    const allHit = all.length >= rx.sets && all.every((s) => (s.seconds ?? 0) >= (rx.seconds ?? 0));
     return { weightKg: null, reps: null, seconds: Math.max(rx.seconds ?? 0, best + (allHit ? 5 : 0)), kind: allHit ? "up" : "hold", why: allHit ? `Hit ${rx.seconds}s on every set → +5 s` : `Beat ${best}s` };
   }
   if (metric === "reps" || metric === "assist_reps") {
-    const best = Math.max(0, ...work.map((s) => s.reps ?? 0));
-    if (!best) return { weightKg: null, reps: top, seconds: null, kind: "start", why: metric === "assist_reps" ? "First time: pick a band that lets you hit the reps with ~2 left." : "First time: hit the target reps with good form." };
-    const allTop = top != null && work.length >= rx.sets && work.every((s) => (s.reps ?? 0) >= top);
-    if (allTop) return { weightKg: null, reps: top, seconds: null, kind: "up", why: metric === "assist_reps" ? "All sets at the top → try a thinner band" : `All sets at ${top} reps → add a little weight or slow the lowering` };
+    const best = Math.max(0, ...all.map((s) => s.reps ?? 0));
+    if (!best) return { weightKg: null, reps: top, seconds: null, kind: "start", why: "First time: hit the target reps with good form." };
+    const allTop = top != null && all.length >= rx.sets && all.every((s) => (s.reps ?? 0) >= top);
+    if (allTop) return { weightKg: null, reps: top, seconds: null, kind: "up", why: `All sets at ${top} reps → add a little weight or slow the lowering` };
     return { weightKg: null, reps: Math.min(top ?? best + 1, best + 1), seconds: null, kind: "hold", why: `Beat last time by 1 rep (best ${best})` };
   }
 
-  // ---- weighted (weight_reps / distance) ----
-  if (!work.length || !work.some((s) => s.weightKg)) {
-    // estimate from a related lift you have done
+  if (!work.some((s) => s.weightKg)) {
     for (const [other, oh] of Object.entries(hist)) {
       const r = swapHint(other, ex).ratio;
-      const w = Math.max(0, ...(oh?.sets ?? []).filter((s) => s.kind !== "W").map((s) => s.weightKg ?? 0));
-      if (r && w) return { weightKg: round(w * r, step), reps: top, seconds: null, kind: "estimate", why: `Estimated from ${EXERCISES[other]?.name ?? other} (${w} kg). Adjust on set 1.` };
+      const w = Math.max(0, ...honestSets(oh?.sets ?? []).map((s) => s.weightKg ?? 0));
+      if (r && w) return { weightKg: round(w * r, step), reps: top, seconds: null, kind: "estimate", why: `Estimated from ${EXERCISES[other]?.name ?? other} (${fmt(w)} kg). Adjust on set 1.` };
     }
-    return { weightKg: null, reps: top, seconds: null, kind: "start", why: `First time: pick a weight you could lift ${rir + 1}+ more reps with. The app learns from it.` };
+    // starting estimate from your bench (or bodyweight) via strength-standard ratios — rounded DOWN, ~3 reps in reserve
+    const ratio = STARTER[ex];
+    if (ratio && top != null) {
+      const benchE = Math.max(0, ...honestSets([...(hist.bench?.sets ?? [])]).map((s) => (s.weightKg && s.reps ? e1rmRir(s.weightKg, s.reps, s.rir) : 0)));
+      const anchor = benchE || (opts.bodyKg ? opts.bodyKg * 0.8 : 0);
+      if (anchor) {
+        const est = anchor * ratio * 0.9; // 10% safety margin
+        const w = roundDown(est / (1 + (top + 3) / 30), step);
+        if (w > 0) return { weightKg: w, reps: top, seconds: null, kind: "estimate", e1rm: Math.round(est * 10) / 10, why: `Starting estimate from your ${benchE ? `bench (est. max ${fmt(benchE)} kg)` : `bodyweight (${opts.bodyKg} kg)`} — aim for ~3 reps left. Set 1 is a test: adjust, the app learns from it.` };
+      }
+    }
+    const why = all.length ? "Last time's sets were warm-ups or marked cheated — pick a weight with ~3 reps left." : `First time: pick a weight you could do ${rir + 1}+ more reps with. The app learns from it.`;
+    return { weightKg: null, reps: top, seconds: null, kind: "start", why };
   }
 
   const lastW = Math.max(...work.map((s) => s.weightKg ?? 0));
-  const atTop = work.filter((s) => (s.weightKg ?? 0) >= lastW);
-  const lastReps = Math.round(atTop.reduce((a, s) => a + (s.reps ?? 0), 0) / Math.max(1, atTop.length));
-  const bestE = Math.max(...work.map((s) => (s.weightKg && s.reps ? e1rm(s.weightKg, s.reps) : 0)));
+  const atTop = work.filter((s) => (s.weightKg ?? 0) >= lastW - 1e-9);
+  const avgReps = atTop.reduce((a, s) => a + (s.reps ?? 0), 0) / Math.max(1, atTop.length);
+  const trusted = work.filter((s) => s.weightKg && s.reps && s.reps <= 15 && (s.rir == null || s.rir <= 3));
+  const pool = trusted.length ? trusted : work.filter((s) => s.weightKg && s.reps);
+  const bestE = Math.max(0, ...pool.map((s) => e1rmRir(s.weightKg!, s.reps!, s.rir)));
+  const base = { seconds: null, e1rm: bestE ? Math.round(bestE * 10) / 10 : null };
 
   if (metric === "distance") {
     const allDone = work.length >= rx.sets;
-    return { weightKg: allDone ? lastW + step : lastW, reps: null, seconds: null, kind: allDone ? "up" : "hold", why: allDone ? `All carries done → +${step} kg` : "Same weight, finish all carries" };
+    return { ...base, weightKg: allDone ? lastW + step : lastW, reps: null, kind: allDone ? "up" : "hold", why: allDone ? `All carries done → +${step} kg${unit}` : "Same weight, finish all carries" };
+  }
+  if (opts.deload) return { ...base, weightKg: roundDown(lastW * 0.9, step), reps: top, kind: "deload", why: "Deload week: ~10% lighter, easy sets" };
+  if (h?.joints === "pain" || all.some((s) => (s.painLevel ?? 0) >= 2)) {
+    return { ...base, weightKg: roundDown(lastW - step, step), reps: top, kind: "down", why: "Pain last time → one step lighter. Swap the exercise if it hurts again." };
   }
 
-  if (opts.deload) return { weightKg: round(lastW * 0.9, step), reps: top, seconds: null, kind: "deload", why: "Deload week: ~10% lighter, easy sets" };
-
-  if (h?.joints === "pain" || work.some((s) => (s.painLevel ?? 0) >= 2)) {
-    return { weightKg: round(lastW - step, step), reps: top, seconds: null, kind: "down", why: "Pain last time → one step lighter. Swap if it hurts again." };
+  // clearly too heavy last time
+  // (1 rep short is normal noise / a different rep range → that's "same weight, beat the reps" below)
+  if (bot != null && avgReps < bot - 1.5) {
+    const short = bot - avgReps;
+    const pct = Math.min(0.15, 0.03 * short);
+    const w = Math.min(roundDown(lastW * (1 - pct), step), lastW - step);
+    return { ...base, weightKg: Math.max(step, w), reps: bot, kind: "down", why: `Averaged ${fmt(avgReps)} reps at ${fmt(lastW)} kg${unit} (target ${bot}+) → about ${Math.round(pct * 100)}% lighter` };
   }
 
-  // target reps changed a lot → use e1RM
-  if (top != null && bestE > 0 && Math.abs(top - lastReps) >= 2) {
+  // rep target changed a lot → from estimated max
+  // (only when last time was ABOVE the new range — below the range is handled by the rule above)
+  if (top != null && bestE > 0 && avgReps >= top + 2) {
     const w = round(bestE / (1 + (top + rir) / 30), step);
-    return { weightKg: w, reps: top, seconds: null, kind: w > lastW ? "up" : w < lastW ? "down" : "hold", why: `Rep target changed (${lastReps} → ${top}): from your est. max ${Math.round(bestE)} kg at RIR ${rir}` };
+    return { ...base, weightKg: w, reps: top, kind: w > lastW ? "up" : w < lastW ? "down" : "hold", why: `Rep target changed (${Math.round(avgReps)} → ${top}): from your est. max ${fmt(bestE)} kg${unit} at RIR ${rir}` };
   }
 
-  const loggedRir = work.filter((s) => s.rir != null).map((s) => s.rir!);
-  const easyRir = loggedRir.length ? Math.min(...loggedRir) >= rir : true;
-  const allTop = top != null && work.length >= rx.sets && atTop.length >= rx.sets && atTop.every((s) => (s.reps ?? 0) >= top);
-  const missed = bot != null ? atTop.filter((s) => (s.reps ?? 0) < bot).length : 0;
+  if (h?.effort === "too_much") return { ...base, weightKg: lastW, reps: bot ?? top, kind: "hold", why: "Felt too hard last time → same weight, bottom of the range" };
 
-  if (h?.effort === "too_much") return { weightKg: lastW, reps: bot ?? top, seconds: null, kind: "hold", why: "Felt too hard last time → same weight, bottom of the range" };
-  if (allTop && easyRir) {
+  const loggedRir = atTop.filter((s) => s.rir != null).map((s) => s.rir!);
+  const rirOk = loggedRir.length ? Math.min(...loggedRir) >= rir : true;
+  const allTop = top != null && atTop.length >= 2 && atTop.length >= Math.min(rx.sets, work.length) && atTop.every((s) => (s.reps ?? 0) >= top);
+  if (allTop && rirOk) {
     const jump = h?.effort === "easy" ? step * 2 : step;
-    return { weightKg: lastW + jump, reps: bot ?? top, seconds: null, kind: "up", why: `Hit ${top} reps on every set${loggedRir.length ? ` at RIR ≥ ${rir}` : ""} → +${jump} kg` };
+    return { ...base, weightKg: lastW + jump, reps: bot ?? top, kind: "up", why: `Hit ${top} reps on every set${loggedRir.length ? ` with ≥${rir} left` : ""} → +${jump} kg${unit}` };
   }
-  if (missed >= 2) return { weightKg: round(lastW - step, step), reps: bot, seconds: null, kind: "down", why: `${missed} sets under ${bot} reps → one step lighter` };
-  const target = top != null ? Math.min(top, lastReps + 1) : lastReps + 1;
-  return { weightKg: lastW, reps: target, seconds: null, kind: "hold", why: `Same weight, aim for ${target} reps (last: ${atTop.map((s) => s.reps).join(", ")})` };
+
+  const target = top != null ? Math.min(top, Math.floor(avgReps) + 1) : Math.floor(avgReps) + 1;
+  const why = allTop && !rirOk
+    ? `Hit ${top} reps but with only ${Math.min(...loggedRir)} left (target ${rir}) → same weight, own it first`
+    : `Same weight, aim for ${target} reps (last: ${atTop.map((s) => s.reps).join(", ")})`;
+  return { ...base, weightKg: lastW, reps: target, kind: "hold", why };
 }
 
 // ---------------------------------------------------------------- warm-ups & plates
 
-const BARBELL = new Set(["bench", "squat", "rdl", "bb_row", "ohp", "bb_shrug", "hip_thrust"]);
-export const isBarbell = (ex: string) => BARBELL.has(ex);
+import { loadOf } from "./load";
+export const isBarbell = (ex: string) => loadOf(ex) === "barbell" || loadOf(ex) === "ez";
 
 /** Ramp-up sets before heavy work (Stronglifts/Hevy style): bar → 50% → 70% → 85%. */
 export function warmups(ex: string, workKg: number, barKg = 20): { kg: number; reps: number }[] {

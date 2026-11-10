@@ -12,11 +12,14 @@ import { TERMS } from "../../program/learn";
 import { ArrowDown, ArrowLeftRight, ArrowUp, Check, Hash, ChevronLeft, Clock, Dumbbell, Equal, Flame, Layers, MessageSquare, MoreHorizontal, NotebookPen, PlayCircle, Plus, Repeat, Ruler, SkipForward, Sparkles, Timer, TrendingDown, TrendingUp, TriangleAlert, Trophy } from "lucide-react";
 import { e1rm, isBarbell, plates, recommend, warmups, type ExHistory, type Rec, type RecKind } from "../../shared/recommend";
 import { CURRENT } from "../../program";
+import { barOf, barsFrom, basisFor, kgHelp, kgLabel, loadOf, shownKg, type Bars } from "../../shared/load";
+import type { AppState } from "../../shared/api";
+import { useLoad } from "../lib/useLoad";
 import { HowTo } from "../components/HowTo";
 import { RestTimer, loadRest, saveRest, type Rest } from "../components/RestTimer";
 import { go } from "../nav";
 
-type Draft = { weight: string; reps: string; seconds: string; meters: string; assist: string; rir: string; strict: string };
+type Draft = { weight: string; reps: string; seconds: string; meters: string; assist: string; rir: string; strict: string; note: string };
 const workSets = (sets: SetLog[], i: number) => sets.filter((s) => s.itemIdx === i && s.kind !== "W");
 
 export default function SessionScreen({ id }: { id: string }) {
@@ -28,6 +31,8 @@ export default function SessionScreen({ id }: { id: string }) {
     const r = loadRest();
     return r?.sessionId === id ? r : null;
   });
+  const { data: appState } = useLoad<AppState>("/state");
+  const bars = barsFrom(appState?.settings);
   const [undo, setUndo] = useState<{ set: SetLog; pr: string | null; warn?: boolean } | null>(null);
   const lastTap = useRef(0);
   const [sheet, setSheet] = useState<null | { k: "how" | "menu" | "swap"; i: number } | { k: "set"; s: SetLog } | { k: "finish" }>(null);
@@ -112,7 +117,10 @@ export default function SessionScreen({ id }: { id: string }) {
     // guard against typos ("margin of error")
     if (weight != null && (weight < 0 || weight > 400)) return alert("Weight looks wrong (0-400 kg).");
     if (reps != null && (reps < 0 || reps > 100)) return alert("Reps look wrong (0-100).");
-    const prevBest = Math.max(0, ...sets.filter((x) => x.exKey === it.ex).map((x) => x.weightKg ?? 0), ...(b!.last[it.ex]?.sets.map((x) => x.weightKg ?? 0) ?? []));
+    if (kind === "D" && reps == null) return alert("How many reps did you get on the drop?");
+    const prevBest = Math.max(0, ...sets.filter((x) => x.exKey === it.ex).map((x) => shownKg(x) ?? 0), ...(b!.last[it.ex]?.sets.map((x) => shownKg(x) ?? 0) ?? []));
+    const bar = barOf(it.ex, bars);
+    if (weight != null && bar > 0 && weight > 0 && weight < bar && !confirm(`${weight} kg is lighter than the empty bar (${bar} kg). Bar weights count in the total. Save anyway?`)) return;
     if (weight != null && prevBest >= 10 && weight > prevBest * 1.5 && !confirm(`${weight} kg is way above your best (${prevBest} kg). Typo?\n\nOK = save anyway`)) return;
 
     const t = Date.now();
@@ -120,7 +128,8 @@ export default function SessionScreen({ id }: { id: string }) {
     const set: SetLog = {
       id: uid(), sessionId: id, exKey: it.ex, itemIdx: i, setNo: sets.filter((x) => x.itemIdx === i).length + 1, kind,
       weightKg: weight, reps, seconds: n(d.seconds), meters: n(d.meters), assist: d.assist || null, rir: n(d.rir), strict: d.strict === "" ? null : Number(d.strict),
-      restBeforeS: prev ? Math.round((t - prev.doneAt) / 1000) : null, doneAt: t, note: null, painArea: null, painLevel: null,
+      restBeforeS: prev ? Math.round((t - prev.doneAt) / 1000) : null, doneAt: t, note: d.note.trim() || null, painArea: null, painLevel: null,
+      kgBasis: weight != null ? basisFor(it.ex) : null,
       swappedFrom: it.swappedFrom ?? null,
       suggested: JSON.stringify({ weightKg: recs[i].weightKg, reps: recs[i].reps, seconds: recs[i].seconds, kind: recs[i].kind }),
     };
@@ -129,7 +138,7 @@ export default function SessionScreen({ id }: { id: string }) {
     if (kind !== "W") {
       const best = b!.best?.[it.ex];
       const today = sets.filter((x) => x.exKey === it.ex && x.kind !== "W");
-      const bestE = Math.max(best?.e1rm ?? 0, ...today.map((x) => (x.weightKg && x.reps && x.reps <= 12 ? e1rm(x.weightKg, x.reps) : 0)));
+      const bestE = Math.max(best?.e1rm ?? 0, ...today.map((x) => { const w = shownKg(x); return w && x.reps && x.reps <= 12 ? e1rm(w, x.reps) : 0; }));
       const bestR = Math.max(best?.reps ?? 0, ...today.map((x) => x.reps ?? 0));
       const bestS = Math.max(best?.seconds ?? 0, ...today.map((x) => x.seconds ?? 0));
       const hasHistory = !!best || today.length > 0;
@@ -154,7 +163,10 @@ export default function SessionScreen({ id }: { id: string }) {
     track("set_done", { ex: it.ex, i, setNo: set.setNo, kind, weight, reps, seconds: set.seconds, meters: set.meters, assist: set.assist, restBeforeS: set.restBeforeS }, id);
 
     const after = [...sets, set];
-    const nx = nextIdx(plan, after, i);
+    // drop / rest-pause / warm-up are part of the current set → stay here, no rest timer
+    if (kind === "D" || kind === "R" || kind === "W") { if (kind !== "W") setRest(null); return; }
+    const isExtra = workSets(sets, i).length >= it.sets; // extra set beyond the plan → stay, normal rest
+    const nx = isExtra ? i : nextIdx(plan, after, i);
     if (nx !== i) setOpen(nx);
     if (live && it.rest > 0 && nx >= 0) {
       const nxIt = plan[nx];
@@ -197,6 +209,7 @@ export default function SessionScreen({ id }: { id: string }) {
             last={b.last[it.ex]}
             rec={recs[i]}
             live={live}
+            bars={bars}
             feedback={b.feedback?.[`${id}:${i}`]}
             onFeedback={(f) => {
               setB((x) => (x ? { ...x, feedback: { ...x.feedback, [`${id}:${i}`]: f } } : x));
@@ -334,13 +347,14 @@ function nextIdx(plan: PlanItem[], sets: SetLog[], i: number) {
   return firstOpen(plan, sets, -1);
 }
 function topWeight(cur: SetLog[], last?: SetLog[]) {
-  const w = [...cur, ...(last ?? [])].map((x) => x.weightKg ?? 0);
+  const w = [...cur, ...(last ?? [])].map((x) => shownKg(x) ?? 0);
   return w.length ? Math.max(...w) || null : null;
 }
-function fmtSet(x: Pick<SetLog, "weightKg" | "reps" | "seconds" | "meters" | "assist">) {
+function fmtSet(x: Pick<SetLog, "exKey" | "weightKg" | "reps" | "seconds" | "meters" | "assist"> & { kgBasis?: string | null }) {
   const parts: string[] = [];
   if (x.assist) parts.push(x.assist);
-  if (x.weightKg) parts.push(`${kg(x.weightKg)}kg`);
+  const w = shownKg(x);
+  if (w) parts.push(loadOf(x.exKey) === "pair" ? `${kg(w)}kg/hand` : `${kg(w)}kg`);
   if (x.reps != null) parts.push(parts.length ? `×${x.reps}` : `${x.reps} reps`);
   if (x.seconds != null) parts.push(`${x.seconds}s`);
   if (x.meters != null) parts.push(`${x.meters}m`);
@@ -353,8 +367,8 @@ const REC_TONE: Record<RecKind, string> = { up: "text-acc", hold: "text-info", d
 const REC_ICON: Record<RecKind, typeof TrendingUp> = { up: TrendingUp, hold: Equal, down: TrendingDown, start: Sparkles, deload: TrendingDown, estimate: Sparkles };
 const KIND_LABEL: Record<string, string> = { W: "warm-up", D: "drop", F: "failure", R: "rest-p." };
 
-function ExerciseCard({ i, it, sets, last, rec, live, feedback, open, onToggle, onLog, onSet, onFeedback, onHow, onMenu }: {
-  i: number; it: PlanItem; sets: SetLog[]; last?: { date: string; sets: SetLog[] }; rec: Rec; live: boolean;
+function ExerciseCard({ i, it, sets, last, rec, live, bars, feedback, open, onToggle, onLog, onSet, onFeedback, onHow, onMenu }: {
+  i: number; it: PlanItem; sets: SetLog[]; last?: { date: string; sets: SetLog[] }; rec: Rec; live: boolean; bars: Bars;
   feedback?: { effort: string | null; joints: string | null };
   open: boolean; onToggle: () => void; onLog: (d: Draft, k?: SetKind) => void; onSet: (s: SetLog) => void;
   onFeedback: (f: { effort: string | null; joints: string | null }) => void; onHow: () => void; onMenu: () => void;
@@ -364,14 +378,15 @@ function ExerciseCard({ i, it, sets, last, rec, live, feedback, open, onToggle, 
   const draft = useDraft(it, sets, last, rec);
   const [d, setD] = useState<Draft>(draft);
   const [showWarm, setShowWarm] = useState(false);
+  const [extra, setExtra] = useState<null | "D" | "R" | "N">(null);
   const lastRef = useRef(sets.length);
   useEffect(() => {
     if (sets.length !== lastRef.current) { lastRef.current = sets.length; setD(draft); }
   }, [sets.length, draft]);
 
   const RecIcon = REC_ICON[rec.kind];
-  const recText = rec.weightKg != null ? `${kg(rec.weightKg)} kg${rec.reps ? ` × ${rec.reps}` : ""}` : rec.seconds ? `${rec.seconds} s` : rec.reps ? `${rec.reps} reps` : "";
-  const warm = it.metric === "weight_reps" && rec.weightKg && rec.weightKg >= 20 && (isBarbell(it.ex) || rec.weightKg >= 30) ? warmups(it.ex, rec.weightKg) : [];
+  const recText = rec.weightKg != null ? `${kg(rec.weightKg)} kg${loadOf(it.ex) === "pair" ? "/hand" : ""}${rec.reps ? ` × ${rec.reps}` : ""}` : rec.seconds ? `${rec.seconds} s` : rec.reps ? `${rec.reps} reps` : "";
+  const warm = it.metric === "weight_reps" && rec.weightKg && (isBarbell(it.ex) ? rec.weightKg > barOf(it.ex, bars) + 10 : rec.weightKg >= 15) ? warmups(it.ex, rec.weightKg, barOf(it.ex, bars) || 20) : [];
   const hasWarmLogged = sets.some((s) => s.kind === "W");
   const remainingRows = Math.max(0, it.sets - work.length - 1);
 
@@ -421,10 +436,10 @@ function ExerciseCard({ i, it, sets, last, rec, live, feedback, open, onToggle, 
               {showWarm && (
                 <div className="mt-2 grid gap-1.5">
                   {warm.map((w, k) => (
-                    <button key={k} onClick={() => onLog({ ...d, weight: String(w.kg), reps: String(w.reps), rir: "", strict: "" }, "W")} className="flex min-h-10 items-center gap-3 rounded-lg border border-dashed border-line px-3 text-left text-sm">
+                    <button key={k} onClick={() => onLog({ ...d, weight: String(w.kg), reps: String(w.reps), rir: "", strict: "", note: "" }, "W")} className="flex min-h-10 items-center gap-3 rounded-lg border border-dashed border-line px-3 text-left text-sm">
                       <span className="w-14 text-xs text-mute">warm-up</span>
                       <span className="flex-1 num">{kg(w.kg)} kg × {w.reps}</span>
-                      {isBarbell(it.ex) && <span className="text-[11px] text-faint">{plateText(w.kg)}</span>}
+                      {isBarbell(it.ex) && <span className="text-[11px] text-faint">{plateText(w.kg, barOf(it.ex, bars))}</span>}
                       <Plus size={14} className="text-info" />
                     </button>
                   ))}
@@ -449,7 +464,7 @@ function ExerciseCard({ i, it, sets, last, rec, live, feedback, open, onToggle, 
             ))}
           </div>
 
-          {!complete && <SetInput it={it} d={d} setD={setD} n={work.length + 1} total={it.sets} onLog={() => onLog(d)} />}
+          {!complete && extra !== "N" && <SetInput it={it} d={d} setD={setD} n={work.length + 1} total={it.sets} bars={bars} onLog={() => onLog(d)} />}
 
           {!complete && remainingRows > 0 && (
             <div className="mt-1.5 space-y-1">
@@ -466,26 +481,109 @@ function ExerciseCard({ i, it, sets, last, rec, live, feedback, open, onToggle, 
           {complete && live && <FeedbackRow value={feedback} onChange={onFeedback} />}
 
           {/* 5. secondary actions */}
-          <div className="mt-3 flex items-center gap-1.5 overflow-x-auto text-sm">
-            <span className="shrink-0 text-xs text-faint">Extra:</span>
-            {complete && <button onClick={() => onLog(d)} className="inline-flex min-h-10 shrink-0 items-center gap-1 rounded-lg bg-card2 px-2.5"><Plus size={14} />Set</button>}
-            <button onClick={() => onLog(d, "D")} className="inline-flex min-h-10 shrink-0 items-center gap-1 rounded-lg bg-card2 px-2.5"><Layers size={14} />Drop set</button>
-            <button onClick={() => onLog(d, "W")} className="inline-flex min-h-10 shrink-0 items-center gap-1 rounded-lg bg-card2 px-2.5"><Flame size={14} />Warm-up</button>
-            <InfoDot term={TERMS.find((t) => t.key === "drop")!} />
-          </div>
+          {extra ? (
+            <ExtraInput
+              mode={extra}
+              it={it}
+              last={[...sets].reverse().find((x) => x.kind !== "W")}
+              bars={bars}
+              onLog={(dd) => onLog({ ...d, ...dd, rir: "", strict: "" }, extra)}
+              onDone={() => setExtra(null)}
+            />
+          ) : (
+            <div className="mt-3 grid grid-cols-3 gap-1.5 text-sm">
+              <button onClick={() => setExtra("N")} className="inline-flex min-h-11 items-center justify-center gap-1 rounded-lg bg-card2"><Plus size={14} />{complete ? "Extra set" : "Set"}</button>
+              <button disabled={!work.length} onClick={() => setExtra("D")} className="inline-flex min-h-11 items-center justify-center gap-1 rounded-lg bg-card2 disabled:opacity-40"><Layers size={14} />Drop set</button>
+              <button disabled={!work.length} onClick={() => setExtra("R")} className="inline-flex min-h-11 items-center justify-center gap-1 rounded-lg bg-card2 disabled:opacity-40"><Repeat size={14} />Rest-pause</button>
+            </div>
+          )}
+          {!extra && (
+            <div className="mt-1 flex items-center justify-between text-[11px] text-faint">
+              <span>Drop / rest-pause attach to your last set — no rest timer, you stay here.</span>
+              <InfoDot term={TERMS.find((t) => t.key === "drop")!} />
+            </div>
+          )}
           <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
             <button onClick={onHow} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-card2"><PlayCircle size={16} className="text-info" />How-to video</button>
             <button onClick={onMenu} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-card2"><MoreHorizontal size={16} />Swap · skip · more</button>
           </div>
-          {complete && <SetInput it={it} d={d} setD={setD} n={work.length + 1} total={it.sets} hidden />}
+          {complete && <SetInput it={it} d={d} setD={setD} n={work.length + 1} total={it.sets} bars={bars} hidden />}
         </div>
       )}
     </section>
   );
 }
 
-function plateText(total: number) {
-  const p = plates(total);
+/** Inline entry for drop sets, rest-pause mini-sets and extra sets — pre-filled, one tap to log, chainable. */
+function ExtraInput({ mode, it, last, bars, onLog, onDone }: {
+  mode: "D" | "R" | "N"; it: PlanItem; last?: SetLog; bars: Bars; onLog: (d: Partial<Draft>) => void; onDone: () => void;
+}) {
+  const step = loadOf(it.ex) === "pair" ? Math.max(2.5, it.step) : it.step;
+  const lastKg = last ? shownKg(last) : null;
+  const prefill = () => {
+    if (mode === "D" && lastKg) return String(Math.max(step, Math.floor((lastKg * 0.75) / step + 1e-9) * step));
+    return lastKg != null ? String(lastKg) : "";
+  };
+  const [w, setW] = useState(prefill);
+  const [r, setR] = useState(mode === "R" ? "3" : mode === "N" && last?.reps != null ? String(last.reps) : "");
+  const [count, setCount] = useState(0);
+  useEffect(() => { setW(prefill()); }, [last?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const title = { D: "Drop set", R: "Rest-pause mini-set", N: "Extra set" }[mode];
+  const hint = {
+    D: "Right after the set: ~25% lighter, reps to near failure.",
+    R: "Same weight · rest 15-20 s · a few more reps.",
+    N: "Counts as a normal set (rest timer runs).",
+  }[mode];
+  const weighted = it.metric === "weight_reps";
+  const bump = (v: string, by: number, set: (x: string) => void) => set(String(Math.max(0, +(Number(v || 0) + by).toFixed(2))));
+  return (
+    <div className="mt-3 rounded-xl border border-info/50 bg-info/[0.05] p-3">
+      <div className="flex items-center justify-between text-xs">
+        <span className="font-semibold text-info">{title}{count > 0 ? ` · ${count} logged` : ""}</span>
+        <button onClick={onDone} className="rounded-full bg-card2 px-3 py-1 text-mute">Done</button>
+      </div>
+      <p className="mt-1 text-[11px] text-mute">{hint}</p>
+      <div className="mt-2 flex gap-2">
+        {weighted && (
+          <div className="min-w-0 flex-1">
+            <div className="mb-1 text-center text-[11px] text-mute">{kgLabel(it.ex, bars)}</div>
+            <div className="flex items-center gap-1">
+              <button onClick={() => bump(w, -step, setW)} className="h-12 w-10 shrink-0 rounded-xl bg-card2 text-xl" aria-label="less kg">−</button>
+              <NumInput value={w} onChange={setW} />
+              <button onClick={() => bump(w, step, setW)} className="h-12 w-10 shrink-0 rounded-xl bg-card2 text-xl" aria-label="more kg">+</button>
+            </div>
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 text-center text-[11px] text-mute">reps</div>
+          <div className="flex items-center gap-1">
+            <button onClick={() => bump(r, -1, setR)} className="h-12 w-10 shrink-0 rounded-xl bg-card2 text-xl" aria-label="less reps">−</button>
+            <NumInput value={r} onChange={setR} placeholder="?" />
+            <button onClick={() => bump(r, 1, setR)} className="h-12 w-10 shrink-0 rounded-xl bg-card2 text-xl" aria-label="more reps">+</button>
+          </div>
+        </div>
+      </div>
+      <button
+        onClick={() => {
+          if (!r) return;
+          onLog({ weight: weighted ? w : "", reps: r, note: "" });
+          setCount((c) => c + 1);
+          if (mode === "N") onDone();
+          else if (mode === "R") setR("3");
+          else setR("");
+        }}
+        disabled={!r}
+        className="mt-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-info font-semibold text-black disabled:opacity-40"
+      >
+        <Check size={18} /> Log {title.toLowerCase()}{mode === "D" && count > 0 ? " (another)" : ""}
+      </button>
+      {mode === "D" && count > 0 && <p className="mt-1 text-center text-[11px] text-faint">Weight dropped again by ~25% for a double drop — or tap Done.</p>}
+    </div>
+  );
+}
+
+function plateText(total: number, bar = 20) {
+  const p = plates(total, bar);
   if (!p) return "";
   return p.length ? `per side: ${p.join(" + ")}` : "empty bar";
 }
@@ -515,19 +613,22 @@ function useDraft(it: PlanItem, sets: SetLog[], last: { sets: SetLog[] } | undef
     const v = (x: number | null | undefined) => (x == null ? "" : String(x));
     // priority: this session's previous set → recommendation → same set last time → plan target
     return {
-      weight: v(prevHere?.weightKg ?? rec.weightKg ?? lastSame?.weightKg ?? it.startKg ?? null),
+      weight: v((prevHere ? shownKg(prevHere) : null) ?? rec.weightKg ?? (lastSame ? shownKg(lastSame) : null) ?? it.startKg ?? null),
       reps: v(prevHere?.reps ?? rec.reps ?? lastSame?.reps ?? tReps),
       seconds: v(prevHere?.seconds ?? rec.seconds ?? lastSame?.seconds ?? it.seconds),
       meters: v(prevHere?.meters ?? lastSame?.meters ?? it.meters),
       assist: prevHere?.assist ?? lastSame?.assist ?? "",
       rir: "",
       strict: "",
+      note: "",
     };
   }, [it, sets, last, rec]);
 }
 
-function SetInput({ it, d, setD, n, total, onLog, hidden }: { it: PlanItem; d: Draft; setD: (d: Draft) => void; n: number; total: number; onLog?: () => void; hidden?: boolean }) {
+function SetInput({ it, d, setD, n, total, bars, onLog, hidden }: { it: PlanItem; d: Draft; setD: (d: Draft) => void; n: number; total: number; bars: Bars; onLog?: () => void; hidden?: boolean }) {
   const [hold, setHold] = useState<number | null>(null);
+  const [perSide, setPerSide] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
   const [, tick] = useState(0);
   useEffect(() => {
     if (hold == null) return;
@@ -537,7 +638,7 @@ function SetInput({ it, d, setD, n, total, onLog, hidden }: { it: PlanItem; d: D
   if (hidden) return null;
   const bump = (k: keyof Draft, by: number, min = 0) => setD({ ...d, [k]: String(Math.max(min, +(Number(d[k] || 0) + by).toFixed(2))) });
   const m = it.metric;
-  const ICON = { weight: Dumbbell, reps: Repeat, seconds: Timer, meters: Ruler, assist: Dumbbell, rir: Repeat, strict: Check } as const;
+  const ICON = { weight: Dumbbell, reps: Repeat, seconds: Timer, meters: Ruler, assist: Dumbbell, rir: Repeat, strict: Check, note: NotebookPen } as const;
   const field = (k: keyof Draft, label: string, step: number, placeholder = "") => {
     const I = ICON[k];
     return (
@@ -552,7 +653,20 @@ function SetInput({ it, d, setD, n, total, onLog, hidden }: { it: PlanItem; d: D
     );
   };
   const showRir = m === "weight_reps" || m === "reps" || m === "assist_reps";
-  const pt = isBarbell(it.ex) && d.weight ? plateText(Number(d.weight)) : "";
+  const bar = barOf(it.ex, bars);
+  const isBar = isBarbell(it.ex);
+  const pt = isBar && d.weight ? plateText(Number(d.weight), bar) : "";
+  const side = d.weight ? Math.max(0, (Number(d.weight) - bar) / 2) : 0;
+  const sideField = (
+    <div className="min-w-0 flex-1">
+      <div className="mb-1 flex items-center justify-center gap-1 text-[11px] text-mute"><Dumbbell size={12} />plates per side</div>
+      <div className="flex items-center gap-1">
+        <button onClick={() => setD({ ...d, weight: String(bar + 2 * Math.max(0, side - 1.25)) })} className="h-12 w-10 shrink-0 rounded-xl bg-card2 text-xl" aria-label="less per side">−</button>
+        <NumInput value={d.weight ? String(+side.toFixed(2)) : ""} onChange={(v) => setD({ ...d, weight: v === "" ? "" : String(bar + 2 * Number(v)) })} placeholder="0" />
+        <button onClick={() => setD({ ...d, weight: String(bar + 2 * (side + 1.25)) })} className="h-12 w-10 shrink-0 rounded-xl bg-card2 text-xl" aria-label="more per side">+</button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="mt-2 rounded-xl border border-acc/40 bg-acc/[0.03] p-3">
@@ -567,12 +681,20 @@ function SetInput({ it, d, setD, n, total, onLog, hidden }: { it: PlanItem; d: D
             <input value={d.assist} onChange={(e) => setD({ ...d, assist: e.target.value })} placeholder="red / 20kg" className="min-h-12 w-full rounded-xl bg-card2 px-3 text-center outline-none focus:ring-2 focus:ring-acc" />
           </div>
         )}
-        {(m === "weight_reps" || m === "distance") && field("weight", "kg", it.step)}
+        {(m === "weight_reps" || m === "distance") && (isBar && perSide ? sideField : field("weight", kgLabel(it.ex, bars), it.step))}
         {m === "reps" && field("weight", "+kg", it.step, "BW")}
         {(m === "weight_reps" || m === "reps" || m === "assist_reps") && field("reps", "reps", 1)}
         {m === "time" && field("seconds", "seconds", 5)}
         {m === "distance" && field("meters", "meters", 5)}
       </div>
+      {m === "weight_reps" && (
+        <div className="mt-1.5 flex items-start justify-between gap-2 text-[11px] text-faint">
+          <span>{isBar && perSide ? `Total = ${bar} kg bar + 2 × ${+side.toFixed(2)} = ${d.weight || bar} kg` : kgHelp(it.ex, bars)}</span>
+          {isBar && (
+            <button onClick={() => setPerSide(!perSide)} className="shrink-0 rounded-full bg-card2 px-2.5 py-1 text-info">{perSide ? "enter total" : "per side"}</button>
+          )}
+        </div>
+      )}
       {m === "time" && (
         <button
           onClick={() => {
@@ -612,6 +734,11 @@ function SetInput({ it, d, setD, n, total, onLog, hidden }: { it: PlanItem; d: D
             </button>
           ))}
         </div>
+      )}
+      {noteOpen || d.note ? (
+        <textarea value={d.note} onChange={(e) => setD({ ...d, note: e.target.value })} rows={2} placeholder="Note for this set (e.g. shoulder tight, lost count, bar slipped)" className="mt-3 w-full rounded-xl bg-card2 p-2.5 text-sm outline-none focus:ring-2 focus:ring-acc" />
+      ) : (
+        <button onClick={() => setNoteOpen(true)} className="mt-3 inline-flex items-center gap-1.5 text-xs text-info"><NotebookPen size={13} /> Add a note</button>
       )}
       <Btn kind="primary" icon={Check} className="mt-3 w-full text-lg" onClick={onLog}>Log set {n}</Btn>
     </div>

@@ -23,6 +23,8 @@ export interface Exercise {
   step?: number;
   /** Reps are per side / per arm / per leg. */
   perSide?: boolean;
+  /** Two dumbbells (one per hand): weight is entered PER HAND. */
+  pair?: boolean;
 }
 
 /** One exercise inside a day, with its target. */

@@ -71,6 +71,9 @@ export const sets = sqliteTable(
     pr: integer("pr").notNull().default(0),
     /** Honest form check: 1 = strict, 0 = cheated / partial reps, null = not answered. */
     strict: integer("strict"),
+    /** How weightKg was entered for dumbbell pairs: "per_hand" (app default from v2.2) or "total" (both dumbbells added).
+     *  null = barbell / machine / single weight. Old rows keep their numbers; this column only explains them. */
+    kgBasis: text("kg_basis"),
     deleted: integer("deleted").notNull().default(0),
     updatedAt: integer("updated_at").notNull(),
   },

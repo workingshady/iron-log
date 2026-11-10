@@ -61,7 +61,7 @@ export function WeekPlanner({ compact }: { compact?: boolean }) {
             <span className="text-[10px] uppercase opacity-80">{"SMTWTFS"[d.dow]}</span>
             <span className="text-sm font-bold num leading-tight">{Number(d.iso.slice(8))}</span>
             <span className="mt-0.5 line-clamp-2 text-[9px] leading-tight">
-              {d.kind === "football" ? "⚽" : d.kind === "busy" ? "busy" : d.kind === "rest" ? "rest" : d.kind === "past" ? "" : short(d.dayName)}
+              {d.kind === "football" ? "⚽" : d.kind === "busy" ? "busy" : d.kind === "rest" ? "rest" : d.kind === "past" ? "" : short(d.dayName)}{d.pinned ? " 📌" : ""}
             </span>
           </button>
         ))}
@@ -86,14 +86,14 @@ export function WeekPlanner({ compact }: { compact?: boolean }) {
           ) : null}
         </div>
       ))}
-      <p className="mt-2 text-[11px] text-faint">Tap a day to mark ⚽ football or busy — the week re-fits itself (legs ≥ 48 h away from football).</p>
+      <p className="mt-2 text-[11px] text-faint">Tap a day: ⚽ football, busy, or pick the session yourself (📌). The rest re-fits automatically — legs stay ≥ 48 h from football.</p>
 
-      {day && <DaySheet iso={day} mark={marks[day] ?? null} plan={plan} onClose={() => setDay(null)} onMark={(m) => { setMark(day, m); }} />}
+      {day && <DaySheet iso={day} mark={marks[day] ?? null} plan={plan} open={(s.next ? s.slots.filter((x) => x.week === s.next!.week && x.status === "open") : [])} onClose={() => setDay(null)} onMark={(m) => { setMark(day, m); }} />}
     </Card>
   );
 }
 
-function DaySheet({ iso, mark, plan, onClose, onMark }: { iso: string; mark: Mark | null; plan: WeekPlanOut; onClose: () => void; onMark: (m: Mark | null) => void }) {
+function DaySheet({ iso, mark, plan, open, onClose, onMark }: { iso: string; mark: Mark | null; plan: WeekPlanOut; open: { dayKey: string; dayName: string }[]; onClose: () => void; onMark: (m: Mark | null) => void }) {
   const d = plan.days.find((x) => x.iso === iso);
   const label = new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "short" });
   const past = iso <= today();
@@ -105,6 +105,19 @@ function DaySheet({ iso, mark, plan, onClose, onMark }: { iso: string; mark: Mar
   return (
     <Sheet open onClose={onClose} title={label} icon={CalendarClock}>
       {d && <p className="text-sm text-mute">{d.kind === "planned" ? `Planned: ${d.dayName}${d.note ? ` — ${d.note}` : ""}` : d.kind === "done" ? `Done: ${d.dayName}` : d.kind === "football" ? "Football day — no lifting." : d.kind === "busy" ? "Marked busy." : "Rest day."}</p>}
+      {iso >= today() && mark !== "football" && mark !== "busy" && (
+        <div className="mt-3">
+          <div className="mb-1.5 text-xs text-mute">Plan this day yourself</div>
+          <div className="flex flex-wrap gap-1.5">
+            <button onClick={() => onMark(null)} className={cx("min-h-10 rounded-full border px-3 text-sm", !mark ? "border-acc bg-acc/10 text-acc" : "border-line")}>Auto</button>
+            <button onClick={() => onMark("rest")} className={cx("min-h-10 rounded-full border px-3 text-sm", mark === "rest" ? "border-acc bg-acc/10 text-acc" : "border-line")}>Rest</button>
+            {open.map((o) => (
+              <button key={o.dayKey} onClick={() => onMark(`pin:${o.dayKey}`)} className={cx("min-h-10 rounded-full border px-3 text-sm", mark === `pin:${o.dayKey}` ? "border-acc bg-acc/10 text-acc" : "border-line")}>{o.dayName}</button>
+            ))}
+          </div>
+          <p className="mt-1 text-[11px] text-faint">Your choice is fixed; the rest of the week re-fits around it. Legs can't be pinned next to football.</p>
+        </div>
+      )}
       <div className="mt-3 grid grid-cols-3 gap-2">
         <Btn kind={mark === "football" ? "primary" : "soft"} icon={Trophy} onClick={() => onMark(mark === "football" ? null : "football")}>⚽ Football</Btn>
         <Btn kind={mark === "busy" ? "primary" : "soft"} icon={Moon} onClick={() => onMark(mark === "busy" ? null : "busy")}>Busy</Btn>

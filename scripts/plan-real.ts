@@ -18,3 +18,6 @@ run("Fresh week, no football", "2026-11-09", {}, {});
 run("Football Wed + Sat", "2026-11-09", { "2026-11-11": "football", "2026-11-14": "football" }, {});
 run("Football Mon + Thu, busy Tue", "2026-11-09", { "2026-11-09": "football", "2026-11-12": "football", "2026-11-10": "busy" }, {});
 run("Late week: Thu, nothing done yet", "2026-11-12", {}, {});
+run("YOUR plan: pin Thu Chest+Back, Fri Sh+Arms, Sat Legs", "2026-11-10", { "2026-11-11": "football", "2026-11-12": "pin:D5", "2026-11-13": "pin:D6", "2026-11-14": "pin:D3" }, { "2026-11-09": "Push" });
+run("Pin only Thu Chest+Back (rest auto)", "2026-11-10", { "2026-11-11": "football", "2026-11-12": "pin:D5" }, { "2026-11-09": "Push" });
+run("Bad pin: Legs on Thu (day after football) → refused", "2026-11-10", { "2026-11-11": "football", "2026-11-12": "pin:D3" }, { "2026-11-09": "Push" });

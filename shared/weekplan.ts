@@ -10,12 +10,15 @@
 //  • Out of program order (per swapped pair) .................... 1.5
 //  • Same muscles on back-to-back days: Pull→Chest+Back (back) 1.5, Push→Shoulders+Arms (delts/triceps) 1.5,
 //    Push→Chest+Back (chest) 1, Pull→Shoulders+Arms (biceps) 0.5, Legs↔Shoulders+Arms (leg booster) 0.5
-//  • Hard days in a row (lifting + football): the 3rd → 0.3, each beyond 3 → 4
+//  • Hard days in a row (lifting + football): the 3rd → 0.3, each beyond 3 → 1.2 (same-muscle rest matters more
+//    than calendar streaks; upper body after football is fine)
+//  • YOUR choices win: a day you pinned to a session (or to rest) is fixed; everything else fits around it.
 //  • Lifting on one of your rest days 0.4 · resting on one of your training days 0.4
 //  • Resting the day after football: −0.3 (recovery bonus)
 //  • Tiny nudge (0.02/day) toward training earlier, so spare days stay at the end of the week.
 
-export type Mark = "football" | "busy";
+/** "football" | "busy" | "rest" (keep this day free) | "pin:D5" (do that session here). */
+export type Mark = "football" | "busy" | "rest" | `pin:${string}`;
 export interface DayIn { iso: string; dow: number } // dow 0 = Sunday
 export interface SlotIn { dayKey: string; dayName: string; status: "done" | "skipped" | "open" }
 export interface PlanDay {
@@ -26,6 +29,8 @@ export interface PlanDay {
   dayName?: string;
   note?: string;
   today?: boolean;
+  /** You chose this day yourself. */
+  pinned?: boolean;
 }
 export interface WeekPlanOut {
   days: PlanDay[];
@@ -77,7 +82,8 @@ export function planWeek(input: {
   const remaining = slots.filter((s) => s.status === "open");
   const doneToday = !!doneOn[today];
   const future = dates.filter((d) => d.iso > today || (d.iso === today && !doneToday));
-  const canLift = (d: DayIn) => marks[d.iso] !== "busy" && (!football.has(d.iso) || !!input.liftOnFootball?.[d.iso]);
+  const canLift = (d: DayIn) => marks[d.iso] !== "busy" && marks[d.iso] !== "rest" && (!football.has(d.iso) || !!input.liftOnFootball?.[d.iso]);
+  const pinOf = (d: DayIn) => { const m = marks[d.iso]; return m?.startsWith("pin:") ? m.slice(4) : null; };
   const prefersTrain = (d: DayIn) => (schedule ? schedule[d.dow] !== "rest" : true);
   const legsHard = (iso: string) => football.has(iso) || fb(iso, 1) || fb(iso, -1);
   const n = future.length;
@@ -112,7 +118,7 @@ export function planWeek(input: {
     let run = 0;
     for (let i = -3; i < dates.length; i++) {
       const iso = addDays(dates[0].iso, i);
-      if (nameOn(iso) || football.has(iso)) { run++; if (run === 3) s += 0.3; if (run > 3) s += 4; } else run = 0;
+      if (nameOn(iso) || football.has(iso)) { run++; if (run === 3) s += 0.3; if (run > 3) s += 1.2; } else run = 0;
     }
     return s;
   }
@@ -125,9 +131,16 @@ export function planWeek(input: {
       if (sc < bestScore - 1e-9) { bestScore = sc; bestPlan = [...plan]; }
       return;
     }
+    const d = future[k];
+    const pin = pinOf(d);
+    const pinIdx = pin ? remaining.findIndex((r) => r.dayKey === pin) : -1;
+    if (pinIdx >= 0 && !used[pinIdx] && !(isLegs(remaining[pinIdx]) && legsHard(d.iso))) {
+      // your choice: only this session on this day
+      used[pinIdx] = true; plan[k] = remaining[pinIdx]; dfs(k + 1); used[pinIdx] = false; plan[k] = null;
+      return;
+    }
     plan[k] = null; // rest / no lifting
     dfs(k + 1);
-    const d = future[k];
     if (!canLift(d)) return;
     for (let i = 0; i < remaining.length; i++) {
       if (used[i]) continue;
@@ -153,12 +166,13 @@ export function planWeek(input: {
         : isLegs(a) && fb(d.iso, 2) ? "2 days before football: leave 3 reps in the tank, no drop sets"
         : /shoulder|arm/i.test(a.dayName) && (fb(d.iso, 1) || fb(d.iso, -1)) ? "football next to it: skip the leg booster (split squats)"
         : fb(d.iso, 1) ? "football tomorrow: no failure sets, skip hard cardio" : undefined;
-      return { ...base, kind: "planned", dayKey: a.dayKey, dayName: a.dayName, note };
+      return { ...base, kind: "planned", dayKey: a.dayKey, dayName: a.dayName, note, pinned: pinOf(d) === a.dayKey };
     }
     if (football.has(d.iso)) return { ...base, kind: "football", note: "football = your cardio today" };
+    if (pinOf(d) && d.iso >= today) return { ...base, kind: "rest", note: `can't do ${remaining.find((r) => r.dayKey === pinOf(d))?.dayName ?? "that session"} here — already done, or Legs right next to football (48 h rule)` };
     if (marks[d.iso] === "busy") return { ...base, kind: "busy" };
     if (d.iso < today) return { ...base, kind: "past" };
-    return { ...base, kind: "rest", note: fb(d.iso, -1) ? "recovery after football (easy walk / mobility)" : undefined };
+    return { ...base, kind: "rest", pinned: marks[d.iso] === "rest", note: fb(d.iso, -1) ? "recovery after football (easy walk / mobility)" : undefined };
   });
 
   const placed = new Set(assigned.values());

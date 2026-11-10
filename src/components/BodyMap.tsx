@@ -6,14 +6,14 @@ import { cx } from "../lib/util";
 
 // Body heatmap: one green scale (more weekly sets → brighter), amber = over 20 (too much).
 // Tiers follow the 10-20 hard sets/week research range used by the program.
-const TIERS = [
-  { max: 4, color: "#3d4a1f", label: "1-4" },
-  { max: 9, color: "#6b8a2a", label: "5-9" },
-  { max: 14, color: "#9cc23e", label: "10-14" },
-  { max: 20, color: "#c8f560", label: "15-20" },
-  { max: Infinity, color: "#ffb547", label: "20+" },
-];
-const tierOf = (n: number) => TIERS.findIndex((t) => n <= t.max) + 1;
+// Continuous scale: 1 shade per set from 1 to 20 (dark olive → bright green), amber above 20.
+const mix = (a: string, b: string, t: number) => {
+  const p = (h: string, i: number) => parseInt(h.slice(1 + i * 2, 3 + i * 2), 16);
+  return "#" + [0, 1, 2].map((i) => Math.round(p(a, i) + (p(b, i) - p(a, i)) * t).toString(16).padStart(2, "0")).join("");
+};
+const SHADES = [...Array.from({ length: 20 }, (_, k) => mix("#33401a", "#c8f560", k / 19)), "#ffb547"];
+const shadeOf = (n: number) => (n > 20 ? 21 : Math.max(1, Math.min(20, Math.round(n))));
+const colorOf = (n: number) => SHADES[shadeOf(n) - 1];
 
 /** exSets: {exerciseKey: number of sets} for the period shown. */
 export function BodyMap({ exSets, caption }: { exSets: Record<string, number>; caption?: string }) {
@@ -21,10 +21,10 @@ export function BodyMap({ exSets, caption }: { exSets: Record<string, number>; c
   const vol = useMemo(() => muscleVolume(exSets), [exSets]);
   // One entry per muscle; frequency = colour tier (library colours by frequency).
   const data = useMemo(
-    () => (Object.entries(vol) as [Muscle, number][]).filter(([, n]) => n > 0).map(([m, n]) => ({ name: m, muscles: [m], frequency: tierOf(n) })),
+    () => (Object.entries(vol) as [Muscle, number][]).filter(([, n]) => n > 0).map(([m, n]) => ({ name: m, muscles: [m], frequency: shadeOf(n) })),
     [vol],
   );
-  const colors = TIERS.map((t) => t.color);
+  const colors = SHADES;
   const style = { width: "100%", maxWidth: 170 };
   const click = (s: { muscle: string }) => setSel(s.muscle as Muscle);
 
@@ -45,10 +45,10 @@ export function BodyMap({ exSets, caption }: { exSets: Record<string, number>; c
       </div>
 
       <div className="mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] text-mute">
-        <span>sets/week:</span>
-        {TIERS.map((t) => (
-          <span key={t.label} className="inline-flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-[2px]" style={{ background: t.color }} />{t.label}</span>
-        ))}
+        <span>sets/week: 1</span>
+        <span className="inline-flex h-2.5 w-28 overflow-hidden rounded-[2px]">{SHADES.slice(0, 20).map((c) => <span key={c} className="h-full flex-1" style={{ background: c }} />)}</span>
+        <span>20</span>
+        <span className="inline-flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-[2px]" style={{ background: SHADES[20] }} />20+</span>
       </div>
       {caption && <p className="mt-1 text-center text-[11px] text-faint">{caption}</p>}
 
@@ -70,7 +70,7 @@ export function BodyMap({ exSets, caption }: { exSets: Record<string, number>; c
         <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
           {list.map(([m, n]) => (
             <button key={m} onClick={() => setSel(m)} className="flex items-center gap-2 text-left">
-              <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: TIERS[tierOf(n) - 1].color }} />
+              <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: colorOf(n) }} />
               <span className="flex-1 truncate text-mute">{MUSCLE_LABEL[m]}</span>
               <span className={cx("num", n > 20 ? "text-warn" : "text-ink")}>{Math.round(n * 10) / 10}</span>
             </button>

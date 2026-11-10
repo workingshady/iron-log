@@ -94,7 +94,7 @@ export function Bars({ data, unit, tone = "var(--color-acc)", fmt }: { data: P[]
             className="flex h-full flex-1 items-end"
             aria-label={`${d.x}: ${d.y} ${unit}`}
           >
-            <span className="block w-full rounded-t" style={{ height: `${(d.y / max) * 100}%`, minHeight: d.y ? 4 : 0, background: i === sel ? tone : `color-mix(in srgb, ${tone} 55%, transparent)` }} />
+            <span className="block w-full rounded-t" style={{ height: `${(d.y / max) * 100}%`, minHeight: d.y ? 4 : 0, background: i === sel ? tone : `color-mix(in srgb, ${tone} ${Math.round(35 + 50 * (max ? d.y / max : 0))}%, transparent)` }} />
           </button>
         ))}
       </div>

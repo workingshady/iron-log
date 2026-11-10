@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Activity, AlertTriangle, BarChart3, CalendarOff, CalendarRange, ChevronRight, Dumbbell, Gauge, Lightbulb, Link2, Minus, TrendingDown, TrendingUp, Trophy } from "lucide-react";
 import type { AppState, InsightsData, Lifts, ProgressData } from "../../shared/api";
 import { InsightList } from "../components/Insights";
-import { PlanVsActual } from "../components/Targets";
+import { NextSession, PersonalRecords, RecVsActual } from "../components/Targets";
 import { BodyMap } from "../components/BodyMap";
 import { EffortMix, LiftTrends, LiftTrendsHelp, Links, MuscleHelp, MuscleWeeks, RecentPRs, WeeklyTrend, useAnalytics } from "../components/Analytics";
 import { CURRENT } from "../../program";
@@ -128,24 +128,10 @@ export default function Stats() {
             )}
           </Card>
 
-          <PlanVsActual />
+          <NextSession />
+          <RecVsActual />
 
-          {lifts && Object.keys(lifts.best).length > 0 && (
-            <Card title="Personal records (all time)" icon={Trophy} className="md:col-span-2">
-              <div className="grid grid-cols-1 gap-x-6 gap-y-1 text-sm md:grid-cols-2">
-                {Object.entries(lifts.best)
-                  .sort((a, b) => b[1].e1rm - a[1].e1rm || b[1].reps - a[1].reps)
-                  .map(([k, b]) => (
-                    <div key={k} className="flex items-center justify-between border-b border-line/60 py-1.5">
-                      <span className="truncate text-mute">{EXERCISES[k]?.name ?? k}</span>
-                      <span className="num font-semibold">
-                        {b.e1rm ? `${b.e1rm} kg est. max` : b.seconds ? `${b.seconds} s` : b.reps ? `${b.reps} reps` : b.weightKg ? `${b.weightKg} kg` : "—"}
-                      </span>
-                    </div>
-                  ))}
-              </div>
-            </Card>
-          )}
+          {lifts && Object.keys(lifts.best).length > 0 && <PersonalRecords lifts={lifts} />}
         </div>
       )}
 

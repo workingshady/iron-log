@@ -119,7 +119,8 @@ export function MuscleWeeks({ data }: { data: AnalyticsData["muscles"] }) {
         {data.groups.map((g) => {
           const n = w.sets[g] ?? 0;
           const small = data.small.includes(g);
-          const tone = small ? "color-mix(in srgb, var(--color-info) 70%, transparent)" : n > 20 ? "var(--color-warn)" : n >= 10 ? "var(--color-acc)" : "color-mix(in srgb, var(--color-acc) 45%, transparent)";
+          // continuous saturation: more sets → stronger colour; over 20 = amber (more than most people recover from)
+          const tone = small ? `color-mix(in srgb, var(--color-info) ${Math.round(35 + 55 * Math.min(1, n / 10))}%, transparent)` : n > 20 ? "var(--color-warn)" : `color-mix(in srgb, var(--color-acc) ${Math.round(30 + 70 * Math.min(1, n / 20))}%, transparent)`;
           return (
             <div key={g} className="flex items-center gap-2 text-xs" role="img" aria-label={`${g}: ${n} hard sets${small ? "" : ", target 10 to 20"}`}>
               <span className="w-24 shrink-0 truncate text-mute">{g}</span>

@@ -191,20 +191,31 @@ async function liftHistory(d: DB, keys: string[] | null, excludeSession = "") {
     .where(and(eq(t.sets.deleted, 0), ne(t.sets.sessionId, excludeSession), inArray(t.sessions.status, ["done", "abandoned"]), ...(keys ? [inArray(t.sets.exKey, keys.length ? keys : ["-"])] : [])))
     .orderBy(desc(t.sets.doneAt));
   const hist: Record<string, { date: string; sets: SetLog[]; effort?: string | null; joints?: string | null; sessionId: string }> = {};
-  const best: Record<string, { e1rm: number; weightKg: number; reps: number; seconds: number }> = {};
+  const best: Record<string, import("../shared/api").Best & { _dates?: Set<string> }> = {};
   for (const { s, date } of rows) {
     if (s.kind === "W") continue;
     const h = hist[s.exKey];
     if (!h) hist[s.exKey] = { date, sets: [s as SetLog], sessionId: s.sessionId };
     else if (h.sessionId === s.sessionId) h.sets.unshift(s as SetLog);
     if (s.strict === 0 || s.kind === "D" || s.kind === "R") continue; // records only from honest straight sets
-    const b = (best[s.exKey] ??= { e1rm: 0, weightKg: 0, reps: 0, seconds: 0 });
+    const b = (best[s.exKey] ??= { e1rm: 0, weightKg: 0, reps: 0, seconds: 0, _dates: new Set() });
     const w = shownKg(s);
-    if (w && s.reps && s.reps <= 12) b.e1rm = Math.max(b.e1rm, Math.round(w * (1 + s.reps / 30) * 10) / 10);
+    b._dates!.add(date);
+    const e = w && s.reps && s.reps <= 12 ? Math.round(w * (1 + s.reps / 30) * 10) / 10 : 0;
+    // the headline value of this set (est. max for weighted, else reps or seconds) — for "where it started"
+    const val = e || (s.seconds ?? 0) || (w ? 0 : s.reps ?? 0);
+    // rows come newest first: a strictly-better set wins; ties keep the EARLIER date (first time you hit it)
+    const prevHead = b.e1rm || b.seconds || b.reps;
+    if (e > b.e1rm || (e && e === b.e1rm)) { b.e1rm = e; b.at = date; b.setKg = w; b.setReps = s.reps; }
+    else if (!e && !b.e1rm && val && val >= prevHead) { b.at = date; b.setKg = w ?? null; b.setReps = s.reps ?? null; }
     b.weightKg = Math.max(b.weightKg, w ?? 0);
     b.reps = Math.max(b.reps, s.reps ?? 0);
     b.seconds = Math.max(b.seconds, s.seconds ?? 0);
+    if (val && (!b.startDate || date < b.startDate)) { b.startDate = date; b.start = val; }
+    else if (val && date === b.startDate) b.start = Math.max(b.start ?? 0, val);
   }
+  for (const b of Object.values(best)) { b.sessions = b._dates?.size ?? 0; delete b._dates; }
+
   const sids = [...new Set(Object.values(hist).map((h) => h.sessionId))];
   if (sids.length) {
     const fb = await d.select().from(t.feedback).where(inArray(t.feedback.sessionId, sids));
@@ -601,8 +612,22 @@ app.get("/targets", async (c) => {
       if (it.skipped || !work.length) verdict = "skipped";
       else if (sug?.weightKg != null && topKg != null) {
         const wDiff = topKg - sug.weightKg, rDiff = (avgReps ?? 0) - (sug.reps ?? 0);
-        verdict = wDiff > 0.01 || (Math.abs(wDiff) < 0.01 && rDiff >= 1) ? "beat" : Math.abs(wDiff) < 0.01 && rDiff > -0.5 ? "hit" : (Math.abs(wDiff) < 0.01 && rDiff >= -1.5) ? "close" : "missed";
-      } else if (sug?.reps != null && avgReps != null && sug.kind !== "start") verdict = avgReps >= sug.reps ? "hit" : "missed";
+        // judged against YOUR target range, not just its top: in range at the suggested weight = hit
+        const bottom = it.reps == null ? null : Array.isArray(it.reps) ? it.reps[0] : it.reps;
+        const step = EXERCISES[it.ex]?.pair ? 2.5 : EXERCISES[it.ex]?.step ?? 2.5;
+        const sameW = Math.abs(wDiff) < 0.01;
+        const inRange = bottom == null || (avgReps ?? 0) >= bottom - 0.25;
+        verdict = wDiff > 0.01 && inRange ? "beat" : sameW && rDiff >= 1 ? "beat" : sameW && (rDiff > -0.5 || inRange) ? "hit"
+          : (sameW && (avgReps ?? 0) >= (bottom ?? 0) - 1.5) || (wDiff < 0 && wDiff >= -step - 0.01 && inRange) || (wDiff > 0.01 && !inRange) ? "close" : "missed";
+      } else if (EXERCISES[it.ex]?.metric === "time") {
+        // holds: judged on seconds (old suggestions without seconds = baseline)
+        const secs = work.map((r) => r.seconds ?? 0), avgS = secs.reduce((p, c) => p + c, 0) / (secs.length || 1);
+        const goal = sug?.seconds ?? it.seconds ?? null;
+        verdict = goal == null || sug?.kind === "start" ? "first" : avgS >= goal + 3 ? "beat" : avgS >= goal - 0.5 ? "hit" : avgS >= goal * 0.85 ? "close" : "missed";
+      } else if (sug?.reps != null && avgReps != null && sug.kind !== "start") {
+        const all = work.map((r) => r.reps ?? 0), avgAll = all.reduce((p, c) => p + c, 0) / (all.length || 1);
+        verdict = avgAll >= sug.reps + 1 ? "beat" : avgAll >= sug.reps - 0.5 ? "hit" : avgAll >= sug.reps - 2 ? "close" : "missed";
+      }
       return {
         exKey: it.ex, name: it.name, target: { sets: it.sets, reps: it.reps ?? null, rir: it.rir ?? null }, suggested: sug,
         done: shown, topKg, avgReps: avgReps == null ? null : Math.round(avgReps * 10) / 10, sets: work.length, verdict,

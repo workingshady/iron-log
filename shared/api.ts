@@ -73,7 +73,15 @@ export interface SetLog {
   deleted?: number;
 }
 
-export interface Best { e1rm: number; weightKg: number; reps: number; seconds: number }
+export interface Best {
+  e1rm: number; weightKg: number; reps: number; seconds: number;
+  /** The set behind the record and when (added v2.4 — older clients ignore them). */
+  at?: string; setKg?: number | null; setReps?: number | null;
+  /** Best estimated max (or reps / seconds) in your FIRST session of this exercise → progress since you started. */
+  start?: number; startDate?: string;
+  /** Sessions with this exercise. */
+  sessions?: number;
+}
 export interface Lifts {
   hist: Record<string, { date: string; sets: SetLog[]; effort?: string | null; joints?: string | null; sessionId: string }>;
   best: Record<string, Best>;

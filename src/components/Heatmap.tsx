@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { localDate, niceDate, cx } from "../lib/util";
+import { localDate, niceDate, cx, heat } from "../lib/util";
 import { useWidth } from "../lib/useWidth";
 
 // GitHub-style calendar: columns = weeks, rows = weekdays.
@@ -30,18 +30,22 @@ export function Heatmap({ days, weekStart = 6, mode = "workout", grams, target =
   const t = localDate(today);
   const names = ["S", "M", "T", "W", "T", "F", "S"];
 
+  // workout intensity is relative to YOUR big days (90th percentile of sets), so the scale fits you
+  const doneSets = Object.values(days ?? {}).filter((d) => d.status === "done").map((d) => d.sets || Math.round(d.minutes / 3)).sort((a, b) => a - b);
+  const top = Math.max(10, doneSets[Math.floor(doneSets.length * 0.9)] ?? 20);
   const style = (iso: string): { cls: string; style?: React.CSSProperties } => {
     if (iso > t) return { cls: "opacity-0" };
     if (mode === "creatine") {
       const g = grams?.[iso] ?? 0;
       if (!g) return { cls: "bg-card2" };
-      return { cls: "", style: { background: `color-mix(in srgb, var(--color-vio) ${g >= target ? 100 : 45}%, var(--color-card2))` } };
+      // continuous: 1 g of 5 is faint, 5 g is full; way over (2× target) gets an amber ring
+      return { cls: g > target * 2 ? "ring-1 ring-inset ring-warn" : "", style: { background: heat(g / target, "--color-vio", 22) } };
     }
     const d = days?.[iso];
     if (!d) return { cls: "bg-card2" };
     if (d.status === "done") {
-      const pct = d.sets >= 22 ? 100 : d.sets >= 12 ? 72 : 48;
-      return { cls: "", style: { background: `color-mix(in srgb, var(--color-acc) ${pct}%, var(--color-card2))` } };
+      const v = d.sets || Math.round(d.minutes / 3);
+      return { cls: "", style: { background: heat(v / top, "--color-acc", 25) } };
     }
     if (d.status === "abandoned" || d.status === "active") return { cls: "bg-warn/60" };
     return { cls: "bg-card2 ring-1 ring-inset ring-bad/80" };
@@ -79,15 +83,14 @@ export function Heatmap({ days, weekStart = 6, mode = "workout", grams, target =
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-mute">
         {mode === "workout" ? (
           <>
-            <Key c="color-mix(in srgb, var(--color-acc) 48%, var(--color-card2))" t="light" />
-            <Key c="var(--color-acc)" t="big session" />
+            <Scale token="--color-acc" from="few sets" to={`${top}+ sets`} />
             <Key c="color-mix(in srgb, var(--color-warn) 60%, transparent)" t="partial" />
             <Key ring t="missed" />
           </>
         ) : (
           <>
-            <Key c="color-mix(in srgb, var(--color-vio) 45%, var(--color-card2))" t={`under ${target} g`} />
-            <Key c="var(--color-vio)" t={`${target} g+`} />
+            <Scale token="--color-vio" from="1 g" to={`${target} g`} floor={22} />
+            <Key ring warnRing t={`over ${target * 2} g`} />
           </>
         )}
         {sel && (
@@ -101,10 +104,21 @@ export function Heatmap({ days, weekStart = 6, mode = "workout", grams, target =
   );
 }
 
-function Key({ c, t, ring }: { c?: string; t: string; ring?: boolean }) {
+/** Less → more legend: 5 swatches of the same continuous scale the cells use. */
+function Scale({ token, from, to, floor = 25 }: { token: string; from: string; to: string; floor?: number }) {
   return (
     <span className="inline-flex items-center gap-1.5">
-      <span className={cx("inline-block h-2.5 w-2.5 rounded-[2px]", ring && "bg-card2 ring-1 ring-inset ring-bad")} style={c ? { background: c } : undefined} />
+      <span>{from}</span>
+      {[0.1, 0.3, 0.5, 0.75, 1].map((x) => <span key={x} className="inline-block h-2.5 w-2.5 rounded-[2px]" style={{ background: heat(x, token, floor) }} />)}
+      <span>{to}</span>
+    </span>
+  );
+}
+
+function Key({ c, t, ring, warnRing }: { c?: string; t: string; ring?: boolean; warnRing?: boolean }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className={cx("inline-block h-2.5 w-2.5 rounded-[2px]", ring && "bg-card2 ring-1 ring-inset", ring && (warnRing ? "ring-warn" : "ring-bad"))} style={c ? { background: c } : undefined} />
       {t}
     </span>
   );

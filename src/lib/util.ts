@@ -69,3 +69,12 @@ export function beep() {
 }
 
 export const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
+
+/**
+ * Continuous colour scale for heatmaps / bars: t ∈ [0,1] → the token colour mixed into the card background.
+ * 0 stays faint (but visible), 1 is the full colour — so 2 g vs 5 g of creatine, or 8 vs 25 sets, look different.
+ */
+export function heat(t: number, token = "--color-acc", floor = 18) {
+  const p = Math.round(floor + (100 - floor) * Math.max(0, Math.min(1, t)));
+  return `color-mix(in srgb, var(${token}) ${p}%, var(--color-card2))`;
+}

@@ -123,7 +123,7 @@ export default function Journal() {
 
   return (
     <div>
-      <PageHead icon={NotebookPen} title="Notes & Journal" sub="Everything you wrote or said, in one place — Arabic, English or both. The monthly review reads all of it." />
+      <PageHead icon={NotebookPen} title="Notes & Journal" sub="All your notes · Arabic, English or both" />
       <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_1.3fr]">
         {/* composer */}
         <div className="rounded-2xl bg-card p-4 md:sticky md:top-4 md:self-start">

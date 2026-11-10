@@ -57,7 +57,7 @@ export default function Extras() {
 
   return (
     <div>
-      <PageHead icon={Dumbbell} title={extra.name} sub={`${extra.focus} · optional · up to ${TARGET}× a week · never the day before Pull (grip must be fresh)`} />
+      <PageHead icon={Dumbbell} title={extra.name} sub={`Optional · up to ${TARGET}× a week · never the day before Pull`} />
 
       {/* this week */}
       <section className="rounded-2xl bg-card p-4">
@@ -78,13 +78,13 @@ export default function Extras() {
           </div>
         </div>
         <div className="mt-4 grid grid-cols-[auto_1fr_auto] gap-2">
-          <Btn kind="soft" icon={Eye} onClick={() => setPreview(true)} aria-label="Preview">Preview</Btn>
+          <Btn kind="soft" stack icon={Eye} onClick={() => setPreview(true)}>Preview</Btn>
           {s?.active ? (
             <Btn kind="primary" icon={RotateCcw} onClick={() => go(`/s/${s.active!.id}`)}>{activeExtra ? "Continue" : `Finish ${s.active.dayName} first`}</Btn>
           ) : (
-            <Btn kind="primary" icon={Play} onClick={() => setStart(true)}>Start {extra.name}</Btn>
+            <Btn kind="primary" icon={Play} onClick={() => setStart(true)}>Start</Btn>
           )}
-          <Btn kind="soft" icon={Ban} disabled={!!s?.active || doneWeek.length >= TARGET} onClick={() => setSkip(true)}>Skip</Btn>
+          <Btn kind="soft" stack icon={Ban} disabled={!!s?.active || doneWeek.length >= TARGET} onClick={() => setSkip(true)}>Skip</Btn>
         </div>
         {/* 8-week consistency */}
         <div className="mt-4">

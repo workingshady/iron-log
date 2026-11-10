@@ -55,7 +55,7 @@ export default function Stats() {
   const [mapWeek, setMapWeek] = useState<number | null>(null);
   if (!data) return <p className="py-20 text-center text-mute">{error ?? "Loading…"}</p>;
 
-  const head = <PageHead icon={BarChart3} title="Stats" sub="Are you getting stronger, doing enough, and what helps?" />;
+  const head = <PageHead icon={BarChart3} title="Stats" sub="Stronger? Enough volume? What helps?" />;
   if (!data.exercises.length && !data.weeks.length) return (<>{head}<Empty icon={BarChart3}>Log your first workout to see trends here.</Empty></>);
 
   const totals = data.weeks.reduce((a, w) => ({ s: a.s + w.sessions, m: a.m + w.missed, sets: a.sets + w.sets, v: a.v + w.volume }), { s: 0, m: 0, sets: 0, v: 0 });

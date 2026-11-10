@@ -5,7 +5,7 @@ import { PageHead } from "../components/ui";
 export default function More() {
   return (
     <div>
-      <PageHead icon={LayoutGrid} title="More" sub="Daily tracking, benchmarks, notes, help and settings." />
+      <PageHead icon={LayoutGrid} title="More" sub="Tracking, benchmarks, notes, help, settings" />
       <div className="space-y-2">
         {MORE.map((m) => (
           <a key={m.path} href={`#${m.path}`} className="flex items-center gap-3 rounded-2xl bg-card p-4 hover:bg-card2">

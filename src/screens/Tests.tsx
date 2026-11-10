@@ -42,7 +42,7 @@ export default function Tests() {
 
   return (
     <div>
-      <PageHead icon={Trophy} title="Tests" sub="Max-effort benchmarks. Test once at the start and again on Week 4 · Day 6 (test day), then compare." />
+      <PageHead icon={Trophy} title="Tests" sub="Max-effort benchmarks · test at the start and in Week 4" />
       <p className="mb-4 text-sm text-mute">{done}/{st.tests.length} tested · type your result and tap ✓. Each save is dated so you can see progress.</p>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">

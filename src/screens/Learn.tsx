@@ -39,7 +39,7 @@ export default function Learn() {
 
   return (
     <div>
-      <PageHead icon={BookOpen} title="Learn" sub="Everything behind your plan, in short pieces. Tap a topic." />
+      <PageHead icon={BookOpen} title="Learn" sub="Everything behind your plan · tap a topic" />
       <div className="mb-4 flex flex-wrap gap-x-4 gap-y-1 text-xs text-mute">
         {(Object.keys(TONE) as Tone[]).map((t) => (
           <span key={t} className="inline-flex items-center gap-1.5"><span className={cx("h-2.5 w-2.5 rounded-full", TONE[t].bar)} />{TONE[t].label}</span>

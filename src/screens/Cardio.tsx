@@ -59,7 +59,7 @@ export default function Cardio() {
 
   return (
     <div>
-      <PageHead icon={Footprints} title="Cardio" sub="Treadmill after lifting, about 3×/week — not every day. Check it off when you do it." />
+      <PageHead icon={Footprints} title="Cardio" sub="Treadmill after lifting, ~3× a week" />
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         {/* today */}

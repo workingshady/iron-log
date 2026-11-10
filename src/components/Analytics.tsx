@@ -87,9 +87,9 @@ export function WeeklyTrend({ weeks, only }: { weeks: AnalyticsData["weeks"]; on
   return (
     <div>
       {!only && (
-        <div className="-mx-1 mb-2 flex flex-wrap gap-1 text-xs" role="tablist">
+        <div className="mb-2 grid grid-cols-5 gap-0.5 rounded-full bg-card2 p-0.5 text-[11px]" role="tablist">
           {(Object.keys(WEEK_METRICS) as (keyof typeof WEEK_METRICS)[]).map((k) => (
-            <button key={k} role="tab" aria-selected={m === k} onClick={() => setM(k)} className={cx("min-h-10 rounded-full px-3", m === k ? "bg-card3 text-ink" : "text-mute")}>{WEEK_METRICS[k].label}</button>
+            <button key={k} role="tab" aria-selected={m === k} onClick={() => setM(k)} className={cx("min-h-10 truncate rounded-full px-1", m === k ? "bg-card3 font-semibold text-ink" : "text-mute")}>{WEEK_METRICS[k].label}</button>
           ))}
         </div>
       )}

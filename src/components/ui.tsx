@@ -30,8 +30,9 @@ export function Sheet({ open, onClose, title, children, icon: Icon }: { open: bo
   );
 }
 
-export function Btn({ children, onClick, kind = "ghost", className, disabled, type = "button", icon: Icon }: {
-  children?: ReactNode; onClick?: () => void; kind?: "primary" | "ghost" | "danger" | "soft"; className?: string; disabled?: boolean; type?: "button" | "submit"; icon?: LucideIcon;
+/** Button. Labels never wrap (they shorten with …) and icons never shrink. `stack` = icon above a small label, for 3-4 buttons in a row on phones. */
+export function Btn({ children, onClick, kind = "ghost", className, disabled, type = "button", icon: Icon, stack }: {
+  children?: ReactNode; onClick?: () => void; kind?: "primary" | "ghost" | "danger" | "soft"; className?: string; disabled?: boolean; type?: "button" | "submit"; icon?: LucideIcon; stack?: boolean;
 }) {
   return (
     <button
@@ -39,7 +40,8 @@ export function Btn({ children, onClick, kind = "ghost", className, disabled, ty
       disabled={disabled}
       onClick={onClick}
       className={cx(
-        "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-4 font-semibold transition active:scale-[.98] disabled:opacity-40",
+        "inline-flex shrink-0 items-center justify-center rounded-xl font-semibold transition active:scale-[.98] disabled:opacity-40",
+        stack ? "min-h-14 flex-col gap-1 px-1.5 py-2 text-xs" : "min-h-12 gap-2 px-4",
         kind === "primary" && "bg-acc text-acc-ink hover:brightness-105",
         kind === "ghost" && "border border-line text-ink hover:bg-card2",
         kind === "soft" && "bg-card2 text-ink hover:bg-card3",
@@ -47,8 +49,8 @@ export function Btn({ children, onClick, kind = "ghost", className, disabled, ty
         className,
       )}
     >
-      {Icon && <Icon size={18} />}
-      {children}
+      {Icon && <Icon size={stack ? 19 : 18} className="shrink-0" />}
+      {children != null && <span className="min-w-0 truncate">{children}</span>}
     </button>
   );
 }
@@ -111,11 +113,11 @@ export function Empty({ children, icon: Icon }: { children: ReactNode; icon?: Lu
 /** Page title + one plain sentence saying what the page is for. */
 export function PageHead({ icon: Icon, title, sub, right }: { icon: LucideIcon; title: string; sub: string; right?: ReactNode }) {
   return (
-    <header className="mb-5 flex items-start gap-3">
-      <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-card2 text-ink"><Icon size={20} /></div>
+    <header className="mb-4 flex items-center gap-3">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-card2 text-ink"><Icon size={20} /></div>
       <div className="min-w-0 flex-1">
-        <h1 className="text-2xl font-bold leading-tight">{title}</h1>
-        <p className="text-sm text-mute">{sub}</p>
+        <h1 className="truncate text-2xl font-bold leading-tight">{title}</h1>
+        <p className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-mute">{sub}</p>
       </div>
       {right}
     </header>

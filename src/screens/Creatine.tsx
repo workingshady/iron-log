@@ -48,7 +48,7 @@ export default function Creatine() {
 
   return (
     <div>
-      <PageHead icon={FlaskConical} title="Creatine" sub={`Creatine monohydrate: ${target} g every day, any time. Consistency matters more than timing.`} />
+      <PageHead icon={FlaskConical} title="Creatine" sub={`${target} g a day, any time · consistency beats timing`} />
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <Card className="md:col-span-2">

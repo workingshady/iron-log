@@ -46,7 +46,7 @@ export default function Home() {
 
   return (
     <div>
-      <PageHead icon={House} title={name ? `${hello}, ${name}` : "Home"} sub={`${new Date().toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "long" })} · ${s.program.name} v${s.program.version}`} />
+      <PageHead icon={House} title={name ? `${hello}, ${name}` : "Home"} sub={`${new Date().toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short" })} · ${s.program.name.replace(/\s*v\d+$/, "")} · v${s.program.version}`} />
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         {/* 1. TODAY — the one main action */}
@@ -110,9 +110,9 @@ export default function Home() {
                 </Btn>
               )}
               <div className="mt-2 grid grid-cols-3 gap-2">
-                <Btn kind="soft" icon={Eye} onClick={() => { setTarget(next); setSheet("preview"); track("preview_open", { from: "home", dayKey: next.dayKey }); }}>Preview</Btn>
-                <Btn kind="soft" icon={CalendarOff} onClick={() => { setTarget(next); setSheet("missed"); }}>Can't train</Btn>
-                <Btn kind="soft" icon={CalendarRange} onClick={() => setSheet("pick")}>Other day</Btn>
+                <Btn kind="soft" stack icon={Eye} onClick={() => { setTarget(next); setSheet("preview"); track("preview_open", { from: "home", dayKey: next.dayKey }); }}>Preview</Btn>
+                <Btn kind="soft" stack icon={CalendarOff} onClick={() => { setTarget(next); setSheet("missed"); }}>Can't train</Btn>
+                <Btn kind="soft" stack icon={CalendarRange} onClick={() => setSheet("pick")}>Other day</Btn>
               </div>
             </section>
           ) : (

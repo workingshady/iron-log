@@ -24,7 +24,7 @@ export default function History() {
 
   return (
     <div>
-      <PageHead icon={HistoryIcon} title="History" sub="Every workout and missed day. Tap a workout to see or edit its sets." />
+      <PageHead icon={HistoryIcon} title="History" sub="Every workout and missed day — tap one to edit" />
 
       <Card className="mb-4">
         <Heatmap days={d?.days} weekStart={s ? weekConfig(s.settings, s.schedules).weekStart : 1} />

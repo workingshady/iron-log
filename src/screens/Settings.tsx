@@ -50,7 +50,7 @@ export default function Settings() {
 
   return (
     <div>
-      <PageHead icon={Gear} title="Settings" sub="Your week, profile, equipment, targets and your data." />
+      <PageHead icon={Gear} title="Settings" sub="Week, profile, equipment, targets, data" />
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <Card title="Your week" icon={CalendarDays} className="md:col-span-2">
           <div className="text-xs text-mute">Week starts on</div>

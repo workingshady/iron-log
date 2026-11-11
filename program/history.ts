@@ -15,6 +15,18 @@ export interface VersionEntry {
 
 export const HISTORY: VersionEntry[] = [
   {
+    id: "ppl-arnold@2.7.0", version: "2.7.0", date: "2026-11-11", kind: "minor",
+    title: "Whole plan re-checked: exercises + volume",
+    why: "Research: overhead/stretched triceps work > pushdowns (Maeo 2022); preacher (distal) + incline (proximal) curls cover the whole biceps (IJSM 2025); standing/knee-straight calf raises ≫ seated (Kinoshita 2023); cable = dumbbell laterals (Larsen 2025); ~10-20 hard sets/muscle/week with ~11/session cap (Pelland 2024). Volume check script showed delts, lats and traps over the caps, hamstrings and calves too low.",
+    changes: [
+      "Shoulders + Arms: EZ curl + pushdown → preacher curl + skull crusher (same EZ bar, both stretch-biased), machine shrug (2 sets), knee-straight leg-press calf raise instead of seated.",
+      "Hamstrings + calves get a 2nd hit on Shoulders + Arms (seated leg curl 2-3 sets, calves 3-4 sets) → ~10 and ~8 sets/week.",
+      "Push: seated DB press removed — front delts already get bench, incline, close-grip and the overhead press on Shoulders + Arms (Push was 15 delt sets in one session).",
+      "Pull: neutral-grip pulldown 2 sets (lats were 13 in one session).",
+      "Reverse curl moved to the Grip & Wrist extra.",
+    ],
+  },
+  {
     id: "ppl-arnold@2.6.0", version: "2.6.0", date: "2026-11-11", kind: "minor",
     title: "Chest + Back: most effective exercises",
     why: "Your request + research: DB pullover is mostly a chest exercise on EMG (pecs ≫ lats) and loads the lats poorly; a 2nd flat press after DB bench adds little; stretched-position work (fly) grows the chest well (Pedrosa 2022); barbell row is a top back-thickness builder and the low back is fresh on this day.",

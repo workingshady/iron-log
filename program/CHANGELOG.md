@@ -3,6 +3,13 @@
 Each version: what changed, and the data that justified it.
 
 
+
+## ppl-arnold@2.7.0 · 2026-11-11 — whole plan re-checked (exercises + volume)
+New `scripts/check-volume.ts` (fractional sets per muscle per week/session). Before → after (Week 3): delts 34 → 31 (15.5 → 12.5/session), lats 26 → 25 (13 → 12/session), traps 29.5 → 27, hamstrings 7 → 10, calves 7 → 8.
+- Shoulders + Arms: preacher curl + skull crusher (EZ bar) replace EZ curl + pushdown — Maeo 2022 (overhead/stretched triceps grew more than pushdowns), IJSM 2025 (preacher = distal, incline = proximal biceps). Knee-straight calf raise replaces seated (Kinoshita 2023: gastrocnemius grew ~10× more standing). Machine shrug 2 sets. Seated leg curl 2nd hamstring hit.
+- Push: seated DB press removed (front delts covered by 3 presses + OHP). Pull: neutral pulldown 2 sets. Reverse curl → Grip & Wrist.
+- Lateral raises unchanged: cable and dumbbell grew the side delts equally (Larsen 2025).
+
 ## ppl-arnold@2.6.0 · 2026-11-11 — Chest + Back rebuilt for effectiveness
 No new sessions since 2.5.0 (still W1 Push + Pull, 47 sets) — this is an exercise-selection change, from research:
 - **DB pullover → cable straight-arm pulldown.** EMG (J Appl Biomech 2011, n=8): pullover is mostly a pec exercise (pecs ≫ lats); a dumbbell loads the lat poorly at the top. The cable version keeps tension through the stretch.

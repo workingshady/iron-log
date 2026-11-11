@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CalendarOff, CalendarRange, Dumbbell, Eye, Flame, FlaskConical, Footprints, House, Lightbulb, Play, Plus, Scale, Timer, TrendingUp } from "lucide-react";
+import { CalendarOff, CalendarRange, Dumbbell, Eye, Flame, FlaskConical, Footprints, HandFist, House, Lightbulb, Play, Plus, Timer, TrendingUp, Weight, type LucideIcon } from "lucide-react";
 import type { AppState, DashboardData, InsightsData, Lifts, ProgressData, SlotInfo } from "../../shared/api";
 import { recommend } from "../../shared/recommend";
 import { kg } from "../lib/util";
@@ -9,7 +9,7 @@ import { EXERCISES } from "../../program/exercises";
 import { queue, track, uid } from "../lib/api";
 import { useLoad } from "../lib/useLoad";
 import { clock, cx, niceDate, today } from "../lib/util";
-import { Btn, Card, PageHead, Stat, Thumb } from "../components/ui";
+import { Btn, Card, MoreLink, PageHead, SectionHead, Thumb } from "../components/ui";
 import { weekConfig } from "../../shared/week";
 import { Heatmap } from "../components/Heatmap";
 import { LineChart } from "../components/Chart";
@@ -123,46 +123,49 @@ export default function Home() {
 
         {/* 2. This week (adaptive) */}
         <div><WeekPlanner compact /></div>
+      </div>
 
-        {/* quick actions */}
-        <div className="grid grid-cols-4 gap-2 md:col-span-3">
-          <QuickCreatine d={d} />
-          <a href="#/cardio" className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-2xl bg-card text-xs"><Footprints size={18} className="text-info" />Cardio</a>
-          <a href="#/body" className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-2xl bg-card text-xs"><Scale size={18} className="text-mute" />Weigh in</a>
-          <a href="#/extra" className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-2xl bg-card text-xs"><Dumbbell size={18} className="text-vio" />Grip & Wrist</a>
-        </div>
+      {/* 3. Quick log: one-tap daily tracking */}
+      <SectionHead>Quick log</SectionHead>
+      <div className="grid grid-cols-4 gap-2">
+        <QuickCreatine d={d} />
+        <Tile href="#/cardio" icon={Footprints} tone="text-info">Cardio</Tile>
+        <Tile href="#/body" icon={Weight}>Weigh in</Tile>
+        <Tile href="#/extra" icon={HandFist}>Grip & Wrist</Tile>
+      </div>
 
-        {/* 3. Key numbers */}
-        <div className="grid grid-cols-2 gap-3 md:col-span-3 md:grid-cols-4">
-          <Stat icon={Flame} tone="warn" value={d?.streak ?? 0} label={`workouts in a row · best ${d?.bestStreak ?? 0}`} />
-          <Stat icon={TrendingUp} tone="acc" value={d?.adherence != null ? `${d.adherence}%` : "—"} label="adherence (done ÷ planned)" />
-          <a href="#/cardio" className="block"><Stat icon={Footprints} tone="info" value={`${d?.cardioWeek?.sessions ?? 0}/3`} label={`cardio this week · ${d?.cardioWeek?.minutes ?? 0} min`} /></a>
-          <Stat icon={Timer} value={s.thisWeek.minutes} label="minutes lifted · 7 days" />
-        </div>
+      {/* 4. Key numbers: one card, four figures (less chrome than four cards) */}
+      <SectionHead right={<MoreLink href="#/stats" label="All stats">Stats</MoreLink>}>At a glance</SectionHead>
+      <section aria-label="Key numbers" className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl bg-line md:grid-cols-4">
+        <Figure icon={Flame} tone="text-warn" value={d?.streak ?? 0} label={`workouts in a row · best ${d?.bestStreak ?? 0}`} />
+        <Figure icon={TrendingUp} tone="text-acc" value={d?.adherence != null ? `${d.adherence}%` : "—"} label="adherence (done ÷ planned)" />
+        <Figure icon={Footprints} tone="text-info" value={`${d?.cardioWeek?.sessions ?? 0}/3`} label={`cardio this week · ${d?.cardioWeek?.minutes ?? 0} min`} href="#/cardio" />
+        <Figure icon={Timer} value={s.thisWeek.minutes} label="minutes lifted · 7 days" />
+      </section>
 
-        {/* 4. Calendar */}
-        <Card title="Training calendar" icon={CalendarRange} className="md:col-span-3">
-          <Heatmap days={d?.days} weekStart={weekStart} />
-        </Card>
+      {/* 5. Insights: the few things worth acting on */}
+      <Card title="Insights" icon={Lightbulb} className="mt-3" right={<MoreLink href="#/stats" label="All insights in Stats">All</MoreLink>}>
+        {ins ? <InsightList items={ins.insights} max={3} /> : <p className="text-sm text-mute">Loading…</p>}
+      </Card>
 
-        {/* 5. Insights */}
-        <Card title="Insights" icon={Lightbulb} className="md:col-span-3" right={<a href="#/stats" className="text-xs font-normal text-info">all stats →</a>}>
-          {ins ? <InsightList items={ins.insights} max={4} /> : <p className="text-sm text-mute">Loading…</p>}
-        </Card>
-
-        {/* 6. Trends */}
-        <Card title="Strength · 4 weeks" icon={TrendingUp} right={<a href="#/stats" className="inline-flex min-h-11 items-center text-xs font-normal text-info">all lifts →</a>}>
+      {/* 6. Progress: trends + consistency, all secondary */}
+      <SectionHead>Progress</SectionHead>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <Card title="Strength · 4 weeks" icon={TrendingUp} right={<MoreLink href="#/stats" label="All lifts in Stats">All lifts</MoreLink>}>
           {an ? <LiftTrends lifts={an.lifts} max={3} /> : <p className="text-sm text-mute">Loading…</p>}
         </Card>
         <Card title="Hard sets per week" icon={Dumbbell}>
           {an && p?.weeks.length ? <WeeklyTrend weeks={an.weeks} only="hardSets" /> : <p className="text-sm text-mute">Shows after your first workout.</p>}
         </Card>
-        <Card title="Bodyweight" icon={Scale}>
+        <Card title="Bodyweight" icon={Weight}>
           {d && d.body.length > 1 ? (
             <LineChart points={d.body.map((b) => ({ x: niceDate(b.date), y: b.weightKg ?? 0 }))} unit="kg" height={110} />
           ) : (
             <p className="text-sm text-mute">Weigh in whenever you like (weekly is enough) in Body & habits to see the trend.</p>
           )}
+        </Card>
+        <Card title="Training calendar" icon={CalendarRange} className="md:col-span-3">
+          <Heatmap days={d?.days} weekStart={weekStart} />
         </Card>
       </div>
 
@@ -178,13 +181,37 @@ export default function Home() {
 function QuickCreatine({ d }: { d: DashboardData | null }) {
   const g = d?.creatine?.today ?? 0, t = d?.creatine?.target ?? 5;
   const [busy, setBusy] = useState(false);
-  if (g >= t) return <a href="#/creatine" className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-2xl bg-vio/15 text-xs text-vio"><FlaskConical size={18} />Creatine ✓</a>;
+  if (g >= t) return <a href="#/creatine" aria-label={`Creatine done today, ${g} grams`} className={cx(TILE, "bg-vio/15 font-semibold text-vio")}><FlaskConical size={20} aria-hidden />Creatine ✓</a>;
   return (
-    <button disabled={busy} onClick={() => { setBusy(true); queue("POST", "/intake", { id: uid(), date: today(), item: "creatine", amount: t, unit: "g", at: Date.now() }, `intake ${Date.now()}`); track("creatine_add", { g: t }); setTimeout(() => setBusy(false), 2000); }}
-      className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-2xl bg-card text-xs disabled:opacity-50">
-      <span className="inline-flex items-center gap-0.5 text-vio"><Plus size={14} /><FlaskConical size={16} /></span>{t} g creatine
+    <button disabled={busy} aria-label={`Log ${t} grams of creatine`} onClick={() => { setBusy(true); queue("POST", "/intake", { id: uid(), date: today(), item: "creatine", amount: t, unit: "g", at: Date.now() }, `intake ${Date.now()}`); track("creatine_add", { g: t }); setTimeout(() => setBusy(false), 2000); }}
+      className={cx(TILE, "bg-card hover:bg-card2 disabled:opacity-50")}>
+      <span className="inline-flex items-center gap-0.5 text-vio" aria-hidden><Plus size={14} /><FlaskConical size={18} /></span>{t} g creatine
     </button>
   );
+}
+
+const TILE = "flex min-h-[4.5rem] flex-col items-center justify-center gap-1.5 rounded-2xl px-1 text-center text-xs leading-tight";
+
+/** Quick-log tile: icon over a short label, same size as the creatine button. */
+function Tile({ href, icon: Icon, tone = "text-ink", children }: { href: string; icon: LucideIcon; tone?: string; children: string }) {
+  return (
+    <a href={href} className={cx(TILE, "bg-card hover:bg-card2")}>
+      <Icon size={20} className={tone} aria-hidden />
+      {children}
+    </a>
+  );
+}
+
+/** One figure in the "At a glance" card: icon, big number, label. Optional link. */
+function Figure({ icon: Icon, tone = "text-mute", value, label, href }: { icon: LucideIcon; tone?: string; value: React.ReactNode; label: string; href?: string }) {
+  const body = (
+    <>
+      <Icon size={18} className={tone} aria-hidden />
+      <div className="mt-2 text-2xl font-bold num">{value}</div>
+      <div className="text-xs text-mute">{label}</div>
+    </>
+  );
+  return href ? <a href={href} className="block bg-card p-4 hover:bg-card2">{body}</a> : <div className="bg-card p-4">{body}</div>;
 }
 
 function ActiveCard({ a }: { a: NonNullable<AppState["active"]> }) {

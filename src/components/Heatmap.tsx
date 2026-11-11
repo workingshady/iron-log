@@ -52,11 +52,19 @@ export function Heatmap({ days, weekStart = 6, mode = "workout", grams, target =
   };
 
   const selDay = sel ? days?.[sel] : null;
+  // screen-reader name for a cell (sighted users read the colour + the line under the grid)
+  const label = (iso: string) => {
+    if (mode === "creatine") return `${grams?.[iso] ?? 0} g creatine`;
+    const d = days?.[iso];
+    if (!d) return "no workout";
+    if (d.status === "done") return `done${d.sets ? `, ${d.sets} sets` : ""}`;
+    return d.status === "abandoned" || d.status === "active" ? "partial" : d.status;
+  };
 
   return (
     <div ref={ref}>
       <div className="flex gap-[3px]">
-        <div className="mr-1 flex flex-col gap-[3px] text-[9px] leading-none text-faint">
+        <div className="mr-1 flex flex-col gap-[3px] text-[9px] leading-none text-faint" aria-hidden>
           {Array.from({ length: 7 }, (_, d) => (
             <div key={d} className="flex h-[14px] w-3 items-center">{d % 2 === 0 ? names[(weekStart + d) % 7] : ""}</div>
           ))}
@@ -73,7 +81,8 @@ export function Heatmap({ days, weekStart = 6, mode = "workout", grams, target =
                   title={iso}
                   className={cx("h-[14px] w-[14px] rounded-[3px]", s.cls, iso === t && "outline outline-1 outline-offset-1 outline-ink", sel === iso && "outline outline-2 outline-info")}
                   style={s.style}
-                  aria-label={iso}
+                  aria-label={`${niceDate(iso)}: ${label(iso)}`}
+                  aria-pressed={sel === iso}
                 />
               );
             })}
@@ -94,7 +103,7 @@ export function Heatmap({ days, weekStart = 6, mode = "workout", grams, target =
           </>
         )}
         {sel && (
-          <span className="ml-auto text-ink">
+          <span className="ml-auto text-ink" aria-live="polite">
             {niceDate(sel)}:{" "}
             {mode === "creatine" ? `${grams?.[sel] ?? 0} g` : selDay ? `${selDay.names.join(", ")}${selDay.sets ? ` · ${selDay.sets} sets` : ""}${selDay.minutes ? ` · ${selDay.minutes} min` : ""}` : "rest"}
           </span>

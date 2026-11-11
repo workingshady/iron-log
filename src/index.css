@@ -13,7 +13,9 @@
   --color-line: #33333a;
   --color-ink: #f3f3f5;
   --color-mute: #9b9ba6;
-  --color-faint: #63636e;
+  /* faint = hints, chevrons, placeholders. Was #63636e (2.95:1 on card, fails WCAG 1.4.3).
+     #8a8a96 = 5.14:1 on card, 4.64:1 on card2, 5.53:1 on bg: passes AA for small text, still a step below mute (6.37:1). */
+  --color-faint: #8a8a96;
   --color-acc: #c8f560;
   --color-acc-ink: #10140a;
   --color-warn: #ffb547;
@@ -33,3 +35,16 @@ input[type="search"]::-webkit-search-cancel-button { display: none; }
 .safe-b { padding-bottom: max(env(safe-area-inset-bottom), 0px); }
 ::selection { background: color-mix(in srgb, var(--color-acc) 35%, transparent); }
 * { scrollbar-width: thin; scrollbar-color: var(--color-card3) transparent; }
+
+/* Accessibility ------------------------------------------------------------------------------
+   One visible focus ring for keyboard users (WCAG 2.4.7 / 2.4.11), in @layer base so component
+   utilities (e.g. focus:ring on inputs) still win. Mouse/touch focus shows nothing. */
+@layer base {
+  :focus-visible { outline: 2px solid var(--color-acc); outline-offset: 2px; }
+  :focus:not(:focus-visible) { outline: none; }
+}
+.sr-only-focusable:not(:focus) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* Respect "reduce motion" (WCAG 2.3.3): no scale/slide/progress animations, instant scrolling. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}

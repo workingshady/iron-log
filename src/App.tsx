@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { CloudOff } from "lucide-react";
 import { get, isDev, onPending, setMode, Unauthorized } from "./lib/api";
 import { cx } from "./lib/util";
-import { MAIN, MORE, MORE_TAB } from "./nav";
+import { MAIN, MORE, MORE_TAB, moreGroups, type NavItem } from "./nav";
 import Login from "./screens/Login";
 import Home from "./screens/Home";
 import Plan from "./screens/Plan";
@@ -61,18 +61,33 @@ export default function App() {
 
   const inSession = route.startsWith("/s/");
   const Page = PAGES[route] ?? Home;
-  const isMore = MORE.some((m) => m.path === route) || route === "/more";
+  const isMore = MORE.some((m) => m.path === route) || route === "/more" || route === "/notes";
 
   return (
     <div className="min-h-dvh md:pl-60">
-      {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-line bg-bg px-3 py-5 md:flex">
-        <a href="#/" className="mb-6 flex items-center gap-2 px-2 text-lg font-bold">
+      {/* Keyboard: jump past the navigation (a button, because #hashes are routes here) */}
+      <button
+        type="button"
+        onClick={() => document.getElementById("main")?.focus()}
+        className="sr-only-focusable fixed left-3 top-3 z-50 rounded-xl bg-acc px-4 py-3 text-sm font-semibold text-acc-ink"
+      >
+        Skip to content
+      </button>
+
+      {/* Desktop sidebar: same model as the phone (main pages, then the grouped "More" pages) */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col overflow-y-auto border-r border-line bg-bg px-3 py-5 md:flex">
+        <a href="#/" className="mb-5 flex min-h-11 items-center gap-2 px-2 text-lg font-bold">
           <img src="/icon.svg" alt="" className="h-8 w-8" /> Iron Log
         </a>
-        <NavList items={MAIN} route={route} />
-        <div className="mx-2 my-4 h-px bg-line" />
-        <NavList items={MORE} route={route} />
+        <nav aria-label="Main">
+          <NavList items={MAIN} route={route} />
+          {moreGroups().map((g) => (
+            <div key={g.id} className="mt-4">
+              <h2 className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wide text-faint">{g.label}</h2>
+              <NavList items={g.items} route={route} />
+            </div>
+          ))}
+        </nav>
       </aside>
 
       {isDev() && (
@@ -81,48 +96,62 @@ export default function App() {
         </div>
       )}
       {pending > 0 && (
-        <div className="fixed right-3 top-[max(0.75rem,env(safe-area-inset-top))] z-40 inline-flex items-center gap-1.5 rounded-full bg-warn px-2.5 py-1 text-xs font-semibold text-black">
-          <CloudOff size={13} /> {pending} waiting to sync
+        <div role="status" className="fixed right-3 top-[max(0.75rem,env(safe-area-inset-top))] z-40 inline-flex items-center gap-1.5 rounded-full bg-warn px-2.5 py-1 text-xs font-semibold text-black">
+          <CloudOff size={13} aria-hidden /> {pending} waiting to sync
         </div>
       )}
 
-      <main className={cx("mx-auto px-4 pt-[calc(1.25rem+env(safe-area-inset-top))] md:px-8 md:pt-8", inSession ? "max-w-2xl pb-40" : "max-w-5xl pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-12")}>
+      <main id="main" tabIndex={-1} className={cx("mx-auto px-4 pt-[calc(1.25rem+env(safe-area-inset-top))] outline-none md:px-8 md:pt-8", inSession ? "max-w-2xl pb-40" : "max-w-5xl pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-12")}>
         <ErrorBoundary resetKey={route}>{inSession ? <SessionScreen key={route} id={route.slice(3)} /> : <Page />}</ErrorBoundary>
       </main>
 
-      {/* Phone bottom bar */}
+      {/* Phone bottom bar: Material 3 navigation bar. 64 px tall, labels always shown, the active
+          destination gets a pill indicator + filled-weight icon + bold label (never colour alone). */}
       {!inSession && (
-        <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg/95 backdrop-blur safe-b md:hidden">
-          <div className="mx-auto flex max-w-lg">
+        <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg/95 backdrop-blur safe-b md:hidden">
+          <ul className="mx-auto flex max-w-lg">
             {[...MAIN, MORE_TAB].map((t) => {
               const on = t === MORE_TAB ? isMore : route === t.path;
               return (
-                <a key={t.path} href={`#${t.path}`} className={cx("flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px]", on ? "text-acc" : "text-mute")}>
-                  <t.icon size={22} strokeWidth={on ? 2.4 : 1.8} />
-                  {t.label}
-                </a>
+                <li key={t.path} className="flex-1">
+                  <a
+                    href={`#${t.path}`}
+                    aria-current={on ? "page" : undefined}
+                    className={cx("group flex h-16 flex-col items-center justify-center gap-1 text-xs", on ? "font-semibold text-ink" : "text-mute active:text-ink")}
+                  >
+                    <span className={cx("flex h-8 w-14 items-center justify-center rounded-full transition-colors", on ? "bg-acc/20 text-acc" : "group-active:bg-card2")}>
+                      <t.icon size={22} strokeWidth={on ? 2.4 : 1.8} aria-hidden />
+                    </span>
+                    {t.label}
+                  </a>
+                </li>
               );
             })}
-          </div>
+          </ul>
         </nav>
       )}
     </div>
   );
 }
 
-function NavList({ items, route }: { items: typeof MAIN; route: string }) {
+function NavList({ items, route }: { items: NavItem[]; route: string }) {
   return (
-    <nav className="flex flex-col gap-0.5">
-      {items.map((t) => (
-        <a
-          key={t.path}
-          href={`#${t.path}`}
-          className={cx("flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm", route === t.path ? "bg-card2 font-semibold text-ink" : "text-mute hover:bg-card hover:text-ink")}
-        >
-          <t.icon size={18} className={route === t.path ? "text-acc" : ""} />
-          {t.label}
-        </a>
-      ))}
-    </nav>
+    <ul className="flex flex-col gap-0.5">
+      {items.map((t) => {
+        const on = route === t.path;
+        return (
+          <li key={t.path}>
+            <a
+              href={`#${t.path}`}
+              aria-current={on ? "page" : undefined}
+              className={cx("flex min-h-11 items-center gap-3 rounded-full px-3 text-sm", on ? "bg-acc/20 font-semibold text-ink" : "text-mute hover:bg-card hover:text-ink")}
+            >
+              <t.icon size={18} strokeWidth={on ? 2.4 : 2} className={on ? "text-acc" : ""} aria-hidden />
+              {t.label}
+            </a>
+          </li>
+        );
+      })}
+    </ul>
   );
 }

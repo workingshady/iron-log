@@ -68,18 +68,42 @@ export default function Stats() {
   return (
     <div>
       {head}
-      {/* segmented tabs: four focused pages instead of one long scroll */}
-      <div className="sticky top-[env(safe-area-inset-top)] z-10 -mx-4 mb-3 bg-bg/95 px-4 py-1.5 backdrop-blur md:static md:mx-0 md:px-0">
-        <div className="grid grid-cols-4 rounded-full bg-card p-1 text-sm" role="tablist" aria-label="Stats sections">
+      {/* segmented tabs: four focused pages instead of one long scroll. ARIA tabs pattern: arrow keys move between tabs. */}
+      <div className="sticky top-[env(safe-area-inset-top)] z-10 -mx-4 mb-3 bg-bg/95 px-4 py-2 backdrop-blur md:static md:mx-0 md:px-0 md:pt-0">
+        <div
+          className="grid grid-cols-4 gap-1 rounded-full bg-card p-1 text-sm"
+          role="tablist"
+          aria-label="Stats sections"
+          onKeyDown={(e) => {
+            const d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+            if (!d) return;
+            const n = TABS[(TABS.findIndex((t) => t.id === tab) + d + TABS.length) % TABS.length].id;
+            setTab(n);
+            document.getElementById(`stats-tab-${n}`)?.focus();
+          }}
+        >
           {TABS.map((t) => (
-            <button key={t.id} role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)} className={cx("min-h-10 rounded-full px-1", tab === t.id ? "bg-card3 font-semibold text-ink" : "text-mute")}>{t.label}</button>
+            <button
+              key={t.id}
+              id={`stats-tab-${t.id}`}
+              role="tab"
+              aria-selected={tab === t.id}
+              aria-controls="stats-panel"
+              tabIndex={tab === t.id ? 0 : -1}
+              onClick={() => setTab(t.id)}
+              className={cx("min-h-11 rounded-full px-1 transition-colors", tab === t.id ? "bg-card3 font-semibold text-ink shadow-sm" : "text-mute hover:text-ink")}
+            >
+              {t.label}
+            </button>
           ))}
         </div>
       </div>
 
+      <div id="stats-panel" role="tabpanel" aria-labelledby={`stats-tab-${tab}`}>
+
       {tab === "overview" && (
         <>
-          <div className="mb-3 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="mb-3 grid grid-cols-2 gap-3 md:grid-cols-4" aria-label="Totals" role="group">
             <Stat icon={Dumbbell} value={totals.s} label="workouts done" />
             <Stat icon={TrendingUp} tone="acc" value={an?.adherence4w != null ? `${an.adherence4w}%` : `${adherence}%`} label={an?.adherence4w != null ? `adherence · 4 weeks (all ${adherence}%)` : "adherence"} />
             <Stat icon={BarChart3} value={an ? an.weeks[an.weeks.length - 1].hardSets : "—"} label="hard sets this week" />
@@ -97,7 +121,7 @@ export default function Stats() {
           <Card title="Strength trend · 4 weeks" icon={TrendingUp} right={<LiftTrendsHelp />}>{an ? <LiftTrends lifts={an.lifts} onPick={pickLift} /> : loading}</Card>
           <Card title="Recent records" icon={Trophy}>{an ? <RecentPRs prs={an.prs} /> : loading}</Card>
 
-          <Card title="Exercises — tap for the chart" icon={TrendingUp} className="md:col-span-2">
+          <Card title="All exercises" icon={TrendingUp} className="md:col-span-2" right={<span className="text-xs font-normal">tap one for its chart</span>}>
             <div className="grid grid-cols-1 gap-1.5 md:grid-cols-2">
               {data.exercises.slice(0, all ? undefined : 10).map((e) => {
                 const m = metricOf(e);
@@ -106,7 +130,7 @@ export default function Stats() {
                 const ex = EXERCISES[e.exKey];
                 const Trend = diff > 0 ? TrendingUp : diff < 0 ? TrendingDown : Minus;
                 return (
-                  <button key={e.exKey} onClick={() => setSel(e)} className="flex items-center gap-3 rounded-xl bg-card2 p-2.5 text-left hover:bg-card3">
+                  <button key={e.exKey} onClick={() => setSel(e)} className="flex min-h-14 items-center gap-3 rounded-xl bg-card2 p-2.5 text-left hover:bg-card3">
                     <Thumb yt={Array.isArray(ex?.yt) ? ex.yt[0] : ex?.yt} />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-semibold">{e.name}</span>
@@ -114,15 +138,15 @@ export default function Stats() {
                     </span>
                     <span className="text-right num">
                       <span className="block font-semibold">{last}<span className="text-xs text-mute"> {m.unit}</span></span>
-                      {e.points.length > 1 && <span className={cx("inline-flex items-center gap-0.5 text-xs", diff > 0 ? "text-acc" : diff < 0 ? "text-bad" : "text-mute")}><Trend size={12} />{Math.abs(diff)}</span>}
+                      {e.points.length > 1 && <span className={cx("inline-flex items-center gap-0.5 text-xs", diff > 0 ? "text-acc" : diff < 0 ? "text-bad" : "text-mute")}><Trend size={12} aria-hidden /><span className="sr-only">{diff > 0 ? "up" : diff < 0 ? "down" : "no change"} </span>{Math.abs(diff)}</span>}
                     </span>
-                    <ChevronRight size={16} className="text-faint" />
+                    <ChevronRight size={16} className="shrink-0 text-faint" aria-hidden />
                   </button>
                 );
               })}
             </div>
             {data.exercises.length > 10 && (
-              <button onClick={() => setAll(!all)} className="mt-3 min-h-11 w-full rounded-xl bg-card2 text-sm text-mute hover:text-ink">
+              <button onClick={() => setAll(!all)} aria-expanded={all} className="mt-3 min-h-11 w-full rounded-xl bg-card2 text-sm text-mute hover:text-ink">
                 {all ? "Show fewer" : `Show all ${data.exercises.length} exercises`}
               </button>
             )}
@@ -147,15 +171,17 @@ export default function Stats() {
                 const done = ins.muscles.weeks.find((w) => w.week === wk)?.ex ?? {};
                 return (
                   <>
-                    <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
-                      <div className="flex rounded-full bg-card2 p-0.5">
+                    <div className="mb-3 space-y-2 text-xs">
+                      <div className="flex w-fit rounded-full bg-card2 p-0.5" role="group" aria-label="Show">
                         {(["done", "plan"] as const).map((m) => (
-                          <button key={m} onClick={() => setMapMode(m)} className={cx("inline-flex min-h-10 items-center rounded-full px-3.5", mapMode === m ? "bg-card3 text-ink" : "text-mute")}>{m === "done" ? "What you did" : "What the plan asks"}</button>
+                          <button key={m} onClick={() => setMapMode(m)} aria-pressed={mapMode === m} className={cx("inline-flex min-h-11 items-center rounded-full px-3.5", mapMode === m ? "bg-card3 font-semibold text-ink" : "text-mute")}>{m === "done" ? "What you did" : "What the plan asks"}</button>
                         ))}
                       </div>
-                      {weeks.map((n) => (
-                        <button key={n} onClick={() => setMapWeek(n)} className={cx("inline-flex min-h-10 items-center rounded-full px-3.5", n === wk ? "bg-card3 text-ink" : "text-mute")}>Week {n}</button>
-                      ))}
+                      <div className="flex flex-wrap gap-1" role="group" aria-label="Program week">
+                        {weeks.map((n) => (
+                          <button key={n} onClick={() => setMapWeek(n)} aria-pressed={n === wk} className={cx("inline-flex min-h-11 items-center rounded-full px-3.5", n === wk ? "bg-card3 font-semibold text-ink" : "text-mute")}>Week {n}</button>
+                        ))}
+                      </div>
                     </div>
                     <div className="mx-auto max-w-md"><BodyMap exSets={mapMode === "done" ? done : planned} caption={mapMode === "done" ? `Logged sets, program week ${wk}` : `Planned sets, program week ${wk}`} /></div>
                   </>
@@ -164,9 +190,9 @@ export default function Stats() {
             </Card>
           )}
           <Card title="Per program week" icon={BarChart3} className="md:col-span-2">
-            <div className="mb-3 flex flex-wrap gap-1 text-xs">
+            <div className="mb-3 flex flex-wrap gap-1 text-xs" role="group" aria-label="Measure">
               {(Object.keys(units) as (keyof typeof units)[]).map((k) => (
-                <button key={k} onClick={() => setWm(k)} className={cx("min-h-10 rounded-full px-3", wm === k ? "bg-card3 text-ink" : "text-mute")}>{units[k]}</button>
+                <button key={k} onClick={() => setWm(k)} aria-pressed={wm === k} className={cx("min-h-11 rounded-full px-3", wm === k ? "bg-card3 font-semibold text-ink" : "text-mute")}>{units[k]}</button>
               ))}
             </div>
             <Bars data={data.weeks.map((w) => ({ x: w.start, y: w[wm] }))} unit={units[wm]} />
@@ -187,7 +213,7 @@ export default function Stats() {
                 const max = data.excuses[0].n;
                 return (
                   <div key={x.excuse} className="flex items-center gap-3 py-1.5 text-sm">
-                    <Ic size={16} className="text-mute" />
+                    <Ic size={16} className="shrink-0 text-mute" aria-hidden />
                     <span className="w-32 truncate">{EXCUSES.find((e) => e.id === x.excuse)?.label ?? x.excuse}</span>
                     <span className="h-2 flex-1 rounded bg-card2"><span className="block h-2 rounded bg-bad/70" style={{ width: `${(x.n / max) * 100}%` }} /></span>
                     <span className="w-6 text-right num text-mute">{x.n}</span>
@@ -213,6 +239,8 @@ export default function Stats() {
         </div>
       )}
 
+      </div>
+
       <Sheet open={!!sel} onClose={() => setSel(null)} title={sel?.name} icon={TrendingUp}>
         {sel && (() => {
           const m = metricOf(sel);
@@ -228,7 +256,7 @@ export default function Stats() {
                 </>
               )}
               <table className="mt-4 w-full text-sm num">
-                <thead className="text-left text-xs text-mute"><tr><th className="py-1">Date</th><th>Top kg</th><th>Best reps</th><th>Sets</th><th>Volume</th></tr></thead>
+                <thead className="text-left text-xs text-mute"><tr><th scope="col" className="py-1">Date</th><th scope="col">Top kg</th><th scope="col">Best reps</th><th scope="col">Sets</th><th scope="col">Volume</th></tr></thead>
                 <tbody>
                   {[...sel.points].reverse().map((p) => (
                     <tr key={p.sessionId} className="border-t border-line">

@@ -99,6 +99,7 @@ export const sets = sqliteTable(
     /** How weightKg was entered for dumbbell pairs: "per_hand" (app default from v2.2) or "total" (both dumbbells added).
      *  null = barbell / machine / single weight. Old rows keep their numbers; this column only explains them. */
     kgBasis: text("kg_basis"),
+    equip: text("equip"), // what you actually used: stack | plates | cable | smith | barbell | ez | dumbbell | bodyweight | other (weights only compare within the same)
     deleted: integer("deleted").notNull().default(0),
     updatedAt: integer("updated_at").notNull(),
   },
@@ -211,3 +212,28 @@ export const settings = sqliteTable("settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
 });
+
+/**
+ * Photos attached to a set, an exercise (machine setup), a journal entry or a session. Compressed on the phone
+ * (≤1280 px JPEG, ~150-350 KB) and stored as base64 in their own table so normal queries never load them.
+ * D1 row limit is 2 MB; free database limit 500 MB ≈ 2,000 photos.
+ */
+export const photos = sqliteTable(
+  "photos",
+  {
+    id: text("id").primaryKey(),
+    refKind: text("ref_kind").notNull(), // set | exercise | journal | session | other
+    refId: text("ref_id"),
+    exKey: text("ex_key"),
+    sessionId: text("session_id"),
+    date: text("date").notNull(),
+    caption: text("caption"),
+    mime: text("mime").notNull(),
+    w: integer("w"),
+    h: integer("h"),
+    bytes: integer("bytes"),
+    data: text("data").notNull(), // base64, no data: prefix
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [index("photos_ref").on(t.refId), index("photos_ex").on(t.exKey), index("photos_date").on(t.date)],
+);

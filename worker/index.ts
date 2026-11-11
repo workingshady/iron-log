@@ -563,6 +563,51 @@ app.get("/notes", async (c) => {
   return c.json(out);
 });
 
+// ---------------------------------------------------------------- photos
+
+const photoMeta = { id: t.photos.id, refKind: t.photos.refKind, refId: t.photos.refId, exKey: t.photos.exKey, sessionId: t.photos.sessionId,
+  date: t.photos.date, caption: t.photos.caption, w: t.photos.w, h: t.photos.h, bytes: t.photos.bytes, createdAt: t.photos.createdAt };
+
+/** Photo list (metadata only). Filters: ?ref=<id> · ?ex=<exKey> · ?session=<id> · none = newest 200. */
+app.get("/photos", async (c) => {
+  const d = db(c);
+  const { ref, ex, session } = c.req.query();
+  const where = ref ? eq(t.photos.refId, ref) : ex ? eq(t.photos.exKey, ex) : session ? eq(t.photos.sessionId, session) : undefined;
+  const q = d.select(photoMeta).from(t.photos);
+  return c.json(await (where ? q.where(where) : q).orderBy(desc(t.photos.createdAt)).limit(200));
+});
+
+/** The image itself (auth cookie applies — private). */
+app.get("/photos/:id/img", async (c) => {
+  const [p] = await db(c).select({ data: t.photos.data, mime: t.photos.mime }).from(t.photos).where(eq(t.photos.id, c.req.param("id")));
+  if (!p) return c.json({ error: "not found" }, 404);
+  const bin = Uint8Array.from(atob(p.data), (ch) => ch.charCodeAt(0));
+  return new Response(bin, { headers: { "content-type": p.mime, "cache-control": "private, max-age=31536000, immutable" } });
+});
+
+app.post("/photos", async (c) => {
+  const b = await c.req.json<{ id: string; refKind: string; refId?: string | null; exKey?: string | null; sessionId?: string | null; date: string; caption?: string | null; dataUrl: string; w?: number; h?: number }>();
+  const m = /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(b.dataUrl ?? "");
+  if (!m) return c.json({ error: "Not an image" }, 400);
+  const bytes = Math.floor((m[2].length * 3) / 4);
+  if (bytes > 1_200_000) return c.json({ error: "Photo too large (max ~1.2 MB after compression)" }, 413);
+  if (!["set", "exercise", "journal", "session", "other"].includes(b.refKind)) return c.json({ error: "bad refKind" }, 400);
+  await db(c).insert(t.photos).values({ id: b.id, refKind: b.refKind, refId: b.refId ?? null, exKey: b.exKey ?? null, sessionId: b.sessionId ?? null, date: b.date,
+    caption: b.caption ?? null, mime: m[1], w: b.w ?? null, h: b.h ?? null, bytes, data: m[2], createdAt: now() }).onConflictDoNothing();
+  return c.json({ ok: true, id: b.id, bytes });
+});
+
+app.put("/photos/:id", async (c) => {
+  const b = await c.req.json<{ caption?: string | null }>();
+  await db(c).update(t.photos).set({ caption: b.caption ?? null }).where(eq(t.photos.id, c.req.param("id")));
+  return c.json({ ok: true });
+});
+
+app.delete("/photos/:id", async (c) => {
+  await db(c).delete(t.photos).where(eq(t.photos.id, c.req.param("id")));
+  return c.json({ ok: true });
+});
+
 // ---------------------------------------------------------------- voice → text (Whisper on Workers AI)
 // Body = the recorded audio (webm/ogg/mp4/wav). ?lang=auto|ar|en. The prompt is mixed Egyptian Arabic + gym English,
 // which nudges Whisper to keep English gym words in English inside Arabic sentences (code-switching).
@@ -829,7 +874,7 @@ app.post("/reset", async (c) => {
   const d = db(c);
   await d.batch([
     d.delete(t.sets), d.delete(t.sessions), d.delete(t.events), d.delete(t.body), d.delete(t.tests),
-    d.delete(t.journal), d.delete(t.intake), d.delete(t.settings), d.delete(t.programVersions), d.delete(t.feedback), d.delete(t.cardio), d.delete(t.blocks),
+    d.delete(t.journal), d.delete(t.intake), d.delete(t.settings), d.delete(t.programVersions), d.delete(t.feedback), d.delete(t.cardio), d.delete(t.blocks), d.delete(t.photos),
   ]);
   return c.json({ ok: true });
 });

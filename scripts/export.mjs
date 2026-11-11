@@ -5,7 +5,7 @@ import { execSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 
 const where = process.argv.includes("--local") ? "--local" : "--remote";
-const tables = ["program_versions", "sessions", "sets", "events", "body", "tests", "journal", "settings", "intake", "feedback", "cardio", "blocks"];
+const tables = ["program_versions", "sessions", "sets", "events", "body", "tests", "journal", "settings", "intake", "feedback", "cardio", "blocks", "photos"];
 const dir = `private/exports/${new Date().toISOString().slice(0, 10)}${where === "--local" ? "-local" : ""}`;
 mkdirSync(dir, { recursive: true });
 
@@ -16,7 +16,7 @@ const q = (sql) => {
 
 const data = {};
 for (const t of tables) {
-  data[t] = q(`SELECT * FROM ${t}`);
+  data[t] = q(t === "photos" ? "SELECT id, ref_kind, ref_id, ex_key, session_id, date, caption, mime, w, h, bytes, created_at FROM photos" : `SELECT * FROM ${t}`);
   writeFileSync(`${dir}/${t}.json`, JSON.stringify(data[t], null, 1));
   console.log(`${t}: ${data[t].length} rows`);
 }

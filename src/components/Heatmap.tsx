@@ -11,7 +11,7 @@ export function Heatmap({ days, weekStart = 6, mode = "workout", grams, target =
 }) {
   const [sel, setSel] = useState<string | null>(null);
   const [ref, width] = useWidth<HTMLDivElement>();
-  const CELL = 14, GAP = 3;
+  const CELL = 20, GAP = 4; // 20 px + 4 px gap = 24 px tap target (WCAG 2.5.8)
   const weeks = Math.min(53, Math.max(8, Math.floor((width - 18) / (CELL + GAP))));
   const today = new Date();
   const back = (today.getDay() - weekStart + 7) % 7;
@@ -63,14 +63,14 @@ export function Heatmap({ days, weekStart = 6, mode = "workout", grams, target =
 
   return (
     <div ref={ref}>
-      <div className="flex gap-[3px]">
-        <div className="mr-1 flex flex-col gap-[3px] text-[9px] leading-none text-faint" aria-hidden>
+      <div className="flex gap-[4px]">
+        <div className="mr-1 flex flex-col gap-[4px] text-[9px] leading-none text-faint" aria-hidden>
           {Array.from({ length: 7 }, (_, d) => (
-            <div key={d} className="flex h-[14px] w-3 items-center">{d % 2 === 0 ? names[(weekStart + d) % 7] : ""}</div>
+            <div key={d} className="flex h-[20px] w-3 items-center">{d % 2 === 0 ? names[(weekStart + d) % 7] : ""}</div>
           ))}
         </div>
         {cols.map((col, i) => (
-          <div key={i} className="flex flex-col gap-[3px]">
+          <div key={i} className="flex flex-col gap-[4px]">
             {col.map((iso) => {
               const s = style(iso);
               return (
@@ -79,7 +79,7 @@ export function Heatmap({ days, weekStart = 6, mode = "workout", grams, target =
                   onClick={() => setSel(sel === iso ? null : iso)}
                   disabled={iso > t}
                   title={iso}
-                  className={cx("h-[14px] w-[14px] rounded-[3px]", s.cls, iso === t && "outline outline-1 outline-offset-1 outline-ink", sel === iso && "outline outline-2 outline-info")}
+                  className={cx("h-[20px] w-[20px] rounded-[4px]", s.cls, iso === t && "outline outline-1 outline-offset-1 outline-ink", sel === iso && "outline outline-2 outline-info")}
                   style={s.style}
                   aria-label={`${niceDate(iso)}: ${label(iso)}`}
                   aria-pressed={sel === iso}

@@ -64,6 +64,20 @@
       "when": 1794400835731,
       "tag": "0008_link_block1",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1794407841805,
+      "tag": "0009_set_equip",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1794408191908,
+      "tag": "0010_photos",
+      "breakpoints": true
     }
   ]
 }

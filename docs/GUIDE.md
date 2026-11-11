@@ -159,6 +159,15 @@ Log in with the **DEV passcode** instead of yours → an orange "DEV MODE" bar, 
 - **4-week progression**: one table per day, exercises × W1-W4 (sets × reps), with the current week highlighted. Week 3 is the hardest, Week 4 is the deload.
 - **Tap any exercise** for its sheet: video, cues, your setup note, the **next** recommended weight, your **best** and last-time sets, where it appears in the program each week, and the alternatives.
 
+## Edit a logged set (tap any set)
+- Grouped with icons: **Numbers** (± buttons; only the fields that exercise uses) · **Effort & form** (RIR, strict / cheated) · **Set type** · **Equipment used** · **Notes** · **Photo** · **Pain**. Time and real rest are shown on top.
+- **Equipment used**: pin stack, plate-loaded, cable, Smith, barbell, EZ bar, dumbbell, bodyweight, other. Remembered per exercise (also on the exercise card: "Equipment: … · change"); if last time used different equipment the card warns you — the numbers don't compare.
+- **Smart tags**: dashed "+ tag" suggestions from your numbers (too heavy / too light vs the rep range, hard / easy vs the RIR target) and your words (Arabic or English: lost count, grip, straps, pump…). Never added without a tap.
+- **Again** logs a copy of the set now; **Save** is enabled only when something changed.
+
+## Photos
+- Attach photos to a **set** (form, setup) or to an **exercise** (machine seat / pin settings: exercise sheet → setup). Camera or gallery; shrunk on the phone (≤1280 px, ~200-350 KB), private (only after login). Tap a photo for full size, caption, delete. Needs a connection.
+
 ## Swapping exercises
 ⋯ → **Swap**. Pick **why** (equipment busy, pain, …), then the alternative. The app:
 - keeps **the same sets, reps and RIR** (research: machines and free weights build the same muscle when volume matches),

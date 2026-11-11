@@ -141,7 +141,7 @@ export function PageHead({ icon: Icon, title, sub, right }: { icon: LucideIcon; 
 
 export function Card({ children, className, title, icon: Icon, right }: { children: ReactNode; className?: string; title?: string; icon?: LucideIcon; right?: ReactNode }) {
   return (
-    <section className={cx("rounded-2xl bg-card p-4", className)}>
+    <section className={cx("rounded-2xl border border-line/60 bg-card p-4", className)}>
       {title && (
         <div className="mb-3 flex min-h-6 items-center gap-2 text-sm font-semibold text-mute">
           {Icon && <Icon size={16} className="shrink-0" aria-hidden />}

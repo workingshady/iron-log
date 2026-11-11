@@ -30,3 +30,33 @@ export const hasArabic = (s: string) => /[؀-ۿ]/.test(s);
 /** Tags are stored comma-separated ("pain,sleep"); old rows hold one tag. */
 export const parseTags = (s: string | null | undefined) => (s ? s.split(",").map((x) => x.trim()).filter(Boolean) : []);
 export const joinTags = (a: string[]) => (a.length ? [...new Set(a)].join(",") : null);
+
+/**
+ * Tags a SET probably deserves, from its numbers vs the plan and from the note's words (Arabic or English).
+ * Shown as dashed suggestions — never applied without a tap.
+ */
+export function suggestSetTags(x: { reps: number | null; rir: number | null; strict?: number | null; note: string | null; kind: string }, rx?: { reps?: number | [number, number] | null; rir?: number | [number, number] | null }): string[] {
+  const out = new Set<string>();
+  const bot = rx?.reps == null ? null : Array.isArray(rx.reps) ? rx.reps[0] : rx.reps;
+  const top = rx?.reps == null ? null : Array.isArray(rx.reps) ? rx.reps[1] : rx.reps;
+  const target = rx?.rir == null ? null : Array.isArray(rx.rir) ? rx.rir[0] : rx.rir;
+  if (x.kind === "N" && x.reps != null) {
+    if (bot != null && x.reps < bot - 1) out.add("too heavy");
+    if (top != null && x.reps >= top + 3) out.add("too light");
+  }
+  if (x.rir != null && target != null) {
+    if (x.rir <= 0 && target >= 1) out.add("hard");
+    if (x.rir >= target + 2) out.add("easy");
+  }
+  if (x.strict === 0) out.add("partial range");
+  const n = x.note ?? "";
+  if (TOPICS.count.test(n)) out.add("lost count");
+  if (TOPICS.cheat.test(n)) out.add("partial range");
+  if (/grip|slip|قبض|ايدي|إيدي|بيزحلق/i.test(n)) out.add("grip failed");
+  if (/strap/i.test(n)) out.add("used straps");
+  if (/spot|لوحدي/i.test(n)) out.add("no spotter");
+  if (/busy|taken|مشغول|زحمة/i.test(n)) out.add("equipment busy");
+  if (/pump|بمب|منفوخ/i.test(n)) out.add("great pump");
+  if (TOPICS.win.test(n)) out.add("felt strong");
+  return [...out].filter((t) => !n.includes(t));
+}

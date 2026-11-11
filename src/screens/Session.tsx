@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PlanItem, Session, SessionBundle, SetLog } from "../../shared/api";
-import { NOTE_TAGS, PAIN_AREAS, SET_KINDS, type SetKind } from "../../shared/lists";
+import { EQUIP_USED, NOTE_TAGS, PAIN_AREAS, SET_KINDS, type SetKind } from "../../shared/lists";
+import { suggestSetTags } from "../../shared/notes";
+import { PhotoStrip } from "../components/Photos";
+import { Activity, Camera, Gauge, Layers as LayersIcon, StickyNote, Wrench } from "lucide-react";
 import { targetLabel, toItem } from "../../shared/plan";
 import { EXERCISES } from "../../program/exercises";
 import { DEFAULT_SWAP_NOTE, SWAP_REASONS, swapHint } from "../../program/swaps";
@@ -23,13 +26,21 @@ import { restFor, restPrefs } from "../lib/restPrefs";
 import { warmupFor, type WarmPlan } from "../../shared/warmup";
 import { ExerciseSheet, SetupNote } from "../components/ExerciseSheet";
 import { totalKg } from "../../shared/load";
-import { Link2, ListOrdered } from "lucide-react";
+import { Copy, Link2, ListOrdered, Trash2 } from "lucide-react";
 import { RestTimer, loadRest, saveRest, type Rest } from "../components/RestTimer";
 import { go } from "../nav";
 
 type Draft = { weight: string; reps: string; seconds: string; meters: string; assist: string; rir: string; strict: string; note: string };
 /** Sets that count toward the plan: drops and rest-pause minis belong to their parent set; warm-ups don't count. */
 const isWork = (s: SetLog) => s.kind !== "W" && s.kind !== "D" && s.kind !== "R";
+/** Default equipment for an exercise: what you picked last (settings "equip:<ex>"), else from the exercise library. */
+export function equipFor(settings: Record<string, string> | undefined, ex: string): string {
+  const saved = settings?.[`equip:${ex}`];
+  if (saved) return saved;
+  const e = equipOf(ex);
+  const l = loadOf(ex);
+  return e === "machine" ? "stack" : e === "cable" ? "cable" : l === "ez" ? "ez" : e === "barbell" ? "barbell" : e === "dumbbell" ? "dumbbell" : e === "bodyweight" ? "bodyweight" : "other";
+}
 const workSets = (sets: SetLog[], i: number) => sets.filter((s) => s.itemIdx === i && isWork(s));
 
 export default function SessionScreen({ id }: { id: string }) {
@@ -150,6 +161,7 @@ export default function SessionScreen({ id }: { id: string }) {
       weightKg: weight, reps, seconds: n(d.seconds), meters: n(d.meters), assist: d.assist || null, rir: n(d.rir), strict: d.strict === "" ? null : Number(d.strict),
       restBeforeS: prev ? Math.round((t - prev.doneAt) / 1000) : null, doneAt: t, note: d.note.trim() || null, painArea: null, painLevel: null,
       kgBasis: weight != null ? basisFor(it.ex) : null,
+      equip: equipFor(appState?.settings, it.ex),
       swappedFrom: it.swappedFrom ?? null,
       suggested: JSON.stringify({ weightKg: recs[i].weightKg, reps: recs[i].reps, seconds: recs[i].seconds, kind: recs[i].kind }),
     };
@@ -355,6 +367,13 @@ export default function SessionScreen({ id }: { id: string }) {
           set={sheet.s}
           onClose={() => setSheet(null)}
           onSave={(x) => { putSet(x); track(x.deleted ? "set_delete" : "set_edit", { id: x.id, ex: x.exKey }, id); setSheet(null); }}
+          onDuplicate={(x) => {
+            const n = Date.now();
+            const copy: SetLog = { ...x, id: uid(), setNo: sets.filter((y) => y.itemIdx === x.itemIdx).length + 1, doneAt: n, restBeforeS: sets.length ? Math.round((n - sets[sets.length - 1].doneAt) / 1000) : null, pr: 0, deleted: 0 };
+            putSet(copy); track("set_duplicate", { from: x.id, ex: x.exKey }, id); setSheet(null);
+          }}
+          settings={appState?.settings}
+          rx={plan[sheet.s.itemIdx]}
         />
       )}
       {sheet?.k === "finish" && (
@@ -527,6 +546,7 @@ function ExerciseCard({ i, it, sets, last, rec, live, bars, feedback, open, onTo
             {it.swappedFrom && <div className="text-mute">Swapped from {EXERCISES[it.swappedFrom]?.name ?? it.swappedFrom}{it.swapReason ? ` (${it.swapReason})` : ""}</div>}
             {it.tech && <TechNote text={it.tech} />}
             <SetupNote exKey={it.ex} compact />
+            <EquipLine ex={it.ex} lastEquip={last?.sets.find((y) => y.equip)?.equip ?? null} />
           </div>
 
           {/* 2. warm-up sets: first exercise for a cold muscle gets a ramp, warm muscles get 0-1 feeder set */}
@@ -1129,49 +1149,131 @@ function SwapSheet({ it, lastWeight, sessionId, onClose, onPick }: {
   );
 }
 
-function SetSheet({ set, onClose, onSave }: { set: SetLog; onClose: () => void; onSave: (s: SetLog) => void }) {
-  const [x, setX] = useState<SetLog>(set);
-  const v = (n: number | null) => (n == null ? "" : String(n));
-  const num = (s: string) => (s.trim() === "" ? null : Number(s));
+/** "Equipment: Pin stack · change" — remembered per exercise; warns if last time used different equipment. */
+function EquipLine({ ex, lastEquip }: { ex: string; lastEquip: string | null }) {
+  const { data: st, setData } = useLoad<AppState>("/state");
+  const [open, setOpen] = useState(false);
+  const cur = equipFor(st?.settings, ex);
+  const label = (id: string | null) => EQUIP_USED.find((q) => q.id === id)?.label ?? id;
+  const pick = (id: string) => {
+    setData((y) => (y ? { ...y, settings: { ...y.settings, [`equip:${ex}`]: id } } : y));
+    send("PUT", `/settings/equip:${ex}`, { value: id });
+    track("equip_pick", { ex, equip: id });
+    setOpen(false);
+  };
+  return (
+    <div>
+      <button onClick={() => setOpen(!open)} className="inline-flex items-center gap-1.5 text-left text-xs">
+        <Dumbbell size={13} className="shrink-0 text-info" />
+        <span><span className="text-mute">Equipment:</span> {label(cur)} <span className="text-info">· change</span></span>
+      </button>
+      {lastEquip && lastEquip !== cur && <div className="mt-0.5 text-[11px] text-warn">Last time: {label(lastEquip)} — weights won't match, find the weight on set 1.</div>}
+      {open && (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {EQUIP_USED.map((q) => (
+            <button key={q.id} onClick={() => pick(q.id)} title={q.hint} className={cx("min-h-9 rounded-full border px-2.5 text-[11px]", cur === q.id ? "border-info bg-info/15 text-info" : "border-line text-mute")}>{q.label}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Edit a logged set — grouped: numbers · effort & form · type · equipment · notes · pain · actions. */
+function SetSheet({ set, onClose, onSave, onDuplicate, settings, rx }: { set: SetLog; onClose: () => void; onSave: (s: SetLog) => void; onDuplicate: (s: SetLog) => void; settings?: Record<string, string>; rx?: PlanItem }) {
+  const [x, setX] = useState<SetLog>({ ...set, equip: set.equip ?? equipFor(settings, set.exKey) });
+  const e = EXERCISES[x.exKey];
+  const m = e?.metric ?? "weight_reps";
+  const step = e?.pair ? 2.5 : e?.step ?? 2.5;
+  const v = (n: number | null | undefined) => (n == null ? "" : String(n));
+  const num = (s2: string) => (s2.trim() === "" ? null : Number(s2));
+  const bump = (k: "weightKg" | "reps" | "seconds" | "meters", d: number) => setX((y) => ({ ...y, [k]: Math.max(0, +((y[k] ?? 0) + d).toFixed(2)) }));
   const tags = NOTE_TAGS.filter((t) => (x.note ?? "").includes(t));
   const toggleTag = (t: string) => {
     const has = (x.note ?? "").includes(t);
     const note = has ? (x.note ?? "").replace(t, "").replace(/\s*·\s*·\s*/g, " · ").replace(/^\s*·\s*|\s*·\s*$/g, "") : [x.note, t].filter(Boolean).join(" · ");
-    setX({ ...x, note: note || null });
+    setX({ ...x, note: note || null, strict: t === "partial range" && !has ? 0 : x.strict });
   };
-  return (
-    <Sheet open onClose={onClose} title={`${EXERCISES[x.exKey]?.name ?? x.exKey} · set ${x.setNo}`}>
-      <div className="grid grid-cols-2 gap-2">
-        <div><Label>kg</Label><NumInput value={v(x.weightKg)} onChange={(s) => setX({ ...x, weightKg: num(s) })} /></div>
-        <div><Label>reps</Label><NumInput value={v(x.reps)} onChange={(s) => setX({ ...x, reps: num(s) })} /></div>
-        <div><Label>seconds</Label><NumInput value={v(x.seconds)} onChange={(s) => setX({ ...x, seconds: num(s) })} /></div>
-        <div><Label>meters</Label><NumInput value={v(x.meters)} onChange={(s) => setX({ ...x, meters: num(s) })} /></div>
+  const unit = loadOf(x.exKey) === "pair" ? "kg / hand" : loadOf(x.exKey) === "barbell" || loadOf(x.exKey) === "ez" ? "kg total" : "kg";
+  const Num = ({ k, label, by }: { k: "weightKg" | "reps" | "seconds" | "meters"; label: string; by: number }) => (
+    <div className="min-w-0">
+      <div className="mb-1 text-center text-[11px] text-mute">{label}</div>
+      <div className="flex items-center gap-1">
+        <button onClick={() => bump(k, -by)} className="h-12 w-10 shrink-0 rounded-xl bg-card2 text-xl" aria-label={`less ${label}`}>−</button>
+        <NumInput value={v(x[k])} onChange={(s2) => setX({ ...x, [k]: num(s2) })} />
+        <button onClick={() => bump(k, by)} className="h-12 w-10 shrink-0 rounded-xl bg-card2 text-xl" aria-label={`more ${label}`}>+</button>
       </div>
-      <Label>Set type</Label>
-      <Chips small clearable={false} options={SET_KINDS.map((k) => ({ id: k.id, label: k.label }))} value={x.kind} onChange={(k) => k && setX({ ...x, kind: k })} />
-      <Label>Reps in reserve</Label>
+    </div>
+  );
+  const H = ({ children, icon: I }: { children: React.ReactNode; icon: typeof Activity }) => <h3 className="mb-1.5 mt-4 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-mute"><I size={13} aria-hidden />{children}</h3>;
+  const smart = suggestSetTags(x, rx) as (typeof NOTE_TAGS)[number][];
+  const time = new Date(x.doneAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  const changed = JSON.stringify(x) !== JSON.stringify({ ...set, equip: set.equip ?? equipFor(settings, set.exKey) });
+  return (
+    <Sheet open onClose={onClose} title={`${e?.name ?? x.exKey} · ${x.kind === "N" ? `set ${x.setNo}` : SET_KINDS.find((k) => k.id === x.kind)?.label}`}>
+      <p className="-mt-1 text-xs text-mute num">{time}{x.restBeforeS != null ? ` · rested ${clock(x.restBeforeS * 1000)}` : ""}{x.pr ? " · 🏆 PR" : ""}{x.swappedFrom ? ` · swapped from ${EXERCISES[x.swappedFrom]?.name ?? x.swappedFrom}` : ""}</p>
+
+      <H icon={Gauge}>Numbers</H>
+      <div className="grid grid-cols-2 gap-2">
+        {(m === "weight_reps" || m === "distance" || x.weightKg != null) && <Num k="weightKg" label={unit} by={step} />}
+        {(m === "weight_reps" || m === "reps" || m === "assist_reps" || x.reps != null) && <Num k="reps" label="reps" by={1} />}
+        {(m === "time" || x.seconds != null) && <Num k="seconds" label="seconds" by={5} />}
+        {(m === "distance" || x.meters != null) && <Num k="meters" label="meters" by={5} />}
+        {m === "assist_reps" && <div className="col-span-2"><Label>Assist (band / kg)</Label><input value={x.assist ?? ""} onChange={(ev) => setX({ ...x, assist: ev.target.value || null })} className="min-h-12 w-full rounded-xl bg-card2 px-3 outline-none" /></div>}
+      </div>
+
+      <H icon={Activity}>Effort &amp; form</H>
+      <div className="text-[11px] text-mute">Reps left in the tank</div>
       <Chips small options={scale(0, 5)} value={x.rir} onChange={(r) => setX({ ...x, rir: r })} />
-      <Label>Quick tags</Label>
-      <div className="flex flex-wrap gap-2">
-        {NOTE_TAGS.map((t) => (
-          <button key={t} onClick={() => toggleTag(t)} className={cx("min-h-9 rounded-full border px-3 text-sm", tags.includes(t) ? "border-acc text-acc" : "border-line")}>{t}</button>
+      <div className="mt-2 grid grid-cols-2 gap-1.5">
+        {[{ id: 1, l: "Strict" }, { id: 0, l: "Cheated / partial" }].map((o) => (
+          <button key={o.id} onClick={() => setX({ ...x, strict: x.strict === o.id ? null : o.id })} className={cx("min-h-11 rounded-xl border text-sm", x.strict === o.id ? (o.id ? "border-acc bg-acc/15 text-acc" : "border-bad bg-bad/15 text-bad") : "border-line text-mute")}>{o.l}</button>
         ))}
       </div>
-      <Label>Note</Label>
-      <div className="flex gap-1.5">
-        <textarea dir="auto" value={x.note ?? ""} onChange={(e) => setX({ ...x, note: e.target.value || null })} rows={2} placeholder="e.g. left shoulder clicks at the bottom" className="min-w-0 flex-1 rounded-xl bg-card2 p-3 outline-none focus:ring-2 focus:ring-acc" />
-        <VoiceButton onText={(t) => setX((v) => ({ ...v, note: appendText(v.note, t) }))} />
+
+      <H icon={LayersIcon}>Set type</H>
+      <Chips small clearable={false} options={SET_KINDS.map((k) => ({ id: k.id, label: k.label }))} value={x.kind} onChange={(k) => k && setX({ ...x, kind: k })} />
+
+      <H icon={Wrench}>Equipment used</H>
+      <div className="flex flex-wrap gap-1.5">
+        {EQUIP_USED.map((q) => (
+          <button key={q.id} title={q.hint} onClick={() => setX({ ...x, equip: q.id })} className={cx("min-h-9 rounded-full border px-3 text-xs", x.equip === q.id ? "border-info bg-info/15 font-semibold text-info" : "border-line text-mute")}>{q.label}</button>
+        ))}
       </div>
-      <Label>Pain?</Label>
-      <Chips small options={PAIN_AREAS.map((a) => ({ id: a, label: a }))} value={x.painArea} onChange={(a) => setX({ ...x, painArea: a, painLevel: a ? x.painLevel ?? 1 : null })} />
+      <p className="mt-1 text-[11px] text-faint">{EQUIP_USED.find((q) => q.id === x.equip)?.hint} · weights are only compared with the same equipment. Your choice is remembered for this exercise.</p>
+
+      <H icon={StickyNote}>Notes</H>
+      <div className="flex flex-wrap gap-1.5">
+        {[...smart, ...NOTE_TAGS.filter((t) => !smart.includes(t))].map((t) => {
+          const on = tags.includes(t), sug = smart.includes(t) && !on;
+          return <button key={t} onClick={() => toggleTag(t)} className={cx("min-h-9 rounded-full border px-3 text-xs", on ? "border-acc bg-acc/10 text-acc" : sug ? "border-dashed border-info text-info" : "border-line text-mute")}>{sug ? "+ " : ""}{t}</button>;
+        })}
+      </div>
+      {smart.some((t) => !tags.includes(t)) && <p className="mt-1 text-[11px] text-faint">Dashed = suggested from your numbers and words — tap to add.</p>}
+      <div className="mt-2 flex gap-1.5">
+        <textarea dir="auto" value={x.note ?? ""} onChange={(ev) => setX({ ...x, note: ev.target.value || null })} rows={2} placeholder="e.g. left shoulder clicks at the bottom · عربي OK" className="min-w-0 flex-1 rounded-xl bg-card2 p-3 outline-none focus:ring-2 focus:ring-acc" />
+        <VoiceButton onText={(t) => setX((y) => ({ ...y, note: appendText(y.note, t) }))} />
+      </div>
+
+      <H icon={Camera}>Photo</H>
+      <PhotoStrip refKind="set" refId={x.id} exKey={x.exKey} sessionId={x.sessionId} label="Form / setup photo" compact />
+
+      <H icon={TriangleAlert}>Pain</H>
+      <Chips small options={PAIN_AREAS.map((a2) => ({ id: a2, label: a2 }))} value={x.painArea} onChange={(a2) => setX({ ...x, painArea: a2, painLevel: a2 ? x.painLevel ?? 1 : null })} />
       {x.painArea && (
         <div className="mt-2">
           <Chips small clearable={false} options={[{ id: 1, label: "mild" }, { id: 2, label: "moderate" }, { id: 3, label: "sharp — stop" }]} value={x.painLevel} onChange={(l) => setX({ ...x, painLevel: l })} />
+          <p className="mt-1 text-[11px] text-faint">Moderate or sharp → the app goes one step lighter next time.</p>
         </div>
       )}
-      <div className="mt-6 grid grid-cols-3 gap-2">
-        <Btn kind="danger" onClick={() => confirm("Delete this set?") && onSave({ ...x, deleted: 1 })}>Delete</Btn>
-        <Btn kind="primary" className="col-span-2" onClick={() => onSave(x)}>Save</Btn>
+
+      <div className="sticky bottom-0 -mx-1 mt-5 grid grid-cols-[auto_auto_1fr] gap-2 bg-card px-1 pb-1 pt-2">
+        <Btn kind="danger" label="Delete set" icon={Trash2} onClick={() => confirm("Delete this set?") && onSave({ ...x, deleted: 1 })} />
+        <Btn kind="soft" icon={Copy} onClick={() => onDuplicate(x)}>Again</Btn>
+        <Btn kind="primary" icon={Check} disabled={!changed} onClick={() => {
+          if (x.equip && x.equip !== settings?.[`equip:${x.exKey}`]) send("PUT", `/settings/equip:${x.exKey}`, { value: x.equip });
+          onSave(x);
+        }}>Save</Btn>
       </div>
     </Sheet>
   );

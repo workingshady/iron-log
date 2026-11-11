@@ -70,6 +70,8 @@ export interface SetLog {
   strict?: number | null;
   /** "per_hand" | "total" for dumbbell pairs (see worker/db/schema.ts). */
   kgBasis?: string | null;
+  /** Equipment actually used (EQUIP_USED id). Plate-loaded vs stack numbers aren't comparable. */
+  equip?: string | null;
   deleted?: number;
 }
 

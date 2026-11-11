@@ -17,7 +17,8 @@ const priv = path.join(ROOT, "private", "android");
 const project = path.join(priv, "project");
 const out = path.join(priv, "out");
 const keystore = path.join(priv, "iron-log.keystore");
-const pw = fs.readFileSync(path.join(ROOT, "private", "SETUP.md"), "utf8").match(/Password \(store \+ key\): (\S+)/)?.[1];
+// password: CI secret (IL_KS_PASS) or the local private/SETUP.md
+const pw = process.env.IL_KS_PASS || (fs.existsSync(path.join(ROOT, "private", "SETUP.md")) ? fs.readFileSync(path.join(ROOT, "private", "SETUP.md"), "utf8").match(/Password \(store \+ key\): (\S+)/)?.[1] : undefined);
 if (!pw || !fs.existsSync(keystore)) throw new Error("Missing keystore or password in private/ — see private/SETUP.md");
 
 const jdk = process.env.JAVA_HOME || "C:/Program Files/Java/jdk-17";

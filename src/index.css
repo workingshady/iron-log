@@ -10,7 +10,7 @@
   --color-card: #19191d;
   --color-card2: #222227;
   --color-card3: #2c2c32;
-  --color-line: #33333a;
+  --color-line: #3c3c45;
   --color-ink: #f3f3f5;
   --color-mute: #9b9ba6;
   /* faint = hints, chevrons, placeholders. Was #63636e (2.95:1 on card, fails WCAG 1.4.3).

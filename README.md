@@ -45,6 +45,7 @@ It opens the live site full-screen (Trusted Web Activity), so every deploy updat
 node scripts/build-apk.mjs <versionCode> <versionName>     # e.g. 3 1.2.0 → private/android/out/iron-log-1.2.0.apk
 gh release create v1.2.0-android private/android/out/iron-log-1.2.0.apk --title "Iron Log Android 1.2.0"
 ```
+**Or let GitHub build it:** Actions → *Android APK* → Run workflow (or push a tag `v1.2.0-android`). Needs repo secrets `ANDROID_KEYSTORE_B64` and `ANDROID_KEYSTORE_PASS` (see `.github/workflows/android-apk.yml`).
 Always raise `versionCode` and sign with the same key (kept in git-ignored `private/android/`). `/.well-known/assetlinks.json` holds the key's SHA-256.
 
 ## Setup

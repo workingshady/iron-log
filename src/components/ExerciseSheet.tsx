@@ -11,6 +11,7 @@ import { useLoad } from "../lib/useLoad";
 import { cx, kg, niceDate } from "../lib/util";
 import { Btn, Sheet } from "./ui";
 import { hasRestOverride, restFor } from "../lib/restPrefs";
+import { PhotoStrip } from "./Photos";
 import { clock } from "../lib/util";
 
 /** Your saved setup for an exercise (seat height, pin, grip…) — stored in settings as "setup:<exKey>". */
@@ -105,7 +106,10 @@ export function ExerciseSheet({ item, onClose, onSwap }: { item: PlanItem; onClo
 
       <p className="mt-3 text-sm text-mute">{item.muscles}</p>
       <ul className="mt-2 space-y-1">{item.cues.map((c) => <li key={c} className="flex gap-2 text-sm"><span className="text-acc">•</span>{c}</li>)}</ul>
-      <div className="mt-3 rounded-xl bg-card2 p-3"><SetupNote exKey={item.ex} /></div>
+      <div className="mt-3 space-y-2 rounded-xl bg-card2 p-3">
+        <SetupNote exKey={item.ex} />
+        <PhotoStrip refKind="exercise" refId={item.ex} label="Machine / setup photo" compact />
+      </div>
       <div className="mt-3 rounded-xl bg-card2 p-3"><RestSetting item={item} /></div>
 
       <div className="mt-3 grid grid-cols-2 gap-2 text-sm">

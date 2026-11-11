@@ -1,0 +1,50 @@
+# Builds the signed Android APK (Trusted Web Activity) and publishes it as a GitHub Release.
+# Run: Actions → "Android APK" → Run workflow (enter version code + name), or push a tag like v1.2.0-android.
+# Needs 2 repository secrets (Settings → Secrets → Actions):
+#   ANDROID_KEYSTORE_B64  base64 of private/android/iron-log.keystore
+#   ANDROID_KEYSTORE_PASS the keystore password (private/SETUP.md)
+# The key never enters the repo: it's decoded into the runner's temp folder and deleted with the runner.
+name: Android APK
+on:
+  workflow_dispatch:
+    inputs:
+      versionCode: { description: "Version code (integer, always higher than the last)", required: true }
+      versionName: { description: "Version name, e.g. 1.2.0", required: true }
+  push:
+    tags: ["v*-android"]
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: android-actions/setup-android@v3
+      - run: npm ci
+      - name: Version from input or tag
+        id: v
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "name=${{ inputs.versionName }}" >> $GITHUB_OUTPUT; echo "code=${{ inputs.versionCode }}" >> $GITHUB_OUTPUT
+          else
+            NAME="${GITHUB_REF_NAME#v}"; NAME="${NAME%-android}"
+            echo "name=$NAME" >> $GITHUB_OUTPUT; echo "code=$(echo $NAME | awk -F. '{print $1*10000+$2*100+$3}')" >> $GITHUB_OUTPUT
+          fi
+      - name: Restore signing key
+        run: |
+          mkdir -p private/android
+          echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 -d > private/android/iron-log.keystore
+      - name: Build + sign
+        env:
+          IL_KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASS }}
+        run: node scripts/build-apk.mjs ${{ steps.v.outputs.code }} ${{ steps.v.outputs.name }}
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.v.outputs.name }}-android
+          name: Iron Log Android ${{ steps.v.outputs.name }}
+          files: private/android/out/iron-log-${{ steps.v.outputs.name }}.apk
+          body: Built by GitHub Actions. Install over the previous version (same signing key).

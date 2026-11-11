@@ -41,10 +41,94 @@ async function ensureVersion(d: DB) {
   return id;
 }
 
+// ---------------------------------------------------------------- blocks (months)
+
+const isoToday = () => new Date().toISOString().slice(0, 10);
+
+/** Starting baseline for a new block: best est. max per exercise so far + latest bodyweight. */
+async function baselineNow(d: DB) {
+  const { best } = await liftHistory(d, null);
+  const [bw] = await d.select().from(t.body).where(sql`${t.body.weightKg} is not null`).orderBy(desc(t.body.date)).limit(1);
+  return { bodyKg: bw?.weightKg ?? null, e1rm: Object.fromEntries(Object.entries(best).filter(([, b]) => b.e1rm > 0).map(([k, b]) => [k, b.e1rm])) };
+}
+
+/**
+ * The active block. Edge cases handled:
+ *  • none yet (fresh install, or right after a reset) → Month 1 starts today
+ *  • the program id changed (a new program, not a new version of the same one) → close the old block, start a new one
+ *  • a new VERSION of the same program does NOT start a new block (the month continues with the updated plan)
+ */
+async function activeBlock(d: DB, startDate?: string) {
+  let [b] = await d.select().from(t.blocks).where(eq(t.blocks.status, "active")).orderBy(desc(t.blocks.n)).limit(1);
+  if (b && b.programId !== CURRENT.id) {
+    await closeBlock(d, b, startDate ?? isoToday());
+    b = undefined as unknown as typeof b;
+  }
+  if (!b) {
+    const [last] = await d.select().from(t.blocks).orderBy(desc(t.blocks.n)).limit(1);
+    const n = (last?.n ?? 0) + 1;
+    const date = startDate ?? isoToday();
+    const row = { id: `blk-${n}-${now().toString(36)}`, n, name: `Month ${n}`, programId: CURRENT.id, startVersion: programVersionId(CURRENT), startDate: date,
+      endDate: null, status: "active", goal: null, notes: null, review: null, baseline: JSON.stringify(await baselineNow(d)), summary: null, createdAt: now(), updatedAt: now() };
+    await d.insert(t.blocks).values(row);
+    b = row as typeof b;
+  }
+  return b;
+}
+
+/** Live numbers for a block (also frozen into `summary` when it closes). */
+async function blockStats(d: DB, b: typeof t.blocks.$inferSelect) {
+  const sess = await d.select().from(t.sessions).where(eq(t.sessions.blockId, b.id));
+  const ids = sess.map((x) => x.id);
+  const sets = ids.length ? await d.select().from(t.sets).where(and(inArray(t.sets.sessionId, ids), eq(t.sets.deleted, 0))) : [];
+  const done = sess.filter((x) => x.status === "done");
+  const planned = (CURRENT.weeks.length || 4) * CURRENT.order.length;
+  const counted = sess.filter((x) => x.kind !== "extra" && ["done", "missed", "skipped"].includes(x.status));
+  const work = sets.filter((x) => x.kind !== "W");
+  const mins = done.filter((x) => x.startedAt && x.endedAt).map((x) => (x.endedAt! - x.startedAt!) / 60000).filter((m) => m >= 5 && m <= 300);
+  // est. max per exercise: first session in the block vs best in the block
+  const e1 = (x: typeof sets[number]) => { const w = shownKg(x); return w && x.reps && x.reps <= 12 && x.strict !== 0 && (x.kind === "N" || x.kind === "F") ? Math.round(w * (1 + x.reps / 30) * 10) / 10 : 0; };
+  const firstBy = new Map<string, number>(), bestBy = new Map<string, number>();
+  const sessDate = new Map(sess.map((x) => [x.id, `${x.date}|${x.startedAt ?? 0}`]));
+  const firstSess = new Map<string, string>();
+  for (const x of [...sets].sort((a, z) => (sessDate.get(a.sessionId)! < sessDate.get(z.sessionId)! ? -1 : 1))) {
+    const v = e1(x); if (!v) continue;
+    if (!firstSess.has(x.exKey)) firstSess.set(x.exKey, x.sessionId);
+    if (firstSess.get(x.exKey) === x.sessionId) firstBy.set(x.exKey, Math.max(firstBy.get(x.exKey) ?? 0, v));
+    bestBy.set(x.exKey, Math.max(bestBy.get(x.exKey) ?? 0, v));
+  }
+  const lifts = [...bestBy.entries()].map(([k, best]) => ({ exKey: k, name: EXERCISES[k]?.name ?? k, start: firstBy.get(k) ?? best, best, pct: firstBy.get(k) ? Math.round(((best - firstBy.get(k)!) / firstBy.get(k)!) * 1000) / 10 : 0 }))
+    .sort((a, z) => z.best - a.best);
+  const end = b.endDate ?? isoToday();
+  const bw = await d.select().from(t.body).where(and(sql`${t.body.date} >= ${b.startDate}`, sql`${t.body.date} <= ${end}`, sql`${t.body.weightKg} is not null`)).orderBy(t.body.date);
+  const versions = [...new Set(sess.map((x) => x.programVersionId))].sort();
+  return {
+    sessions: { done: done.length, missed: sess.filter((x) => x.status === "missed").length, skipped: sess.filter((x) => x.status === "skipped").length, extra: sess.filter((x) => x.kind === "extra" && x.status === "done").length, planned },
+    adherence: counted.length ? Math.round((counted.filter((x) => x.status === "done").length / counted.length) * 100) : null,
+    progress: Math.round((done.filter((x) => x.kind !== "extra").length / planned) * 100),
+    sets: work.filter((x) => x.kind === "N" || x.kind === "F").length,
+    volume: Math.round(work.reduce((a, x) => a + totalKg(x) * (x.reps ?? 0), 0)),
+    avgMinutes: mins.length ? Math.round(mins.reduce((a, m) => a + m, 0) / mins.length) : null,
+    prs: sets.filter((x) => x.pr === 1).length,
+    pains: sets.filter((x) => (x.painLevel ?? 0) > 0).length,
+    bodyKg: { start: bw[0]?.weightKg ?? null, end: bw[bw.length - 1]?.weightKg ?? null },
+    versions,
+    lifts: lifts.slice(0, 12),
+    weeksDone: [...new Set(done.map((x) => x.week))].sort(),
+  };
+}
+
+async function closeBlock(d: DB, b: typeof t.blocks.$inferSelect, endDate: string) {
+  const summary = await blockStats(d, { ...b, endDate });
+  await d.update(t.blocks).set({ status: "done", endDate, summary: JSON.stringify(summary), updatedAt: now() }).where(eq(t.blocks.id, b.id));
+}
+
 async function slots(d: DB): Promise<SlotInfo[]> {
+  // plan position counts only this block's sessions → the same program can be repeated month after month
+  const blk = await activeBlock(d);
   const rows = await d.select({ week: t.sessions.week, dayKey: t.sessions.dayKey, status: t.sessions.status })
     .from(t.sessions)
-    .where(and(like(t.sessions.programVersionId, `${CURRENT.id}@%`), inArray(t.sessions.status, ["done", "skipped"]), ne(t.sessions.kind, "extra")));
+    .where(and(eq(t.sessions.blockId, blk.id), like(t.sessions.programVersionId, `${CURRENT.id}@%`), inArray(t.sessions.status, ["done", "skipped"]), ne(t.sessions.kind, "extra")));
   const st = new Map(rows.map((r) => [`${r.week}-${r.dayKey}`, r.status as "done" | "skipped"]));
   const out: SlotInfo[] = [];
   for (const w of CURRENT.weeks)
@@ -66,6 +150,12 @@ app.get("/me", (c) => c.json({ ok: true, dev: c.var.dev }));
 app.post("/dev/seed", async (c) => {
   if (!c.var.dev) return c.json({ error: "Only in DEV mode" }, 403);
   const n = await seedDev(db(c), c.req.query("today") ?? new Date().toISOString().slice(0, 10), drizzle(c.env.DB, { schema: t }));
+  // link the dummy sessions to a fresh Month 1 (same as the real data migration)
+  const d = db(c);
+  await d.delete(t.blocks);
+  const [first] = await d.select({ date: t.sessions.date }).from(t.sessions).orderBy(t.sessions.date).limit(1);
+  const blk = await activeBlock(d, first?.date);
+  await d.update(t.sessions).set({ blockId: blk.id }).where(sql`${t.sessions.blockId} is null`);
   return c.json({ ok: true, rows: n });
 });
 
@@ -79,8 +169,10 @@ app.get("/state", async (c) => {
   const settingsRows = await d.select().from(t.settings);
   const weekAgo = new Date(now() - 6 * 864e5).toISOString().slice(0, 10);
   const recent = await d.select().from(t.sessions).where(sql`${t.sessions.date} >= ${weekAgo}`);
+  const blk = await activeBlock(d);
   const body: AppState = {
     program: { id: CURRENT.id, version: CURRENT.version, name: CURRENT.name, changelog: CURRENT.changelog, rules: CURRENT.rules },
+    block: { id: blk.id, n: blk.n, name: blk.name, startDate: blk.startDate, startVersion: blk.startVersion },
     weeks: CURRENT.weeks.map((w) => ({ n: w.n, name: w.name, brief: w.brief })),
     slots: all,
     next: all.find((s) => s.status === "open") ?? null,
@@ -111,12 +203,60 @@ app.post("/sessions", async (c) => {
   const d = db(c);
   const pv = await ensureVersion(d);
   const plan = buildPlan(CURRENT, b.week, b.dayKey);
+  const blk = await activeBlock(d, b.date);
   await d.insert(t.sessions).values({
-    id: b.id, programVersionId: pv, week: b.week, dayKey: b.dayKey, dayName: plan.name, status: "active", kind: b.kind,
+    id: b.id, programVersionId: pv, blockId: blk.id, week: b.week, dayKey: b.dayKey, dayName: plan.name, status: "active", kind: b.kind,
     date: b.date, startedAt: b.startedAt, plan: JSON.stringify(plan.items), readiness: b.readiness ? JSON.stringify(b.readiness) : null,
     tz: b.tz, createdAt: now(), updatedAt: now(),
   }).onConflictDoNothing();
   return c.json({ id: b.id });
+});
+
+// ---------------------------------------------------------------- months (blocks)
+
+/** All months, newest first, with live numbers (closed months use their frozen summary). */
+app.get("/blocks", async (c) => {
+  const d = db(c);
+  await activeBlock(d);
+  const rows = await d.select().from(t.blocks).orderBy(desc(t.blocks.n));
+  const out = [];
+  for (const b of rows) out.push({ ...b, baseline: j(b.baseline), summary: undefined, stats: b.status === "done" && b.summary ? j(b.summary) : await blockStats(d, b) });
+  return c.json(out);
+});
+
+app.get("/blocks/:id", async (c) => {
+  const d = db(c);
+  const [b] = await d.select().from(t.blocks).where(eq(t.blocks.id, c.req.param("id")));
+  if (!b) return c.json({ error: "not found" }, 404);
+  const sessions = await d.select().from(t.sessions).where(eq(t.sessions.blockId, b.id)).orderBy(t.sessions.date, t.sessions.createdAt);
+  return c.json({ ...b, baseline: j(b.baseline), summary: undefined, stats: b.status === "done" && b.summary ? j(b.summary) : await blockStats(d, b), live: await blockStats(d, b),
+    sessions: sessions.map((x) => ({ id: x.id, date: x.date, week: x.week, dayName: x.dayName, status: x.status, kind: x.kind, version: x.programVersionId })) });
+});
+
+/** Goal / notes / review text for a month. */
+app.put("/blocks/:id", async (c) => {
+  const b = await c.req.json<{ goal?: string | null; notes?: string | null; review?: string | null; name?: string }>();
+  const patch: Partial<typeof t.blocks.$inferInsert> = { updatedAt: now() };
+  for (const k of ["goal", "notes", "review", "name"] as const) if (b[k] !== undefined) (patch as Record<string, unknown>)[k] = b[k];
+  await db(c).update(t.blocks).set(patch).where(eq(t.blocks.id, c.req.param("id")));
+  return c.json({ ok: true });
+});
+
+/**
+ * Finish this month and start the next one (plan goes back to Week 1, history and weights carry over).
+ * Refused while a workout is in progress. The closed month gets a frozen summary snapshot.
+ */
+app.post("/blocks/next", async (c) => {
+  const d = db(c);
+  const body = await c.req.json<{ date?: string; notes?: string }>().catch(() => ({} as { date?: string; notes?: string }));
+  const [act] = await d.select().from(t.sessions).where(eq(t.sessions.status, "active")).limit(1);
+  if (act) return c.json({ error: "Finish or abandon the workout in progress first." }, 409);
+  const date = body.date ?? isoToday();
+  const cur = await activeBlock(d, date);
+  if (body.notes) await d.update(t.blocks).set({ notes: body.notes }).where(eq(t.blocks.id, cur.id));
+  await closeBlock(d, cur, date);
+  const next = await activeBlock(d, date);
+  return c.json({ closed: cur.id, started: next.id, n: next.n });
 });
 
 /** Log a missed day (excuse). Does NOT advance the plan — the same session stays next. */
@@ -125,8 +265,9 @@ app.post("/missed", async (c) => {
   const d = db(c);
   const pv = await ensureVersion(d);
   const plan = buildPlan(CURRENT, b.week, b.dayKey);
+  const blk = await activeBlock(d, b.date);
   await d.insert(t.sessions).values({
-    id: b.id, programVersionId: pv, week: b.week, dayKey: b.dayKey, dayName: plan.name, status: b.skip ? "skipped" : "missed",
+    id: b.id, programVersionId: pv, blockId: blk.id, week: b.week, dayKey: b.dayKey, dayName: plan.name, status: b.skip ? "skipped" : "missed",
     kind: b.kind === "extra" ? "extra" : "planned", date: b.date, plan: "[]", excuse: b.excuse, note: b.note ?? null, tz: b.tz, createdAt: now(), updatedAt: now(),
   }).onConflictDoNothing();
   return c.json({ ok: true });
@@ -289,11 +430,13 @@ app.get("/history", async (c) => {
     if (!exOf.has(v.sessionId)) exOf.set(v.sessionId, new Set());
     exOf.get(v.sessionId)!.add(v.exKey);
   }
+  const blockName = new Map((await d.select({ id: t.blocks.id, name: t.blocks.name }).from(t.blocks)).map((b) => [b.id, b.name]));
   const out: HistoryRow[] = rows.map((r) => ({
     id: r.id, date: r.date, week: r.week, dayKey: r.dayKey, dayName: r.dayName, status: r.status as HistoryRow["status"],
     kind: r.kind as HistoryRow["kind"], startedAt: r.startedAt, endedAt: r.endedAt, excuse: r.excuse, note: r.note, rpe: r.rpe,
     sets: m.get(r.id)?.n ?? 0, volume: Math.round(m.get(r.id)?.vol ?? 0), pains: m.get(r.id)?.pains ?? 0,
     exKeys: [...(exOf.get(r.id) ?? [])],
+    blockId: r.blockId, blockName: r.blockId ? blockName.get(r.blockId) ?? null : null, version: r.programVersionId,
   }));
   return c.json(out);
 });
@@ -686,7 +829,7 @@ app.post("/reset", async (c) => {
   const d = db(c);
   await d.batch([
     d.delete(t.sets), d.delete(t.sessions), d.delete(t.events), d.delete(t.body), d.delete(t.tests),
-    d.delete(t.journal), d.delete(t.intake), d.delete(t.settings), d.delete(t.programVersions), d.delete(t.feedback), d.delete(t.cardio),
+    d.delete(t.journal), d.delete(t.intake), d.delete(t.settings), d.delete(t.programVersions), d.delete(t.feedback), d.delete(t.cardio), d.delete(t.blocks),
   ]);
   return c.json({ ok: true });
 });

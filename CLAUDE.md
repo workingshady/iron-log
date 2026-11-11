@@ -19,7 +19,9 @@ Commands: `npm run dev` · `npm run check` (validate program + types) · `npm ru
 - `events`: every tap (`set_done`, `set_edit`, `set_undo`, `rest_start/adjust/skip/done`, `ex_swap` {from,to,reason}, `ex_skip`, `ex_move`, `video_open`, `session_*`…).
 - `body` (optional, any day), `tests`, `journal`, `intake` (creatine grams: item/amount/unit per entry), `settings` (schedule, creatineTarget), `program_versions` (a snapshot of each version used).
 - Derived: `/api/dashboard` (calendar, forgiving streak: planned-rest/sick misses don't break it, adherence, creatine), `/api/insights` (`worker/insights.ts` rules + sets per muscle group from `program/groups.ts`), `/api/analytics` (`worker/analytics.ts`: calendar-week trends, fractional hard sets per muscle, e1RM trends, "what goes with good workouts" associations; formulas documented in the file, test with `npx tsx scripts/test-analytics.ts`).
-- Plan position = the first (week, day) in `program.order` with no `done`/`skipped` session for this program id. `missed` does **not** advance it.
+- `blocks` = months (template vs instance: the program version is the template, a block is one run through it). Columns: n, name, program_id, start_version, start/end date, status active|done, goal, notes, **review** (Claude's month review, markdown), baseline JSON (est. maxes + bodyweight at start), summary JSON (frozen at close). `sessions.block_id` links each session. `POST /api/blocks/next` closes the month (refused while a workout is active) and starts the next; a new program id starts a new block automatically, a new version of the same program does not. Migration 0008 linked all old sessions to `blk-1`.
+- Plan position = the first (week, day) in `program.order` with no `done`/`skipped` session **in the active block** for this program id. `missed` does **not** advance it.
+- Version history for the app: `program/history.ts` (HISTORY: id, date, title, why, changes) — add an entry for every new version, newest first.
 
 ## Android app
 - APK = Trusted Web Activity of the live site (`scripts/build-apk.mjs`, Bubblewrap core). Package `com.workingshady.ironlog`, key `private/android/iron-log.keystore` (password in `private/SETUP.md`), fingerprint served at `public/.well-known/assetlinks.json`. Releases: `gh release create vX-android <apk>` (gh at "C:/Program Files/GitHub CLI/gh.exe"). Bump versionCode each build; never change the key.
@@ -42,7 +44,8 @@ Commands: `npm run dev` · `npm run check` (validate program + types) · `npm ru
    - **Pull-up / dip level** from tests and sets → apply the level table (0 / 1-3 / 4-7 / 8+) from the original plan.
    - **Journal:** life context explains bad weeks. Don't punish a stressful week.
 3. Make the new version: copy `program/versions/vN.ts` → `vN+1.ts`, bump `version` (minor for tweaks, major for a new block), and write `changelog` in 1-2 lines. Add it to `ALL_VERSIONS` and set `CURRENT`. A new program id starts the plan position from Week 1. The same id with a new version keeps the position.
-4. Add a section to `program/CHANGELOG.md`: what changed and **why (with the data that showed it)**.
+4. Add a section to `program/CHANGELOG.md`: what changed and **why (with the data that showed it)**, and the same in short to `program/history.ts` (shown in Plan → versions).
+4b. At the end of a month: write the review into the block (`PUT /api/blocks/<id>` {review}) so it shows in Months.
 5. `npm run check` → `npm run deploy` → commit.
 
 ## UI principles in use

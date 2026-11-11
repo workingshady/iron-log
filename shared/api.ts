@@ -98,6 +98,8 @@ export interface SlotInfo {
 
 export interface AppState {
   program: { id: string; version: string; name: string; changelog: string; rules: string[] };
+  /** The current month (block): plan position is counted inside it. */
+  block?: { id: string; n: number; name: string; startDate: string; startVersion: string };
   weeks: { n: number; name: string; brief: string }[];
   slots: SlotInfo[];
   next: SlotInfo | null;
@@ -137,6 +139,8 @@ export interface HistoryRow {
   pains: number;
   /** Exercises done in this session (for search). */
   exKeys?: string[];
+  /** Month (block) and plan version this session belongs to. */
+  blockId?: string | null; blockName?: string | null; version?: string;
 }
 
 export interface ProgressPoint {

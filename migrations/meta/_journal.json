@@ -50,6 +50,20 @@
       "when": 1794321154942,
       "tag": "0006_journal_mood",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1794400833740,
+      "tag": "0007_blocks",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1794400835731,
+      "tag": "0008_link_block1",
+      "breakpoints": true
     }
   ]
 }

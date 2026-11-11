@@ -40,8 +40,9 @@ export default function History() {
   }, [data, kind, day, q]);
   if (!data) return <p className="py-20 text-center text-mute">{error ?? "Loading…"}</p>;
 
-  const groups = new Map<number, HistoryRow[]>();
-  rows.forEach((r) => groups.set(r.week, [...(groups.get(r.week) ?? []), r]));
+  // grouped by calendar month (newest first); each header shows the block(s) and totals for that month
+  const groups = new Map<string, HistoryRow[]>();
+  rows.forEach((r) => groups.set(r.date.slice(0, 7), [...(groups.get(r.date.slice(0, 7)) ?? []), r]));
   const toggleCmp = (id: string) => setCmp((c) => (c.includes(id) ? c.filter((x) => x !== id) : c.length >= 2 ? [c[1], id] : [...c, id]));
   // quick compare: this workout vs the previous one of the same day type
   const prevSame = (r: HistoryRow) => data.find((x) => x.dayName === r.dayName && !isMiss(x) && x.id !== r.id && (x.date < r.date || (x.date === r.date && (x.startedAt ?? 0) < (r.startedAt ?? 0))));
@@ -82,9 +83,16 @@ export default function History() {
       {!rows.length && <Empty icon={HistoryIcon}>{q || day || kind !== "all" ? "Nothing matches." : "Finished workouts and missed days show up here."}</Empty>}
 
       <div className="space-y-5">
-        {[...groups.entries()].map(([w, list]) => (
-          <section key={w}>
-            <div className="mb-2 text-xs font-medium uppercase tracking-wide text-mute">Week {w}</div>
+        {[...groups.entries()].map(([ym, list]) => {
+          const done = list.filter((r) => !isMiss(r) && r.status === "done");
+          const blocksIn = [...new Set(list.map((r) => r.blockName).filter(Boolean))];
+          return (
+          <section key={ym}>
+            <div className="mb-2 flex items-baseline gap-2">
+              <span className="text-sm font-bold">{new Date(`${ym}-15T12:00:00Z`).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })}</span>
+              {blocksIn.length > 0 && <button onClick={() => go("/months")} className="text-[11px] text-info">{blocksIn.join(" · ")}</button>}
+              <span className="ml-auto text-[11px] text-mute num">{done.length} workouts · {Math.round(done.reduce((a, r) => a + r.volume, 0) / 100) / 10}t</span>
+            </div>
             <div className="space-y-2">
               {list.map((r) => {
                 if (isMiss(r)) {
@@ -112,6 +120,7 @@ export default function History() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 font-semibold">
                           <span className="truncate">{r.dayName}</span>
+                          <span className="shrink-0 text-[10px] font-normal text-faint num">W{r.week}{r.version ? ` · v${r.version.split("@")[1]}` : ""}</span>
                           {r.kind !== "planned" && <Badge>{r.kind}</Badge>}
                           {r.status === "abandoned" && <Badge tone="warn">partial</Badge>}
                           {r.status === "active" && <Badge tone="warn">in progress</Badge>}
@@ -136,7 +145,8 @@ export default function History() {
               })}
             </div>
           </section>
-        ))}
+          );
+        })}
       </div>
 
       {cmpMode && cmp.length === 2 && (

@@ -12,12 +12,37 @@ export const programVersions = sqliteTable("program_versions", {
   firstSeenAt: integer("first_seen_at").notNull(),
 });
 
+/**
+ * A block = one run through the program (≈ one month: Week 1 → Week 4 deload). Template vs instance: the program
+ * version is the template, the block is your instance of it. The plan position is counted per block, so the same
+ * program can be repeated month after month. Baseline (est. maxes + bodyweight at the start) and summary (at the end)
+ * are stored so months can be compared later even if formulas change.
+ */
+export const blocks = sqliteTable("blocks", {
+  id: text("id").primaryKey(),
+  n: integer("n").notNull(), // 1, 2, 3 … in order
+  name: text("name").notNull(), // "Month 1 · Nov 2026"
+  programId: text("program_id").notNull(),
+  startVersion: text("start_version").notNull(), // "ppl-arnold@2.5.0"
+  startDate: text("start_date").notNull(),
+  endDate: text("end_date"),
+  status: text("status").notNull(), // active | done
+  goal: text("goal"),
+  notes: text("notes"),
+  review: text("review"), // Claude's review of the month (markdown)
+  baseline: text("baseline"), // JSON {bodyKg, e1rm: {exKey: kg}}
+  summary: text("summary"), // JSON snapshot when the block closes
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
 /** One row per workout attempt, missed day, or skipped session. */
 export const sessions = sqliteTable(
   "sessions",
   {
     id: text("id").primaryKey(),
     programVersionId: text("program_version_id").notNull(),
+    blockId: text("block_id"), // which month/block (null only for rows from before blocks existed and not yet linked)
     week: integer("week").notNull(),
     dayKey: text("day_key").notNull(), // "D1"
     dayName: text("day_name").notNull(),
@@ -39,7 +64,7 @@ export const sessions = sqliteTable(
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
   },
-  (t) => [index("sessions_date").on(t.date), index("sessions_status").on(t.status)],
+  (t) => [index("sessions_date").on(t.date), index("sessions_status").on(t.status), index("sessions_block").on(t.blockId)],
 );
 
 /** Every logged set. Never hard-deleted (deleted = 1) so edits stay auditable. */

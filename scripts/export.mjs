@@ -5,7 +5,7 @@ import { execSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 
 const where = process.argv.includes("--local") ? "--local" : "--remote";
-const tables = ["program_versions", "sessions", "sets", "events", "body", "tests", "journal", "settings", "intake", "feedback", "cardio"];
+const tables = ["program_versions", "sessions", "sets", "events", "body", "tests", "journal", "settings", "intake", "feedback", "cardio", "blocks"];
 const dir = `private/exports/${new Date().toISOString().slice(0, 10)}${where === "--local" ? "-local" : ""}`;
 mkdirSync(dir, { recursive: true });
 

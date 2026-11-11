@@ -142,6 +142,12 @@ Log in with the **DEV passcode** instead of yours → an orange "DEV MODE" bar, 
 - **Offline** it uses the phone's own recognizer (one language at a time). If the mic is blocked, allow it for the site in Chrome settings.
 - Arabic and mixed text show right-to-left automatically, line by line.
 
+## Months & versions
+- **Months** (More → Months, or the month chip at the top of Plan): every 4-week block is saved — dates, progress (x/20 workouts), adherence, volume, PRs, average time, strength change per lift (start → best est. max), bodyweight start → end, which plan versions were used, your goal and notes, and Claude's review.
+- **Start the next month** when Week 4 is done (Plan shows a card, or Months): the finished month's numbers are frozen and kept, the plan goes back to Week 1, and weights/recommendations carry over. Not allowed while a workout is in progress; it warns if the month isn't finished.
+- **Plan → version chip** opens the version history: every change to the plan, newest first, with why (your data or research). Each workout keeps the version it was done with (History shows it).
+- **History** is grouped by calendar month, with that month's block and totals.
+
 ## Plan screen
 - **4-week progression** now shows the **weight for every week** under each sets × reps: this week = today's recommendation; later weeks = the app's own rules run forward from your real history, assuming each session goes as suggested (/h = per hand, blue = deload, green = a step up, ✓ = already done). Viewing a future week also shows that week's projected weights on each day.
 - **This week's days**: each day with its muscle-group chips (sets per group). Tap a day to see the exercises.

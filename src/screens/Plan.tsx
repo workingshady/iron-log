@@ -18,6 +18,10 @@ import { TechNote } from "../components/Terms";
 import { StartSheet } from "../components/StartSheets";
 import { BodyMap } from "../components/BodyMap";
 import { WeekPlanner } from "../components/WeekPlanner";
+import { HISTORY } from "../../program/history";
+import { GitBranch, CalendarRange } from "lucide-react";
+import { go } from "../nav";
+import { niceDate } from "../lib/util";
 
 /** Rough session length: each set ≈ 40 s of work + its rest; superset partners share the rest. */
 const estMinutes = (d: DayPlan) => Math.round(d.items.reduce((a, x) => a + x.sets * (40 + x.rest), 0) / 60) + 8; // + warm-up
@@ -29,6 +33,7 @@ export default function Plan() {
   const [openDay, setOpenDay] = useState<string | null>(null);
   const [how, setHow] = useState<PlanItem | null>(null);
   const [start, setStart] = useState<SlotInfo | null>(null);
+  const [vers, setVers] = useState(false);
   const [preview, setPreview] = useState<{ week: number; dayKey: string; slot: SlotInfo | null } | null>(null);
   const [showMap, setShowMap] = useState(false);
   const [legend, setLegend] = useState(false);
@@ -53,6 +58,31 @@ export default function Plan() {
   return (
     <div className="min-w-0">
       <PageHead icon={CalendarDays} title="Plan" sub={`${CURRENT.name} · v${CURRENT.version}`} />
+
+      {/* which month you're in + what changed in the plan */}
+      <div className="mb-3 grid grid-cols-2 gap-2">
+        <button onClick={() => go("/months")} className="flex min-h-14 items-center gap-2.5 rounded-2xl bg-card px-3 text-left active:bg-card2">
+          <CalendarRange size={18} className="shrink-0 text-acc" />
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-semibold">{s?.block?.name ?? "Month 1"}</span>
+            <span className="block truncate text-[11px] text-mute">since {s?.block ? niceDate(s.block.startDate) : "—"} · {(s?.slots ?? []).filter((x) => x.status === "done").length}/{(s?.slots ?? []).length} done</span>
+          </span>
+        </button>
+        <button onClick={() => { setVers(true); track("versions_open", {}); }} className="flex min-h-14 items-center gap-2.5 rounded-2xl bg-card px-3 text-left active:bg-card2">
+          <GitBranch size={18} className="shrink-0 text-info" />
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-semibold">v{CURRENT.version}</span>
+            <span className="block truncate text-[11px] text-mute">{HISTORY[0]?.title ?? "Versions & changes"}</span>
+          </span>
+        </button>
+      </div>
+      {s && !s.next && !s.active && (
+        <Card className="mb-3 border border-acc/40">
+          <div className="font-semibold">All 4 weeks done 🎉</div>
+          <p className="mt-1 text-xs text-mute">Say "review" to Claude for the next version, then start the next month — the plan goes back to Week 1 with your weights carried over.</p>
+          <Btn kind="primary" icon={CalendarRange} className="mt-3 w-full" onClick={() => go("/months")}>Finish {s.block?.name ?? "this month"} → next month</Btn>
+        </Card>
+      )}
 
       <div className="mb-3"><WeekPlanner /></div>
 
@@ -270,6 +300,27 @@ export default function Plan() {
 
       {how && <ExerciseSheet item={how} onClose={() => setHow(null)} />}
       {preview && <WorkoutPreview week={preview.week} dayKey={preview.dayKey} onClose={() => setPreview(null)} onStart={preview.slot ? () => { setStart(preview.slot); setPreview(null); } : undefined} />}
+      {vers && (
+        <Sheet open onClose={() => setVers(false)} title="Plan versions" icon={GitBranch}>
+          <p className="-mt-1 mb-3 text-xs text-mute">Every change to your plan, newest first — what changed and the data or research behind it. Your workouts keep the version they were done with.</p>
+          <ol className="relative space-y-3 border-l border-line pl-4">
+            {HISTORY.map((h, i) => (
+              <li key={h.id} className="relative">
+                <span className={cx("absolute -left-[21px] top-1 h-3 w-3 rounded-full ring-4 ring-card", i === 0 ? "bg-acc" : h.kind === "major" ? "bg-info" : "bg-card3")} />
+                <div className="flex flex-wrap items-baseline gap-x-2">
+                  <span className="font-bold num">v{h.version}</span>
+                  {i === 0 && <Badge tone="acc">current</Badge>}
+                  {h.kind === "major" && <Badge tone="info">new program</Badge>}
+                  <span className="text-[11px] text-mute num">{niceDate(h.date)}</span>
+                </div>
+                <div className="text-sm font-semibold">{h.title}</div>
+                <p className="mt-0.5 text-[11px] text-mute"><b className="text-ink/80">Why:</b> {h.why}</p>
+                <ul className="mt-1 space-y-0.5">{h.changes.map((c) => <li key={c} className="flex gap-1.5 text-xs"><span className="text-acc">•</span><span>{c}</span></li>)}</ul>
+              </li>
+            ))}
+          </ol>
+        </Sheet>
+      )}
       <StartSheet open={!!start} slot={start} kind={start?.dayKey.startsWith("X") ? "extra" : start && !(nx.next?.week === start.week && nx.next?.dayKey === start.dayKey) && !(s?.next?.week === start.week && s?.next?.dayKey === start.dayKey) ? (start.status === "open" ? "picked" : "extra") : "planned"} onClose={() => setStart(null)} />
     </div>
   );

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  AtSign, CalendarRange, Camera, Check, Columns2, Dumbbell, Grid3x3, ImagePlus, KeyRound, Loader2, Menu, NotebookPen, PersonStanding, Settings, Trash2, TrendingUp, Trophy, UserRound, Wrench,
+  AtSign, Move, CalendarRange, Camera, Check, Columns2, Dumbbell, Grid3x3, ImagePlus, KeyRound, Loader2, Menu, NotebookPen, PersonStanding, Settings, Trash2, TrendingUp, Trophy, UserRound, Wrench,
 } from "lucide-react";
 import { get, isDev, send, track } from "../lib/api";
 import { useLoad } from "../lib/useLoad";
@@ -9,7 +9,8 @@ import { cx, niceDate } from "../lib/util";
 import { Btn, Chips, Empty, NumInput, Sheet } from "../components/ui";
 import type { AppState } from "../../shared/api";
 import { Avatar } from "../components/Avatar";
-import { Lightbox, NewPhotoSheet, PhotoGrid, PhotoImg, uploadPhoto, type PhotoMeta } from "../components/Photos";
+import { Lightbox, NewPhotoSheet, PhotoGrid, PhotoImg, photoUrl, uploadPhoto, type PhotoMeta } from "../components/Photos";
+import { PhotoEditor, type Edited } from "../components/PhotoEditor";
 
 interface Profile { id: string; username: string; name: string | null; bio: string | null; avatarId: string | null; createdAt: number; stats: { workouts: number; photos: number; prs: number; since: string | null } }
 
@@ -37,7 +38,8 @@ export default function Profile() {
   const { data: photos, reload } = useLoad<PhotoMeta[]>("/photos");
   const [tab, setTab] = useState<Tab>(() => (sessionStorage.getItem("il:ptab") as Tab) || "all");
   const [open, setOpen] = useState<number | null>(null);
-  const [newFile, setNewFile] = useState<File | null>(null);
+  const [newFile, setNewFile] = useState<File | null>(null); // picked → editor
+  const [edited, setEdited] = useState<Edited | null>(null); // editor → caption sheet
   const [editing, setEditing] = useState(false);
   const [avatarSheet, setAvatarSheet] = useState(false);
   const [compare, setCompare] = useState(false);
@@ -142,7 +144,8 @@ export default function Profile() {
       </div>
 
       {open != null && <Lightbox items={shown} start={open} onClose={() => setOpen(null)} onChanged={refresh} />}
-      <NewPhotoSheet file={newFile} onClose={() => setNewFile(null)} onDone={() => { setNewFile(null); setTab((t) => (t === "all" ? t : "progress")); refresh(); }} />
+      {newFile && !edited && <PhotoEditor src={newFile} defaultAspect="4:5" onCancel={() => setNewFile(null)} onDone={setEdited} />}
+      <NewPhotoSheet file={edited} onBack={() => setEdited(null)} onClose={() => { setEdited(null); setNewFile(null); }} onDone={() => { setEdited(null); setNewFile(null); setTab((t) => (t === "all" ? t : "progress")); refresh(); }} />
       {editing && <EditProfile me={me} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); refresh(); }} onPhoto={() => setAvatarSheet(true)} />}
       {avatarSheet && <AvatarSheet me={me} photos={all} onClose={() => setAvatarSheet(false)} onDone={() => { setAvatarSheet(false); refresh(); }} />}
       {compare && <CompareSheet photos={progress} onClose={() => setCompare(false)} />}
@@ -297,15 +300,15 @@ function AvatarSheet({ me, photos, onClose, onDone }: { me: Profile; photos: Pho
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [choose, setChoose] = useState(false);
+  const [crop, setCrop] = useState<File | string | null>(null); // a new file or an existing photo's URL → round cropper
   async function set(id: string | null) {
     await send("PUT", "/profile", { avatarId: id });
     track("avatar_set", { remove: !id });
     onDone();
   }
-  async function upload(f?: File) {
-    if (!f) return;
-    setBusy(true); setErr(null);
-    try { await set(await uploadPhoto(f, { refKind: "avatar" })); }
+  async function upload(x: Edited) {
+    setCrop(null); setBusy(true); setErr(null);
+    try { await set(await uploadPhoto(x, { refKind: "avatar" })); }
     catch (e) { setErr((e as Error).message); }
     finally { setBusy(false); }
   }
@@ -315,18 +318,20 @@ function AvatarSheet({ me, photos, onClose, onDone }: { me: Profile; photos: Pho
       <p className="mb-3 text-center text-[11px] text-faint">The centre square of the photo is used. Only you see it.</p>
       <div className="space-y-2">
         <Btn kind="primary" icon={busy ? Loader2 : Camera} className="w-full" disabled={busy} onClick={() => input.current?.click()}>{busy ? "Saving…" : "New photo"}</Btn>
+        {me.avatarId && <Btn kind="soft" icon={Move} className="w-full" onClick={() => setCrop(photoUrl(me.avatarId!))}>Adjust current photo</Btn>}
         {photos.length > 0 && <Btn kind="soft" icon={Grid3x3} className="w-full" onClick={() => setChoose(!choose)}>Choose from your photos</Btn>}
         {choose && (
           <ul className="grid grid-cols-4 gap-1">
             {photos.slice(0, 40).map((p) => (
-              <li key={p.id}><button type="button" onClick={() => set(p.id)} className="block aspect-square w-full overflow-hidden rounded-lg bg-card3" aria-label={`Use photo from ${niceDate(p.date)}`}><PhotoImg id={p.id} /></button></li>
+              <li key={p.id}><button type="button" onClick={() => setCrop(photoUrl(p.id))} className="block aspect-square w-full overflow-hidden rounded-lg bg-card3" aria-label={`Use photo from ${niceDate(p.date)}`}><PhotoImg id={p.id} /></button></li>
             ))}
           </ul>
         )}
         {me.avatarId && <Btn kind="danger" icon={Trash2} className="w-full" onClick={() => set(null)}>Remove current photo</Btn>}
       </div>
       {err && <p role="alert" className="mt-2 text-sm text-bad">{err}</p>}
-      <input ref={input} type="file" accept="image/*" className="hidden" onChange={(e) => upload(e.target.files?.[0])} />
+      <input ref={input} type="file" accept="image/*" className="hidden" onChange={(e) => { setCrop(e.target.files?.[0] ?? null); e.target.value = ""; }} />
+      {crop && <PhotoEditor src={crop} mode="avatar" onCancel={() => setCrop(null)} onDone={upload} />}
     </Sheet>
   );
 }

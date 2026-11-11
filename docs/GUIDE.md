@@ -174,6 +174,9 @@ Log in with username **dev** + the **DEV passcode** instead of yours → an oran
 ## Photos
 - One look everywhere: the same 64 px tiles on sets, machines and journal entries; a 3-column square grid on the profile (progress photos show their date).
 - Add from: a **set** (form), an **exercise** (machine seat / pin settings), a **journal entry** (up to 6, previewed before saving), or the profile **+** (pick → preview → type, caption, date → Share).
+- **Every photo goes through the editor first** (same for profile photo, posts, sets, machines, journal): drag to move, pinch / scroll / slider to zoom, **centre**, rotate 90°, rule-of-thirds grid. Shapes: Original · 1:1 · 4:5 · 3:4 · 9:16 · 16:9 · 1.91:1. **Fit** shows the whole photo with a blurred, black or white background. **Filters** (Vivid, Warm, Cool, Fade, Drama, Gym, Mono, Noir), **Adjust** (brightness, contrast, saturation, warmth, vignette), **Border** (thin / thick white, black, lime, Polaroid). Keyboard: arrows move, + / − zoom, 0 centres. What you see in the frame is exactly what's saved (long side 1350 px).
+- Profile photo: round crop; "Adjust current photo" re-frames it, "Choose from your photos" crops any photo into the circle.
+- The profile grid uses 3:4 tiles (Instagram's 2025 grid shape); each photo gets a matching thumbnail.
 - Tap any photo → full-screen viewer: swipe or ← → to move, swipe down / Esc to close, zoom, edit caption + date, set as profile photo, open the workout, delete.
 - Shrunk on the phone (≤1280 px + a 360 px thumbnail). Each photo is downloaded **once** and then comes from the phone's cache (grids load the small thumbnail). Private: only after login; logging out clears the cache. Needs a connection to add.
 

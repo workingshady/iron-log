@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Activity, Camera, Dumbbell, FlaskConical, HeartPulse, ImagePlus, Loader2, NotebookPen, Pencil, Scale, Search, Trash2, TriangleAlert, X } from "lucide-react";
 import { PhotoStrip, PhotoTiles, uploadPhoto, type PhotoMeta } from "../components/Photos";
+import { PhotoEditor, type Edited } from "../components/PhotoEditor";
 import { send, track, uid } from "../lib/api";
 import { useLoad } from "../lib/useLoad";
 import { cx, niceDate, today } from "../lib/util";
@@ -75,12 +76,12 @@ export default function Journal() {
   const [edit, setEdit] = useState<{ id: string; text: string; tags: string[]; mood: number | null } | null>(null);
   const [lang, setLang] = useState<VoiceLang>(getVoiceLang());
   // photos picked for the entry being written: previewed locally, uploaded when you press "Add entry"
-  const [staged, setStaged] = useState<{ file: File; url: string }[]>([]);
+  const [staged, setStaged] = useState<Edited[]>([]);
+  const [queue, setQueue] = useState<File[]>([]); // picked, waiting for the editor (one at a time)
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const pick = useRef<HTMLInputElement>(null);
-  useEffect(() => () => staged.forEach((x) => URL.revokeObjectURL(x.url)), []); // eslint-disable-line react-hooks/exhaustive-deps
-  const unstage = (k: number) => setStaged((a) => { URL.revokeObjectURL(a[k].url); return a.filter((_, i) => i !== k); });
+  const unstage = (k: number) => setStaged((a) => a.filter((_, i) => i !== k));
 
   async function save() {
     if (!text.trim() && !staged.length) return;
@@ -88,9 +89,8 @@ export default function Journal() {
     const id = uid();
     try {
       await send("POST", "/journal", { id, date, text: text.trim(), tags: joinTags(tags), mood });
-      for (const x of staged) await uploadPhoto(x.file, { refKind: "journal", refId: id, date });
+      for (const x of staged) await uploadPhoto(x, { refKind: "journal", refId: id, date });
       track("journal_add", { tags, mood, chars: text.trim().length, suggested: suggestTags(text), photos: staged.length });
-      staged.forEach((x) => URL.revokeObjectURL(x.url));
       setText(""); setTags([]); setMood(null); setDate(today()); setStaged([]);
     } catch (e) {
       setErr(`Saved the text, but a photo failed: ${(e as Error).message}`);
@@ -159,8 +159,8 @@ export default function Journal() {
           {/* photos for this entry (same tiles as everywhere else) */}
           <ul className="mt-3 flex flex-wrap gap-2" aria-label="Photos for this entry">
             {staged.map((x, k) => (
-              <li key={x.url} className="relative h-16 w-16 overflow-hidden rounded-xl bg-card3">
-                <img src={x.url} alt={`Photo ${k + 1} to add`} className="h-full w-full object-cover" />
+              <li key={k} className="relative h-16 w-16 overflow-hidden rounded-xl bg-card3">
+                <img src={x.thumbUrl} alt={`Photo ${k + 1} to add`} className="h-full w-full object-cover" />
                 <button type="button" onClick={() => unstage(k)} className="absolute right-0 top-0 flex h-7 w-7 items-center justify-center rounded-bl-lg bg-black/60 text-white" aria-label={`Remove photo ${k + 1}`}><X size={14} aria-hidden /></button>
               </li>
             ))}
@@ -174,7 +174,9 @@ export default function Journal() {
             )}
           </ul>
           <input ref={pick} type="file" accept="image/*" multiple className="hidden"
-            onChange={(e) => { const fs = [...(e.target.files ?? [])].filter((f) => f.type.startsWith("image/") || /\.(heic|heif)$/i.test(f.name)).slice(0, 6 - staged.length); setStaged((a) => [...a, ...fs.map((file) => ({ file, url: URL.createObjectURL(file) }))]); e.target.value = ""; }} />
+            onChange={(e) => { const fs = [...(e.target.files ?? [])].filter((f) => f.type.startsWith("image/") || /\.(heic|heif)$/i.test(f.name)).slice(0, 6 - staged.length); setQueue(fs); e.target.value = ""; }} />
+          {queue[0] && <PhotoEditor key={queue.length} src={queue[0]} title={queue.length > 1 ? `Edit photo · ${queue.length} left` : undefined}
+            onCancel={() => setQueue((q) => q.slice(1))} onDone={(x) => { setStaged((a) => [...a, x].slice(0, 6)); setQueue((q) => q.slice(1)); }} />}
 
           <div className="mb-1.5 mt-3 text-xs text-mute">How do you feel? <span className="text-faint">(optional)</span></div>
           <MoodPicker value={mood} onChange={setMood} />

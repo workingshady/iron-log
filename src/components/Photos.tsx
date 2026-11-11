@@ -7,6 +7,7 @@ import { useLoad } from "../lib/useLoad";
 import { forgetPhotos, refreshMe } from "../lib/me";
 import { cx, niceDate, today } from "../lib/util";
 import { Btn, Chips, Sheet } from "./ui";
+import { PhotoEditor, type Edited } from "./PhotoEditor";
 
 // One photo system for the whole app:
 //   PhotoTiles  → the same 64 px rounded squares everywhere a note has photos (sets, machines, journal)
@@ -61,21 +62,22 @@ export async function compress(file: File) {
     g.drawImage(src, 0, 0, w, h);
     let q = 0.75, dataUrl = c.toDataURL("image/jpeg", q);
     while (dataUrl.length > 600_000 && q > 0.4) { q -= 0.1; dataUrl = c.toDataURL("image/jpeg", q); }
-    const s = Math.min(W, H), T = 360;
+    const TW = 360, TH = 480, sc = Math.max(TW / W, TH / H);
     const t = document.createElement("canvas");
-    t.width = T; t.height = T;
+    t.width = TW; t.height = TH;
     const tg = t.getContext("2d")!;
-    tg.fillStyle = "#111"; tg.fillRect(0, 0, T, T);
-    tg.drawImage(src, (W - s) / 2, (H - s) / 2, s, s, 0, 0, T, T);
+    tg.fillStyle = "#111"; tg.fillRect(0, 0, TW, TH);
+    tg.drawImage(src, (TW - W * sc) / 2, (TH - H * sc) / 2, W * sc, H * sc);
     return { dataUrl, thumbUrl: t.toDataURL("image/jpeg", 0.7), w, h };
   } finally {
     done();
   }
 }
 
-export async function uploadPhoto(file: File, meta: { refKind: RefKind; refId?: string | null; exKey?: string | null; sessionId?: string | null; caption?: string | null; date?: string }) {
+/** Upload a photo: an edited result from PhotoEditor (normal path) or a raw file (compressed here). */
+export async function uploadPhoto(input: File | Edited, meta: { refKind: RefKind; refId?: string | null; exKey?: string | null; sessionId?: string | null; caption?: string | null; date?: string }) {
   if (!navigator.onLine) throw new Error("Offline — photos need a connection.");
-  const { dataUrl, thumbUrl, w, h } = await compress(file);
+  const { dataUrl, thumbUrl, w, h } = input instanceof File ? await compress(input) : input;
   const id = uid();
   await send("POST", "/photos", { id, refKind: meta.refKind, refId: meta.refId ?? null, exKey: meta.exKey ?? null, sessionId: meta.sessionId ?? null, caption: meta.caption ?? null, date: meta.date ?? today(), dataUrl, thumbUrl, w, h });
   track("photo_add", { refKind: meta.refKind, kb: Math.round(dataUrl.length / 1365) });
@@ -126,23 +128,20 @@ export function PhotoStrip({ refKind, refId, exKey, sessionId, label = "Photo" }
   const { data, reload } = useLoad<PhotoMeta[]>(`/photos?${q}`);
   const list = (data ?? []).filter((p) => (refKind === "exercise" ? p.refKind === "exercise" : true));
   const input = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState<string | null>(null); // object URL of the photo being saved
+  const [busy, setBusy] = useState<string | null>(null); // preview of the photo being saved
   const [err, setErr] = useState<string | null>(null);
+  const [editing, setEditing] = useState<File | null>(null);
 
-  async function add(f: File | undefined) {
-    if (!f) return;
-    setErr(null);
-    const prev = URL.createObjectURL(f);
-    setBusy(prev);
+  async function add(x: Edited) {
+    setEditing(null); setErr(null);
+    setBusy(x.thumbUrl);
     try {
-      await uploadPhoto(f, { refKind, refId, exKey: exKey ?? (refKind === "exercise" ? refId : null), sessionId });
+      await uploadPhoto(x, { refKind, refId, exKey: exKey ?? (refKind === "exercise" ? refId : null), sessionId });
       reload();
     } catch (e) {
       setErr(errText(e));
     } finally {
-      URL.revokeObjectURL(prev);
       setBusy(null);
-      if (input.current) input.current.value = "";
     }
   }
 
@@ -163,8 +162,9 @@ export function PhotoStrip({ refKind, refId, exKey, sessionId, label = "Photo" }
           </button>
         </li>
       </PhotoTiles>
-      <input ref={input} type="file" accept="image/*" className="hidden" onChange={(e) => add(e.target.files?.[0])} />
+      <input ref={input} type="file" accept="image/*" className="hidden" onChange={(e) => { setEditing(e.target.files?.[0] ?? null); e.target.value = ""; }} />
       {err && <p role="alert" className="mt-1 text-[11px] text-bad">{err}</p>}
+      {editing && <PhotoEditor src={editing} onCancel={() => setEditing(null)} onDone={add} />}
     </div>
   );
 }
@@ -177,7 +177,7 @@ export function PhotoGrid({ photos, onOpen }: { photos: PhotoMeta[]; onOpen: (i:
         const K = KIND[p.refKind] ?? KIND.other;
         return (
           <li key={p.id}>
-            <button type="button" onClick={() => onOpen(i)} className="relative block aspect-square w-full overflow-hidden bg-card3 focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-acc"
+            <button type="button" onClick={() => onOpen(i)} className="relative block aspect-[3/4] w-full overflow-hidden bg-card3 focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-acc"
               aria-label={`${K.label} photo, ${niceDate(p.date)}${p.caption ? `: ${p.caption}` : ""}`}>
               <PhotoImg id={p.id} />
               {p.refKind !== "progress" && <K.icon size={14} className="absolute right-1.5 top-1.5 text-white drop-shadow-[0_1px_2px_rgba(0,0,0,.8)]" aria-hidden />}
@@ -351,19 +351,14 @@ function ActionBtn({ icon: I, children, onClick, danger }: { icon: typeof Camera
 // ---------------------------------------------------------------- new post (pick → preview → caption, type, date → share)
 
 /** Instagram "new post" flow for a photo already picked: preview, type, caption, date. */
-export function NewPhotoSheet({ file, onClose, onDone }: { file: File | null; onClose: () => void; onDone: () => void }) {
+export function NewPhotoSheet({ file, onClose, onDone, onBack }: { file: Edited | null; onClose: () => void; onDone: () => void; onBack?: () => void }) {
   const [kind, setKind] = useState<RefKind>("progress");
   const [caption, setCaption] = useState("");
   const [date, setDate] = useState(today());
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-  useEffect(() => {
-    if (!file) return;
-    const u = URL.createObjectURL(file);
-    setPreview(u); setCaption(""); setDate(today()); setErr(null);
-    return () => URL.revokeObjectURL(u);
-  }, [file]);
+  const preview = file?.dataUrl ?? null;
+  useEffect(() => { if (file) { setCaption(""); setDate(today()); setErr(null); } }, [file]);
 
   async function share() {
     if (!file) return;
@@ -380,7 +375,8 @@ export function NewPhotoSheet({ file, onClose, onDone }: { file: File | null; on
 
   return (
     <Sheet open={!!file} onClose={onClose} title="New photo" icon={ImagePlus}>
-      {preview && <img src={preview} alt="Selected photo" className="mx-auto max-h-[38dvh] rounded-xl bg-black object-contain" />}
+      {preview && <img src={preview} alt="Edited photo" className="mx-auto max-h-[38dvh] rounded-xl bg-black object-contain" />}
+      {onBack && <button type="button" onClick={onBack} className="mx-auto mt-1 flex min-h-11 items-center px-3 text-sm font-semibold text-info">Edit again</button>}
       <div className="mt-3 text-[11px] text-mute">Type</div>
       <Chips small clearable={false} options={[{ id: "progress", label: "Progress" }, { id: "other", label: "Other" }]} value={kind} onChange={(k) => k && setKind(k as RefKind)} />
       <label className="mt-3 block text-[11px] text-mute">Caption

@@ -15,6 +15,18 @@ export interface VersionEntry {
 
 export const HISTORY: VersionEntry[] = [
   {
+    id: "ppl-arnold@2.9.0", version: "2.9.0", date: "2026-11-11", kind: "minor",
+    title: "Cardio cycle + neck you won't skip",
+    why: "Your request. Schumann 2022 (43 studies): cardio done with lifting doesn't hurt muscle or strength, so lift first, cardio after. Intervals should progress like lifting and back off in the deload; football is already a hard session.",
+    changes: [
+      "Intervals follow the 4-week cycle: 30-min incline intervals = W1 5 rounds @ 9.0 (24 min) → W2 6 @ 9.5 (27) → W3 7 @ 9.5 (30, your original) → W4 4 @ 9.0 (21). Hill walks: incline −2 / −1 / full / −3.",
+      "Football week → the Shoulders + Arms interval day becomes a hill walk (max 2 hard sessions/week incl. football).",
+      "New 15-min express intervals for busy days.",
+      "Calories shown as a range (±15%): equations and treadmill displays are estimates.",
+      "Neck: paired with machine shrug (Pull) and hammer curl (Shoulders + Arms) — 2×/week, no longer an end-of-day finisher.",
+    ],
+  },
+  {
     id: "ppl-arnold@2.8.0", version: "2.8.0", date: "2026-11-11", kind: "minor",
     title: "Core you won't skip",
     why: "You skip core when it's at the end. EMG research: ab wheel, hanging knee/leg raises and cable crunches activate the abs the most; planks and similar are at the bottom (J Strength Cond Res 2006; ACE). Abs grow like any muscle: progressive load.",

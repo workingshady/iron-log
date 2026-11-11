@@ -61,6 +61,17 @@ export const PROTOCOLS: Record<string, CardioProtocol> = {
     feel: ["≈ 5/10 — comfortable, nose breathing"],
     adjust: "Keep it easy; it should not affect tomorrow's session.",
   },
+  express15: {
+    key: "express15", name: "15-min express intervals", minutes: 15, intensity: "hard",
+    short: "Busy day: short and sharp, still counts",
+    blocks: [
+      { rows: [{ label: "Warm-up walk", min: 2, speed: 5.5, incline: 3, kind: "warm" }] },
+      { rounds: 6, rows: [{ label: "RUN", min: 0.75, speed: 9.5, incline: 3, kind: "hard" }, { label: "Walk", min: 1, speed: 5.5, incline: 6, kind: "easy" }] },
+      { rows: [{ label: "Cool-down", min: 2.5, speed: 4.5, incline: 1, kind: "cool" }] },
+    ],
+    feel: ["Runs 8/10", "Walks: breathe, keep moving"],
+    adjust: "Too hard → 9.0 km/h. Too easy → 10.0 km/h.",
+  },
   zone2_40: {
     key: "zone2_40", name: "40-min zone-2 incline walk", minutes: 40, intensity: "easy",
     short: "Rest-day cardio for heart health and recovery (optional)",
@@ -86,6 +97,36 @@ export const CARDIO_TIPS = {
   after: ["5 min stretching", "Protein meal (chicken, eggs, tuna, Greek yogurt)", "Don't 'reward' yourself with junk — it cancels the work"],
   stop: "Stop right away with chest pain, dizziness or nausea.",
 };
+
+/**
+ * The same session adjusted for the program week (cardio follows the lifting cycle):
+ *   W1 ramp-in (fewer/slower intervals) → W2 build → W3 full session → W4 deload (easier, shorter).
+ * Intervals: rounds and run speed change. Hill/steady walks: incline changes. Warm-up and cool-down stay.
+ */
+export function forWeek(p: CardioProtocol, week: number): CardioProtocol {
+  const w = Math.min(4, Math.max(1, week || 1));
+  const iv: Record<string, { rounds: number[]; run: number[] }> = {
+    incline_hiit30: { rounds: [5, 6, 7, 4], run: [-0.5, 0, 0, -0.5] },
+    hiit20: { rounds: [4, 5, 6, 3], run: [-0.5, 0, 0, -0.5] },
+    express15: { rounds: [5, 6, 6, 4], run: [-0.5, 0, 0.5, -0.5] },
+  };
+  const hill: Record<string, number[]> = { hill_walk30: [-2, -1, 0, -3], hill_walk20: [-1, 0, 0, -2], zone2_40: [0, 0, 1, -1] };
+  let blocks = p.blocks;
+  if (iv[p.key]) {
+    const c = iv[p.key];
+    blocks = p.blocks.map((b) => (b.rounds ? { rounds: c.rounds[w - 1], rows: b.rows.map((r) => (r.kind === "hard" ? { ...r, speed: Math.round((r.speed + c.run[w - 1]) * 10) / 10 } : r)) } : b));
+  } else if (hill[p.key]) {
+    const d = hill[p.key][w - 1];
+    blocks = p.blocks.map((b) => ({ ...b, rows: b.rows.map((r) => (r.kind === "hill" || r.kind === "steady" ? { ...r, incline: Math.max(2, r.incline + d) } : r)) }));
+  }
+  const minutes = Math.round(blocks.reduce((a, b) => a + (b.rounds ?? 1) * b.rows.reduce((x, r) => x + r.min, 0), 0));
+  const tag = ["ramp-in", "build", "full", "deload"][w - 1];
+  return { ...p, blocks, minutes, name: p.name.replace(/^\d+-min/, `${minutes}-min`), short: `${p.short} · Week ${w} ${tag}` };
+}
+
+/** kcal estimates (ACSM equations) are ±~15% for one person; treadmill displays usually read high. */
+export const KCAL_MARGIN = 0.15;
+export const kcalRange = (k: number) => `${Math.round(k * (1 - KCAL_MARGIN))}-${Math.round(k * (1 + KCAL_MARGIN))}`;
 
 /** Flatten blocks into timed segments. */
 export function segments(p: CardioProtocol): (Row & { sec: number; round?: number })[] {

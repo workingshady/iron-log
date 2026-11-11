@@ -47,10 +47,10 @@ const D2: E[] = [
   { ex: "face_pull", s: ["3x15", "3x15", "3x15-20", "2x15"], rest: 0, tag: "C1", t: "Rope to eyes, elbows high & wide, thumbs back, chin tucked — feel the back of the shoulder", t3: "Last set: drop set (−20-25%)" },
   // v2.8 core: on the pull-up bar, during the face-pull rest — no extra time, not at the end (where it got skipped)
   { ex: "hanging_knee_raise", s: ["3x10-12", "3x12-15", "3x12-15", "2x10"], rest: 90, tag: "C2", noRir: true, t: "Curl the pelvis up (not just lift the knees), no swinging · 3×15 strict → switch to hanging leg raise" },
-  { ex: "machine_shrug", s: ["3x10-12", "3x10-12", "4x8-12", "2x12"], rest: 90, t: "Straight up, hold 2 s · straps if grip slips first" },
+  { ex: "machine_shrug", s: ["3x10-12", "3x10-12", "4x8-12", "2x12"], rest: 0, tag: "D1", t: "Straight up, hold 2 s · straps if grip slips first" },
+  { ex: "neck", s: ["2x15", "2x15", "3x15-20", "1x15"], rest: 90, tag: "D2", t: "Wrestler neck: light plate or band-free hand resistance · front, back, both sides · slow, never jerk" },
   { ex: "incline_curl", s: ["3x10-12", "3x10-12", "3x10-12", "2x12"], rest: 90, t: "Arms hang behind you", t3: "Last set: drop set (−20-25%)" },
   { ex: "dead_hang", s: ["2x30s", "3x30s", "3x40s", "2x30s"], rest: 60, fin: true, t: "Pull-up base & grip · no straps" },
-  { ex: "neck", s: ["1x15", "2x15", "2x20", "1x15"], rest: 60, fin: true, t: "Light & slow · all 3 directions each set: front, back, both sides" },
 ];
 
 const D3: E[] = [
@@ -63,7 +63,6 @@ const D3: E[] = [
   { ex: "ab_wheel", s: ["3x6-8", "3x8-10", "4x8-12", "2x6"], rest: 75, tag: "C2", noRir: true, t: "From the knees · ribs down, glutes tight · only as far as the low back stays flat" },
   { ex: "db_lateral", s: ["2x15-20", "3x15-20", "3x15-20", "1x15"], rest: 45, t: "Delts 3rd hit of the week", t3: "Last set: myo-reps" },
   { ex: "farmer_carry", s: ["2x30m", "3x30m", "3x40m", "2x30m"], rest: 90, fin: true, t: "Heavy, tall, no straps" },
-  { ex: "neck", s: ["1x15", "1x20", "2x20", "1x15"], rest: 60, fin: true, t: "Light & slow" },
 ];
 
 const D5: E[] = [
@@ -91,13 +90,13 @@ const D6: E[] = [
   // + skull crusher (long-head stretch; overhead/stretched > pushdown for triceps growth, Maeo 2022)
   { ex: "preacher_curl", s: ["3x8-10", "3x8-10", "3x8-10", "2x10"], rest: 0, tag: "A1", t: "Armpits on the pad, lower until almost straight, 3 s down", t3: "Last set: drop set (−20-25%)" },
   { ex: "skull_crusher", s: ["3x10-12", "3x10-12", "3x10-12", "2x12"], rest: 90, tag: "A2", t: "Upper arms slightly back, lower behind the head · elbows stay put" },
-  { ex: "hammer_curl", s: ["2x10-12", "2x10-12", "3x10-12", "1x12"], rest: 75, t: "Brachialis + forearm thickness · no swinging" },
+  { ex: "hammer_curl", s: ["2x10-12", "2x10-12", "3x10-12", "1x12"], rest: 0, tag: "B1", t: "Brachialis + forearm thickness · no swinging" },
+  { ex: "neck", s: ["2x15", "2x15", "2x20", "1x15"], rest: 75, tag: "B2", t: "Light & slow · front, back, both sides" },
   { ex: "machine_shrug", s: ["2x12-15", "2x12-15", "2x12-15", "1x12"], rest: 75, t: "Higher reps than Pull · hold 2 s at the top · straps OK" },
   { ex: "bss", s: ["2x8-10", "2x8-10", "3x8-10", "1x10"], rest: 90, t: "Leg booster (2nd leg hit)" },
   // v2.7: knee-straight calf raise (standing > seated for calf growth, Kinoshita 2023); reverse curl moved to Grip & Wrist
   { ex: "seated_leg_curl", s: ["2x10-12", "2x10-12", "3x10-12", "1x12"], rest: 75, t: "Hamstrings 2nd hit · lean forward, 3 s down" },
   { ex: "leg_press_calf", s: ["3x12-15", "3x12-15", "4x12-15", "2x12"], rest: 75, t: "Knees almost straight, deep stretch + 2 s pause", t3: "Last set: lengthened partials" },
-  { ex: "neck", s: ["1x15", "1x20", "2x20", "1x15"], rest: 60, fin: true, t: "Light & slow" },
 ];
 
 // Optional "Grip & Wrist" extra (12-15 min, 2×/week): every direction the wrist moves + finger and grip holds.
@@ -125,10 +124,10 @@ const days = (n: number): DayPlan[] => [
 
 export const v2: Program = {
   id: "ppl-arnold",
-  version: "2.8.0",
+  version: "2.9.0",
   name: "PPL × Arnold · Intensive v2",
   changelog:
-    "2.8: core you won't skip — 3×/week inside supersets (hanging knee raise on Pull, ab wheel on Legs, weighted cable crunch on Chest + Back); cardio timer upgrade. 2.7: volume balanced to 10-20 hard sets/muscle/week and ≤~12/session (Pelland 2024): seated DB press off Push, fewer neutral pulldowns & 2nd shrugs, hamstrings + calves 2nd hit on Sh+Arms; Shoulders + Arms — preacher curl + skull crusher (same EZ bar), machine shrug, knee-straight calf raise, reverse curl → Grip & Wrist. 2.6: Chest + Back rebuilt from research — barbell row back (heavy, first), pec deck instead of a 2nd flat press, cable straight-arm pulldown instead of DB pullover. 2.5: from your first 2 sessions — machine shrug on Pull (what your gym has), isolation rests 75-90 s (Singer 2024: >60 s helps, plateau ~90 s), clearer face-pull/neck/overhead-triceps cues; weights for all 4 weeks shown in Plan. 2.4: drop sets only on machines/cables/dumbbell isolation (leg press → leg extension, EZ curl drop removed — one drop per superset), −20-25% per drop, never 2 days before football. 2.3: Grip & Wrist extra session (6 forearm/grip exercises), football-aware week planner. 2.2: from your first Push — close-grip earlier with safety, laterals before shoulder press, ab wheel moved off Push, smarter weight engine (per-hand dumbbells, RIR-aware). 2.1: barbell row → machine row on Pull day (same growth, saves the lower back for Legs the next day). 2.0: No dips, pull-ups, bands or assisted machine. Per-session volume capped at ~11 sets per muscle, weekly volume spread for more growth. Stretch-biased picks, seated leg curl, techniques only on last isolation sets, small muscles as finishers, pull-up roadmap.",
+    "2.9: cardio follows the 4-week cycle (fewer/slower intervals W1 → full W3 → easy W4), football counts as a hard session, 15-min express option; neck paired in supersets 2×/week. 2.8: core you won't skip — 3×/week inside supersets (hanging knee raise on Pull, ab wheel on Legs, weighted cable crunch on Chest + Back); cardio timer upgrade. 2.7: volume balanced to 10-20 hard sets/muscle/week and ≤~12/session (Pelland 2024): seated DB press off Push, fewer neutral pulldowns & 2nd shrugs, hamstrings + calves 2nd hit on Sh+Arms; Shoulders + Arms — preacher curl + skull crusher (same EZ bar), machine shrug, knee-straight calf raise, reverse curl → Grip & Wrist. 2.6: Chest + Back rebuilt from research — barbell row back (heavy, first), pec deck instead of a 2nd flat press, cable straight-arm pulldown instead of DB pullover. 2.5: from your first 2 sessions — machine shrug on Pull (what your gym has), isolation rests 75-90 s (Singer 2024: >60 s helps, plateau ~90 s), clearer face-pull/neck/overhead-triceps cues; weights for all 4 weeks shown in Plan. 2.4: drop sets only on machines/cables/dumbbell isolation (leg press → leg extension, EZ curl drop removed — one drop per superset), −20-25% per drop, never 2 days before football. 2.3: Grip & Wrist extra session (6 forearm/grip exercises), football-aware week planner. 2.2: from your first Push — close-grip earlier with safety, laterals before shoulder press, ab wheel moved off Push, smarter weight engine (per-hand dumbbells, RIR-aware). 2.1: barbell row → machine row on Pull day (same growth, saves the lower back for Legs the next day). 2.0: No dips, pull-ups, bands or assisted machine. Per-session volume capped at ~11 sets per muscle, weekly volume spread for more growth. Stretch-biased picks, seated leg curl, techniques only on last isolation sets, small muscles as finishers, pull-up roadmap.",
   order: ["D1", "D2", "D3", "D5", "D6"],
   schedules: {
     "A (Mon start)": ["rest", "D1", "D2", "D3", "rest", "D5", "D6"],

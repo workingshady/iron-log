@@ -5,6 +5,14 @@ Each version: what changed, and the data that justified it.
 
 
 
+
+## ppl-arnold@2.9.0 · 2026-11-11 — cardio cycle, express session, neck in supersets
+- `forWeek()` in program/cardio.ts: intervals change rounds + run speed per week (W1 ramp-in, W2 build, W3 full, W4 deload); hill/steady walks change incline. 30-min incline intervals: 24 → 27 → 30 → 21 min (~240 → 280 → 315 → 210 kcal at 80 kg).
+- Football counts as a hard session: in a football week the Shoulders + Arms HIIT becomes a hill walk. Never intervals the day before Legs or football (unchanged).
+- New `express15` (6 × 45 s runs).
+- kcal shown as ±15% ranges.
+- Neck: supersets with machine shrug (Pull, 2-3 sets) and hammer curl (Shoulders + Arms, 2 sets); removed from Legs and the end-of-day finishers.
+
 ## ppl-arnold@2.8.0 · 2026-11-11 — core you won't skip + cardio timer
 - Core moved INTO supersets (no added time, never last): hanging knee raise with face pull (Pull, on the bar), ab wheel with standing calves (Legs), weighted cable crunch with Kelso shrug (Chest + Back). Hollow hold and the end-of-day knee raise removed.
 - Why these: highest abdominal EMG in J Strength Cond Res 2006 (power wheel / roll-out, hanging knee-up); ACE study: no device beats a crunch, so the loadable cable crunch carries progression. Planks/hollow holds rank low for growth.

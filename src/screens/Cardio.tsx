@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { VoiceButton, appendText } from "../components/Voice";
 import { ArrowDown, ArrowUp, Check, ChevronDown, Flame, Footprints, Minus, Pause, Play, Plus, SkipForward, Square, Timer, Trash2, TriangleAlert, X } from "lucide-react";
 import type { AppState, CardioLog, DashboardData, HistoryRow } from "../../shared/api";
-import { CARDIO_PLAN, CARDIO_TIPS, PROTOCOLS, estimateKcal, kcalPerMin, segments, type CardioProtocol, type SegKind } from "../../program/cardio";
+import { CARDIO_PLAN, CARDIO_TIPS, PROTOCOLS, estimateKcal, forWeek, kcalPerMin, kcalRange, segments, type CardioProtocol, type SegKind } from "../../program/cardio";
 import { queue, send, track, uid } from "../lib/api";
 import { useLoad } from "../lib/useLoad";
 import { beep, clock, cx, niceDate, today, unlockAudio, vibrate } from "../lib/util";
@@ -18,7 +18,7 @@ const KIND: Record<SegKind, { dot: string; text: string; label: string }> = {
   hard: { dot: "bg-warn", text: "text-warn", label: "hard" },
 };
 const LIVE = "il_cardio_live";
-type Live = { id: string; protocol: string; startedAt: number; pausedAt: number | null; pausedMs: number; speedAdj: number; inclineAdj?: number };
+type Live = { id: string; protocol: string; startedAt: number; pausedAt: number | null; pausedMs: number; speedAdj: number; inclineAdj?: number; week?: number };
 
 function loadLive(): Live | null {
   try { return JSON.parse(localStorage.getItem(LIVE) ?? "null"); } catch { return null; }
@@ -52,7 +52,11 @@ export default function Cardio() {
   // never hard intervals the day before football or the day before Legs
   const hardTomorrow = tmr && (tmr.kind === "football" || /leg/i.test(tmr.dayName ?? ""));
   if (plan && PROTOCOLS[plan.key].intensity === "hard" && hardTomorrow) plan = { key: "hill_walk30", when: `${tmr!.kind === "football" ? "football" : "Legs"} tomorrow — easy hill walk instead of intervals` };
-  const proto = PROTOCOLS[pick ?? plan?.key ?? "hill_walk30"];
+  // football = your hard cardio: max 2 hard sessions a week counting football → a football week drops one interval day
+  const footballWeek = (wp?.days ?? []).filter((d) => d.kind === "football").length;
+  if (plan && PROTOCOLS[plan.key].intensity === "hard" && footballWeek >= 1 && dayKey === "D6") plan = { key: "hill_walk30", when: "football this week already covers one hard session — hill walk instead" };
+  const week = st?.active?.week ?? st?.next?.week ?? 1;
+  const proto = forWeek(PROTOCOLS[pick ?? plan?.key ?? "hill_walk30"], week);
   const doneToday = (logs ?? []).filter((l) => l.date === today());
 
   if (live) return <LiveTimer live={live} setLive={setLive} kg={kg} onFinish={(minutes, status) => setLogSheet({ protocol: live.protocol, minutes, status, live })} logSheet={logSheet} setLogSheet={setLogSheet} reload={() => { reload(); reloadDash(); }} />;
@@ -87,7 +91,7 @@ export default function Cardio() {
             <Chips small options={Object.values(PROTOCOLS).map((x) => ({ id: x.key, label: `${x.name}` }))} value={pick ?? plan?.key ?? null} onChange={(v) => setPick(v)} />
           </div>
           <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <Btn kind="primary" icon={Play} onClick={() => { unlockAudio(); const l = { id: uid(), protocol: proto.key, startedAt: Date.now(), pausedAt: null, pausedMs: 0, speedAdj: 0 }; setLive(l); track("cardio_start", { protocol: proto.key }); }}>Start timer</Btn>
+            <Btn kind="primary" icon={Play} onClick={() => { unlockAudio(); const l = { id: uid(), protocol: proto.key, startedAt: Date.now(), pausedAt: null, pausedMs: 0, speedAdj: 0, week }; setLive(l); track("cardio_start", { protocol: proto.key }); }}>Start timer</Btn>
             <Btn kind="soft" icon={Check} onClick={() => setLogSheet({ protocol: proto.key, minutes: proto.minutes, status: "done" })}>Done already</Btn>
             <Btn kind="soft" icon={X} onClick={() => { if ((logs ?? []).some((l) => l.date === today() && l.protocol === proto.key && l.status === "skipped")) return; queue("PUT", `/cardio/skip-${today()}-${proto.key}`, { date: today(), protocol: proto.key, status: "skipped", minutes: 0 }, `cardio skip ${today()} ${proto.key}`); track("cardio_skip", { protocol: proto.key }); setTimeout(() => { reload(); reloadDash(); }, 700); }}>Skip today</Btn>
           </div>
@@ -186,7 +190,7 @@ function ProtocolView({ p, kg, when }: { p: CardioProtocol; kg: number; when?: s
       <p className="text-sm text-mute">{p.short}{when ? ` · ${when}` : ""}</p>
       <div className="mt-2 flex gap-4 text-sm">
         <span className="inline-flex items-center gap-1"><Timer size={14} className="text-mute" />{p.minutes} min</span>
-        <span className="inline-flex items-center gap-1"><Flame size={14} className="text-warn" />~{estimateKcal(p, kg)} kcal <span className="text-xs text-mute">(at {kg} kg)</span></span>
+        <span className="inline-flex items-center gap-1"><Flame size={14} className="text-warn" />{kcalRange(estimateKcal(p, kg))} kcal <span className="text-xs text-mute">(at {kg} kg, ±15%)</span></span>
       </div>
 
       <div className="mt-3 overflow-hidden rounded-xl border border-line">
@@ -233,7 +237,7 @@ function LiveTimer({ live, setLive, kg, onFinish, logSheet, setLogSheet, reload 
   live: Live; setLive: (l: Live | null) => void; kg: number; onFinish: (minutes: number, status: "done" | "partial") => void;
   logSheet: { protocol: string; minutes: number; status: "done" | "partial"; live?: Live } | null; setLogSheet: (x: null) => void; reload: () => void;
 }) {
-  const p = PROTOCOLS[live.protocol];
+  const p = useMemo(() => forWeek(PROTOCOLS[live.protocol], live.week ?? 3), [live.protocol, live.week]);
   const segs = useMemo(() => segments(p), [p]);
   const total = segs.reduce((a, s) => a + s.sec, 0);
   const [now, setNow] = useState(Date.now());
@@ -305,7 +309,7 @@ function LiveTimer({ live, setLive, kg, onFinish, logSheet, setLogSheet, reload 
       <div className="mt-1 h-1.5 rounded bg-card2"><div className="h-1.5 rounded bg-acc transition-all" style={{ width: `${Math.min(100, (elapsed / total) * 100)}%` }} /></div>
       <div className="mt-2 grid grid-cols-3 gap-2 text-center text-xs">
         <div className="rounded-xl bg-card2 py-1.5"><div className="font-bold num">{km.toFixed(2)}</div><div className="text-[10px] text-mute">km</div></div>
-        <div className="rounded-xl bg-card2 py-1.5"><div className="font-bold num">{kcal}</div><div className="text-[10px] text-mute">kcal (est.)</div></div>
+        <div className="rounded-xl bg-card2 py-1.5"><div className="font-bold num">{kcal}</div><div className="text-[10px] text-mute">kcal ±15%</div></div>
         <div className="rounded-xl bg-card2 py-1.5"><div className="font-bold num">{idx + 1}/{segs.length}</div><div className="text-[10px] text-mute">part</div></div>
       </div>
 

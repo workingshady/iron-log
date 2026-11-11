@@ -7,6 +7,8 @@ export type Env = {
     AI: Ai;
     APP_PASSCODE: string;
     DEV_PASSCODE?: string;
+    /** Secret mixed into every passcode hash and cookie signature. Falls back to APP_PASSCODE. */
+    AUTH_PEPPER?: string;
   };
-  Variables: { dev: boolean };
+  Variables: { dev: boolean; userId: string };
 };

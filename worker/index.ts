@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/d1";
 import { and, desc, eq, inArray, like, ne, sql } from "drizzle-orm";
 import * as t from "./db/schema";
 import type { Env } from "./env";
-import { login, requireAuth } from "./auth";
+import { PASS_RE, USERNAME_RE, checkPass, hashPass, login, reissue, requireAuth, setup } from "./auth";
 import { CURRENT, EXERCISES, programVersionId } from "../program";
 import { buildPlan } from "../shared/plan";
 import { buildInsights, muscleSets } from "./insights";
@@ -144,7 +144,11 @@ async function slots(d: DB): Promise<SlotInfo[]> {
 
 app.post("/login", login);
 app.use("*", async (c, next) => (c.req.path === "/api/login" ? next() : requireAuth(c, next)));
-app.get("/me", (c) => c.json({ ok: true, dev: c.var.dev }));
+app.get("/me", async (c) => {
+  const u = await profileOf(c);
+  return c.json({ ok: true, dev: c.var.dev, setup: !c.var.dev && !u, user: u ? { id: u.id, username: u.username, name: u.name, avatarId: u.avatarId } : null });
+});
+app.post("/setup", setup);
 
 /** DEV mode only: fill the test database with ~3 weeks of realistic dummy training. */
 app.post("/dev/seed", async (c) => {
@@ -544,7 +548,7 @@ app.get("/notes", async (c) => {
     d.select().from(t.journal).orderBy(desc(t.journal.createdAt)).limit(500),
     d.select({ id: t.sets.id, note: t.sets.note, exKey: t.sets.exKey, at: t.sets.doneAt, sessionId: t.sets.sessionId, kg: t.sets.weightKg, reps: t.sets.reps, painArea: t.sets.painArea, painLevel: t.sets.painLevel, date: t.sessions.date, dayName: t.sessions.dayName })
       .from(t.sets).innerJoin(t.sessions, eq(t.sets.sessionId, t.sessions.id))
-      .where(and(eq(t.sets.deleted, 0), sql`(${t.sets.note} is not null and ${t.sets.note} != '') or ${t.sets.painArea} is not null`)).orderBy(desc(t.sets.doneAt)).limit(500),
+      .where(and(eq(t.sets.deleted, 0), sql`(${t.sets.note} is not null and ${t.sets.note} != '') or ${t.sets.painArea} is not null or ${t.sets.id} in (select ref_id from photos where ref_kind = 'set')`)).orderBy(desc(t.sets.doneAt)).limit(500),
     d.select().from(t.sessions).where(sql`${t.sessions.note} is not null and ${t.sessions.note} != ''`).orderBy(desc(t.sessions.date)).limit(300),
     d.select().from(t.cardio).where(sql`${t.cardio.note} is not null and ${t.cardio.note} != ''`).orderBy(desc(t.cardio.date)).limit(300),
     d.select().from(t.body).where(sql`${t.body.note} is not null and ${t.body.note} != ''`).orderBy(desc(t.body.date)).limit(300),
@@ -560,51 +564,162 @@ app.get("/notes", async (c) => {
     ...te.map((x) => ({ id: x.id, kind: "test" as const, date: x.date, at: x.createdAt, text: x.note ?? "", title: `${x.testKey.replace(/_/g, " ")} ${x.value} ${x.unit}` })),
   ];
   out.sort((a, b) => (b.date === a.date ? b.at - a.at : b.date < a.date ? -1 : 1));
-  return c.json(out);
+  const ph = await d.select(photoMeta).from(t.photos).where(inArray(t.photos.refKind, ["set", "journal"])).orderBy(t.photos.createdAt).limit(2000);
+  const by = new Map<string, typeof ph>();
+  ph.forEach((p) => p.refId && by.set(p.refId, [...(by.get(p.refId) ?? []), p]));
+  return c.json(out.map((n) => (by.has(n.id) && (n.kind === "set" || n.kind === "journal") ? { ...n, photos: by.get(n.id) } : n)));
 });
 
 // ---------------------------------------------------------------- photos
+// Guards: only JPEG/PNG/WebP data URLs, ≤1.2 MB full + small thumb, ids/dates validated, caption ≤ 500 chars, 3,000 photos max
+// (the UI compresses to ~250 KB, so that stays well under the 500 MB D1 free limit).
+// Images are immutable per id → cached forever by the browser and the service worker (no re-download).
 
 const photoMeta = { id: t.photos.id, refKind: t.photos.refKind, refId: t.photos.refId, exKey: t.photos.exKey, sessionId: t.photos.sessionId,
   date: t.photos.date, caption: t.photos.caption, w: t.photos.w, h: t.photos.h, bytes: t.photos.bytes, createdAt: t.photos.createdAt };
+const REF_KINDS = ["set", "exercise", "journal", "session", "progress", "avatar", "other"];
+const ID_RE = /^[\w-]{6,64}$/;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const dataUrlRe = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/;
 
-/** Photo list (metadata only). Filters: ?ref=<id> · ?ex=<exKey> · ?session=<id> · none = newest 200. */
+/** Photo list (metadata only). Filters: ?ref=<id> · ?ex=<exKey> · ?session=<id> · ?kinds=progress,set · none = newest 500. */
 app.get("/photos", async (c) => {
   const d = db(c);
-  const { ref, ex, session } = c.req.query();
-  const where = ref ? eq(t.photos.refId, ref) : ex ? eq(t.photos.exKey, ex) : session ? eq(t.photos.sessionId, session) : undefined;
+  const { ref, ex, session, kinds } = c.req.query();
+  const ks = (kinds ?? "").split(",").filter((k) => REF_KINDS.includes(k));
+  const where = ref ? eq(t.photos.refId, ref) : ex ? eq(t.photos.exKey, ex) : session ? eq(t.photos.sessionId, session) : ks.length ? inArray(t.photos.refKind, ks) : undefined;
   const q = d.select(photoMeta).from(t.photos);
-  return c.json(await (where ? q.where(where) : q).orderBy(desc(t.photos.createdAt)).limit(200));
+  return c.json(await (where ? q.where(where) : q).orderBy(desc(t.photos.date), desc(t.photos.createdAt)).limit(500));
 });
 
-/** The image itself (auth cookie applies — private). */
+/** The image (?s=t → small thumbnail when there is one). Private (auth cookie) and immutable → cached for a year. */
 app.get("/photos/:id/img", async (c) => {
-  const [p] = await db(c).select({ data: t.photos.data, mime: t.photos.mime }).from(t.photos).where(eq(t.photos.id, c.req.param("id")));
+  const id = c.req.param("id");
+  const small = c.req.query("s") === "t";
+  const etag = `"${id}${small ? "-t" : ""}"`;
+  const head = { "cache-control": "private, max-age=31536000, immutable", etag };
+  if (c.req.header("if-none-match") === etag) return new Response(null, { status: 304, headers: head });
+  const [p] = await db(c)
+    .select({ data: small ? sql<string>`coalesce(${t.photos.thumb}, ${t.photos.data})` : t.photos.data, mime: t.photos.mime, thumb: sql<number>`${t.photos.thumb} is not null` })
+    .from(t.photos).where(eq(t.photos.id, id));
   if (!p) return c.json({ error: "not found" }, 404);
   const bin = Uint8Array.from(atob(p.data), (ch) => ch.charCodeAt(0));
-  return new Response(bin, { headers: { "content-type": p.mime, "cache-control": "private, max-age=31536000, immutable" } });
+  return new Response(bin, { headers: { ...head, "content-type": small && p.thumb ? "image/jpeg" : p.mime, "content-length": String(bin.length) } });
 });
 
 app.post("/photos", async (c) => {
-  const b = await c.req.json<{ id: string; refKind: string; refId?: string | null; exKey?: string | null; sessionId?: string | null; date: string; caption?: string | null; dataUrl: string; w?: number; h?: number }>();
-  const m = /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(b.dataUrl ?? "");
-  if (!m) return c.json({ error: "Not an image" }, 400);
+  const b = await c.req.json<{ id: string; refKind: string; refId?: string | null; exKey?: string | null; sessionId?: string | null; date: string; caption?: string | null; dataUrl: string; thumbUrl?: string | null; w?: number; h?: number }>();
+  const m = dataUrlRe.exec(b.dataUrl ?? "");
+  if (!m) return c.json({ error: "Not an image (JPEG, PNG or WebP)" }, 400);
+  if (!ID_RE.test(b.id ?? "")) return c.json({ error: "bad id" }, 400);
+  if (!DATE_RE.test(b.date ?? "")) return c.json({ error: "bad date" }, 400);
+  if (!REF_KINDS.includes(b.refKind)) return c.json({ error: "bad refKind" }, 400);
   const bytes = Math.floor((m[2].length * 3) / 4);
   if (bytes > 1_200_000) return c.json({ error: "Photo too large (max ~1.2 MB after compression)" }, 413);
-  if (!["set", "exercise", "journal", "session", "other"].includes(b.refKind)) return c.json({ error: "bad refKind" }, 400);
-  await db(c).insert(t.photos).values({ id: b.id, refKind: b.refKind, refId: b.refId ?? null, exKey: b.exKey ?? null, sessionId: b.sessionId ?? null, date: b.date,
-    caption: b.caption ?? null, mime: m[1], w: b.w ?? null, h: b.h ?? null, bytes, data: m[2], createdAt: now() }).onConflictDoNothing();
+  const th = b.thumbUrl ? dataUrlRe.exec(b.thumbUrl) : null;
+  if (th && th[2].length > 120_000) return c.json({ error: "Thumbnail too large" }, 413);
+  const d = db(c);
+  const [{ n }] = await d.select({ n: sql<number>`count(*)` }).from(t.photos);
+  if (n >= 3000) return c.json({ error: "Photo limit reached (3,000). Delete old ones first." }, 507);
+  const caption = b.caption?.trim().slice(0, 500) || null;
+  const num = (x: unknown) => (typeof x === "number" && Number.isFinite(x) && x > 0 && x < 10000 ? Math.round(x) : null);
+  await d.insert(t.photos).values({
+    id: b.id, refKind: b.refKind, refId: b.refId?.slice(0, 120) ?? null, exKey: b.exKey?.slice(0, 80) ?? null, sessionId: b.sessionId?.slice(0, 80) ?? null,
+    date: b.date, caption, mime: m[1], w: num(b.w), h: num(b.h), bytes, data: m[2], thumb: th ? th[2] : null, createdAt: now(),
+  }).onConflictDoNothing();
   return c.json({ ok: true, id: b.id, bytes });
 });
 
+/** Edit caption and/or date (for progress photos taken on another day). */
 app.put("/photos/:id", async (c) => {
-  const b = await c.req.json<{ caption?: string | null }>();
-  await db(c).update(t.photos).set({ caption: b.caption ?? null }).where(eq(t.photos.id, c.req.param("id")));
+  const b = await c.req.json<{ caption?: string | null; date?: string }>();
+  const set: Partial<typeof t.photos.$inferInsert> = {};
+  if ("caption" in b) set.caption = b.caption?.trim().slice(0, 500) || null;
+  if (b.date) {
+    if (!DATE_RE.test(b.date)) return c.json({ error: "bad date" }, 400);
+    set.date = b.date;
+  }
+  if (!Object.keys(set).length) return c.json({ ok: true });
+  await db(c).update(t.photos).set(set).where(eq(t.photos.id, c.req.param("id")));
   return c.json({ ok: true });
 });
 
 app.delete("/photos/:id", async (c) => {
-  await db(c).delete(t.photos).where(eq(t.photos.id, c.req.param("id")));
+  const id = c.req.param("id");
+  const d = db(c);
+  await d.batch([d.delete(t.photos).where(eq(t.photos.id, id)), d.update(t.users).set({ avatarId: null }).where(eq(t.users.avatarId, id))]);
+  return c.json({ ok: true });
+});
+
+// ---------------------------------------------------------------- profile (Instagram-style: avatar, name, @username, bio)
+
+async function profileOf(c: { env: Env["Bindings"]; var: Env["Variables"] }) {
+  const d = db(c);
+  if (!c.var.userId) return null;
+  const [u] = await d.select().from(t.users).where(eq(t.users.id, c.var.userId));
+  if (u || !c.var.dev) return u ?? null;
+  // DEV mode: a throwaway profile in the test database
+  const dev = { id: "dev", username: "dev", name: "Test user", bio: "DEV mode · dummy data", avatarId: null, passHash: "-", createdAt: now(), updatedAt: now() };
+  await d.insert(t.users).values(dev).onConflictDoNothing();
+  return dev;
+}
+
+app.get("/profile", async (c) => {
+  const u = await profileOf(c);
+  if (!u) return c.json({ error: "no profile" }, 404);
+  const d = db(c);
+  const [[w], [p], [pr], [first]] = await Promise.all([
+    d.select({ n: sql<number>`count(*)` }).from(t.sessions).where(eq(t.sessions.status, "done")),
+    d.select({ n: sql<number>`count(*)` }).from(t.photos).where(ne(t.photos.refKind, "avatar")),
+    d.select({ n: sql<number>`count(*)` }).from(t.sets).where(and(eq(t.sets.pr, 1), eq(t.sets.deleted, 0))),
+    d.select({ date: t.sessions.date }).from(t.sessions).where(eq(t.sessions.status, "done")).orderBy(t.sessions.date).limit(1),
+  ]);
+  const { passHash: _ph, ...pub } = u;
+  return c.json({ ...pub, stats: { workouts: w.n, photos: p.n, prs: pr.n, since: first?.date ?? null } });
+});
+
+app.get("/users/check", async (c) => {
+  const u = (c.req.query("u") ?? "").trim().toLowerCase().replace(/^@/, "");
+  if (!USERNAME_RE.test(u) || /^[.]|[.]$|\.\./.test(u)) return c.json({ available: false, reason: "3-30 letters, numbers, . or _" });
+  const [x] = await db(c).select({ id: t.users.id }).from(t.users).where(eq(t.users.username, u));
+  return c.json({ available: !x || x.id === c.var.userId, reason: x && x.id !== c.var.userId ? "Taken" : null });
+});
+
+app.put("/profile", async (c) => {
+  const b = await c.req.json<{ username?: string; name?: string | null; bio?: string | null; avatarId?: string | null }>();
+  const u = await profileOf(c);
+  if (!u) return c.json({ error: "no profile" }, 404);
+  const set: Partial<typeof t.users.$inferInsert> = { updatedAt: now() };
+  if (b.username !== undefined) {
+    const n = b.username.trim().toLowerCase().replace(/^@/, "");
+    if (!USERNAME_RE.test(n) || /^[.]|[.]$|\.\./.test(n)) return c.json({ error: "Username: 3-30 letters, numbers, . or _ (no dot at the start/end)" }, 400);
+    const [x] = await db(c).select({ id: t.users.id }).from(t.users).where(eq(t.users.username, n));
+    if (x && x.id !== u.id) return c.json({ error: "That username is taken" }, 409);
+    set.username = n;
+  }
+  if (b.name !== undefined) set.name = b.name?.trim().slice(0, 40) || null;
+  if (b.bio !== undefined) set.bio = b.bio?.trim().slice(0, 150) || null;
+  if (b.avatarId !== undefined) {
+    if (b.avatarId) {
+      const [ph] = await db(c).select({ id: t.photos.id }).from(t.photos).where(eq(t.photos.id, b.avatarId));
+      if (!ph) return c.json({ error: "photo not found" }, 400);
+    }
+    set.avatarId = b.avatarId || null;
+  }
+  await db(c).update(t.users).set(set).where(eq(t.users.id, u.id));
+  return c.json({ ok: true });
+});
+
+/** Change passcode: needs the current one. Other devices are logged out (their cookie no longer matches). */
+app.post("/profile/passcode", async (c) => {
+  if (c.var.dev) return c.json({ error: "Not in DEV mode" }, 403);
+  const b = await c.req.json<{ current?: string; next?: string }>();
+  const [u] = await db(c).select().from(t.users).where(eq(t.users.id, c.var.userId));
+  if (!u || !(await checkPass(String(b.current ?? ""), u.passHash, c.env))) return c.json({ error: "Current passcode is wrong" }, 401);
+  if (!PASS_RE.test(String(b.next ?? ""))) return c.json({ error: "New passcode: 6-12 digits" }, 400);
+  const passHash = await hashPass(String(b.next), c.env);
+  await db(c).update(t.users).set({ passHash, updatedAt: now() }).where(eq(t.users.id, u.id));
+  await reissue(c, u.id, passHash);
   return c.json({ ok: true });
 });
 
@@ -662,8 +777,10 @@ app.delete("/tests/:id", async (c) => {
 
 app.get("/journal", async (c) => c.json(await db(c).select().from(t.journal).orderBy(desc(t.journal.createdAt)).limit(200)));
 app.post("/journal", async (c) => {
-  const b = await c.req.json<typeof t.journal.$inferInsert>();
-  await db(c).insert(t.journal).values({ ...b, createdAt: now() }).onConflictDoNothing();
+  const b = await c.req.json<{ id?: string; date?: string; text?: string; tags?: string | null; mood?: number | null }>();
+  if (!b.id || !/^[\w-]{6,64}$/.test(b.id) || !/^\d{4}-\d{2}-\d{2}$/.test(b.date ?? "")) return c.json({ error: "bad entry" }, 400);
+  const mood = typeof b.mood === "number" && b.mood >= 1 && b.mood <= 5 ? Math.round(b.mood) : null;
+  await db(c).insert(t.journal).values({ id: b.id, date: b.date!, text: String(b.text ?? "").slice(0, 10000), tags: b.tags?.slice(0, 200) ?? null, mood, createdAt: now() }).onConflictDoNothing();
   return c.json({ ok: true });
 });
 app.put("/journal/:id", async (c) => {

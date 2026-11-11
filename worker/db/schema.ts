@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real, index } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 // All times are unix milliseconds (UTC). Dates are "YYYY-MM-DD" in the user's local time.
 // After editing: `npm run db:generate` then `npm run db:migrate` (local) / `npm run db:migrate:remote`.
@@ -233,7 +233,36 @@ export const photos = sqliteTable(
     h: integer("h"),
     bytes: integer("bytes"),
     data: text("data").notNull(), // base64, no data: prefix
+    thumb: text("thumb"), // small square-ish JPEG (≤360 px, ~15-30 KB) for grids, base64
     createdAt: integer("created_at").notNull(),
   },
   (t) => [index("photos_ref").on(t.refId), index("photos_ex").on(t.exKey), index("photos_date").on(t.date)],
 );
+
+/**
+ * People who can log in. Username is unique (stored lower-case, Instagram rules: a-z 0-9 . _ , 3-30 chars) so friends
+ * can be added later. Passcode is never stored: PBKDF2-SHA256 + per-user salt + server pepper ("pbkdf2$iter$salt$hash").
+ * Profile = name, bio, avatar (a photo id from `photos`, refKind "avatar").
+ */
+export const users = sqliteTable(
+  "users",
+  {
+    id: text("id").primaryKey(),
+    username: text("username").notNull(),
+    name: text("name"),
+    bio: text("bio"),
+    avatarId: text("avatar_id"),
+    passHash: text("pass_hash").notNull(),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [uniqueIndex("users_username").on(t.username)],
+);
+
+/** Failed logins per username and per IP → growing lockout (6-digit passcodes are guessable without it). */
+export const loginAttempts = sqliteTable("login_attempts", {
+  key: text("key").primaryKey(), // "u:<username>" | "ip:<address>"
+  fails: integer("fails").notNull(),
+  until: integer("until"), // locked until (ms)
+  at: integer("at").notNull(),
+});

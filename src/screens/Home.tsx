@@ -12,6 +12,8 @@ import { clock, cx, niceDate, today } from "../lib/util";
 import { Btn, Card, MoreLink, PageHead, SectionHead, Thumb } from "../components/ui";
 import { weekConfig } from "../../shared/week";
 import { Heatmap } from "../components/Heatmap";
+import { Avatar } from "../components/Avatar";
+import { useMe } from "../lib/me";
 import { LineChart } from "../components/Chart";
 import { LiftTrends, WeeklyTrend, useAnalytics } from "../components/Analytics";
 import { MissedSheet, PickSheet, StartSheet } from "../components/StartSheets";
@@ -19,6 +21,7 @@ import { WorkoutPreview } from "../components/WorkoutPreview";
 import { WeekPlanner, useNextSession, useWeekPlan } from "../components/WeekPlanner";
 
 export default function Home() {
+  const me = useMe();
   const { data: s, error, reload } = useLoad<AppState>("/state");
   const { data: d } = useLoad<DashboardData>(`/dashboard?today=${today()}`);
   const { data: p } = useLoad<ProgressData>("/progress");
@@ -42,12 +45,13 @@ export default function Home() {
   const weekStart = weekConfig(s.settings, s.schedules).weekStart;
   const dayPlan = next ? CURRENT.weeks.find((w) => w.n === next.week)?.days.find((x) => x.key === next.dayKey) : null;
   const weekdayOf = (iso?: string) => (iso ? new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" }) : "");
-  const name = s.settings.profileName || "";
+  const name = (me?.name || s.settings.profileName || "").split(" ")[0];
   const hello = new Date().getHours() < 12 ? "Good morning" : new Date().getHours() < 18 ? "Good afternoon" : "Good evening";
 
   return (
     <div>
-      <PageHead icon={House} title={name ? `${hello}, ${name}` : "Home"} sub={`${new Date().toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short" })} · ${s.program.name.replace(/\s*v\d+$/, "")} · v${s.program.version}`} />
+      <PageHead icon={House} title={name ? `${hello}, ${name}` : "Home"} sub={`${new Date().toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short" })} · ${s.program.name.replace(/\s*v\d+$/, "")} · v${s.program.version}`}
+        right={<a href="#/profile" className="-m-1 rounded-full p-1 md:hidden" aria-label="Your profile"><Avatar id={me?.avatarId} name={me?.name ?? me?.username} size={40} /></a>} />
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         {/* 1. TODAY — the one main action */}

@@ -3,7 +3,7 @@ import { CloudOff } from "lucide-react";
 import { get, isDev, onPending, setMode, Unauthorized } from "./lib/api";
 import { cx } from "./lib/util";
 import { MAIN, MORE, MORE_TAB, moreGroups, type NavItem } from "./nav";
-import Login from "./screens/Login";
+import Login, { Setup } from "./screens/Login";
 import Home from "./screens/Home";
 import Plan from "./screens/Plan";
 import SessionScreen from "./screens/Session";
@@ -20,12 +20,37 @@ import Learn from "./screens/Learn";
 import Settings from "./screens/Settings";
 import More from "./screens/More";
 import Cardio from "./screens/Cardio";
+import Profile from "./screens/Profile";
+import { Avatar } from "./components/Avatar";
+import { setMe, useMe, type Me } from "./lib/me";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
+/** Page titles for the browser tab / screen readers. */
+const TITLE: Record<string, string> = { "/": "Home", "/profile": "Profile", "/notes": "Notes & Journal", ...Object.fromEntries([...MAIN, ...MORE, MORE_TAB].map((n) => [n.path, n.label])) };
+
+/**
+ * Hash routes. Going BACK to a page restores where you were scrolled (like Instagram); going forward starts at the top.
+ * After every change focus moves to <main> so screen readers announce the new page, and the tab title updates.
+ */
 function useRoute() {
   const [h, setH] = useState(location.hash.slice(1) || "/");
   useEffect(() => {
-    const f = () => { setH(location.hash.slice(1) || "/"); window.scrollTo(0, 0); };
+    const stack: string[] = [location.hash.slice(1) || "/"];
+    const pos = new Map<string, number>();
+    let cur = stack[0];
+    const f = () => {
+      const next = location.hash.slice(1) || "/";
+      pos.set(cur, window.scrollY);
+      const back = stack.length > 1 && stack[stack.length - 2] === next;
+      if (back) stack.pop(); else stack.push(next);
+      if (stack.length > 50) stack.shift();
+      cur = next;
+      setH(next);
+      requestAnimationFrame(() => {
+        window.scrollTo(0, back ? pos.get(next) ?? 0 : 0);
+        document.getElementById("main")?.focus({ preventScroll: true });
+      });
+    };
     window.addEventListener("hashchange", f);
     return () => window.removeEventListener("hashchange", f);
   }, []);
@@ -34,17 +59,17 @@ function useRoute() {
 
 const PAGES: Record<string, () => React.ReactElement | null> = {
   "/": Home, "/plan": Plan, "/history": History, "/stats": Stats, "/body": Body, "/creatine": Creatine,
-  "/tests": Tests, "/journal": Journal, "/notes": Journal, "/extra": Extras, "/library": Library, "/months": Months, "/learn": Learn, "/settings": Settings, "/more": More, "/cardio": Cardio,
+  "/tests": Tests, "/journal": Journal, "/notes": Journal, "/extra": Extras, "/library": Library, "/months": Months, "/learn": Learn, "/settings": Settings, "/more": More, "/cardio": Cardio, "/profile": Profile,
 };
 
 export default function App() {
   const route = useRoute();
-  const [auth, setAuth] = useState<"checking" | "in" | "out">("checking");
+  const [auth, setAuth] = useState<"checking" | "in" | "out" | "setup">("checking");
   const [pending, setPending] = useState(0);
 
   useEffect(() => {
-    get<{ dev?: boolean }>("/me")
-      .then((r) => { if (setMode(!!r.dev)) location.reload(); else setAuth("in"); })
+    get<{ dev?: boolean; user?: Me | null; setup?: boolean }>("/me")
+      .then((r) => { setMe(r.user ?? null); if (setMode(!!r.dev)) location.reload(); else setAuth(r.setup ? "setup" : "in"); })
       .catch((e) => setAuth(e instanceof Unauthorized ? "out" : "in"));
   }, []);
   // show the "waiting to sync" badge only if writes stay stuck (offline / >6 s), not for normal in-flight saves
@@ -57,12 +82,15 @@ export default function App() {
     return () => clearTimeout(t);
   }, [raw]);
 
+  useEffect(() => { document.title = `${route.startsWith("/s/") ? "Workout" : TITLE[route] ?? "Iron Log"} · Iron Log`; }, [route]);
+
   if (auth === "checking") return null;
   if (auth === "out") return <Login onIn={() => setAuth("in")} />;
+  if (auth === "setup") return <Setup />;
 
   const inSession = route.startsWith("/s/");
   const Page = PAGES[route] ?? Home;
-  const isMore = MORE.some((m) => m.path === route) || route === "/more" || route === "/notes";
+  const isMore = MORE.some((m) => m.path === route) || route === "/more" || route === "/notes" || route === "/profile";
 
   return (
     <div className="min-h-dvh md:pl-60">
@@ -80,6 +108,7 @@ export default function App() {
         <a href="#/" className="mb-5 flex min-h-11 items-center gap-2 px-2 text-lg font-bold">
           <img src="/icon.svg" alt="" className="h-8 w-8" /> Iron Log
         </a>
+        <ProfileChip on={route === "/profile"} />
         <nav aria-label="Main">
           <NavList items={MAIN} route={route} />
           {moreGroups().map((g) => (
@@ -132,6 +161,20 @@ export default function App() {
         </nav>
       )}
     </div>
+  );
+}
+
+/** Desktop sidebar: avatar + name → Profile. */
+function ProfileChip({ on }: { on: boolean }) {
+  const me = useMe();
+  return (
+    <a href="#/profile" aria-current={on ? "page" : undefined} className={cx("mb-4 flex min-h-12 items-center gap-3 rounded-2xl px-2 py-1.5", on ? "bg-acc/20" : "hover:bg-card")}>
+      <Avatar id={me?.avatarId} name={me?.name ?? me?.username} size={36} />
+      <span className="min-w-0">
+        <span className="block truncate text-sm font-semibold">{me?.name || me?.username || "Profile"}</span>
+        {me && <span className="block truncate text-xs text-mute">@{me.username}</span>}
+      </span>
+    </a>
   );
 }
 

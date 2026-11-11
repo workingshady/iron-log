@@ -6,6 +6,8 @@ import { send, track, isDev, clearScreenCache } from "../lib/api";
 import { useLoad } from "../lib/useLoad";
 import { cx, today } from "../lib/util";
 import { Btn, Card, NumInput, PageHead, Chips } from "../components/ui";
+import { Avatar } from "../components/Avatar";
+import { forgetPhotos, setMe, useMe } from "../lib/me";
 import { restPrefs, VOL, type Volume } from "../lib/restPrefs";
 import { EXERCISES } from "../../program/exercises";
 import { beep, clock, unlockAudio, vibrate } from "../lib/util";
@@ -14,20 +16,15 @@ import { VOICE_LANGS, getVoiceLang, setVoiceLang, type VoiceLang } from "../comp
 
 export default function Settings() {
   const { data: s, setData } = useLoad<AppState>("/state");
+  const me = useMe();
   const [cre, setCre] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
-  const [prof, setProf] = useState<{ name: string; height: string; weight: string; level: string }>({ name: "", height: "", weight: "", level: "returning" });
-  const [profLoaded, setProfLoaded] = useState(false);
   const [bar, setBar] = useState<string | null>(null);
   const [ez, setEz] = useState<string | null>(null);
   const [confirmText, setConfirmText] = useState("");
   const [busy, setBusy] = useState(false);
   const [vlang, setVlang] = useState<VoiceLang>(getVoiceLang());
   if (!s) return null;
-  if (!profLoaded) {
-    setProf({ name: s.settings.profileName ?? "Shady", height: s.settings.heightCm ?? "174", weight: s.settings.bodyKg ?? "80", level: s.settings.level ?? "returning" });
-    setProfLoaded(true);
-  }
   const wk = weekConfig(s.settings, s.schedules);
 
   async function set(key: string, value: string) {
@@ -79,21 +76,14 @@ export default function Settings() {
           {saved && <p className="mt-1 text-xs text-acc">Saved ✓</p>}
         </Card>
 
-        <Card title="Profile" icon={UserRound}>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="col-span-2"><div className="mb-1 text-[11px] text-mute">Name</div><input value={prof.name} onChange={(e) => setProf({ ...prof, name: e.target.value })} className="min-h-12 w-full rounded-xl bg-card2 px-3 outline-none focus:ring-2 focus:ring-acc" /></div>
-            <div><div className="mb-1 text-[11px] text-mute">Height (cm)</div><NumInput value={prof.height} onChange={(v) => setProf({ ...prof, height: v })} /></div>
-            <div><div className="mb-1 text-[11px] text-mute">Bodyweight (kg)</div><NumInput value={prof.weight} onChange={(v) => setProf({ ...prof, weight: v })} /></div>
-          </div>
-          <div className="mt-2 text-[11px] text-mute">Training background</div>
-          <div className="mt-1"><Chips small clearable={false} options={[{ id: "new", label: "New" }, { id: "returning", label: "Returning after a break" }, { id: "regular", label: "Training 1y+" }]} value={prof.level} onChange={(v) => setProf({ ...prof, level: v ?? "returning" })} /></div>
-          <Btn kind="soft" className="mt-3 w-full" onClick={async () => {
-            const h = Number(prof.height || 0), w = Number(prof.weight || 0);
-            if ((h && (h < 120 || h > 230)) || (w && (w < 35 || w > 250))) return alert("Check height / weight");
-            await set("profileName", prof.name.trim()); await set("heightCm", prof.height); await set("bodyKg", prof.weight); await set("level", prof.level);
-          }}>Save profile</Btn>
-          <p className="mt-2 text-xs text-mute">Bodyweight is used for cardio calories and starting-weight estimates until you log weigh-ins in Body.</p>
-        </Card>
+        <a href="#/profile" className="flex min-h-16 items-center gap-3 rounded-2xl border border-line/60 bg-card p-4 hover:bg-card2">
+          <Avatar id={me?.avatarId} name={me?.name ?? me?.username} size={44} />
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold">{me?.name || "Profile"}</span>
+            <span className="block truncate text-xs text-mute">@{me?.username ?? "…"} · photo, bio, height, weight, passcode</span>
+          </span>
+          <UserRound size={18} className="text-faint" aria-hidden />
+        </a>
 
         <Card title="Creatine daily target" icon={FlaskConical}>
           <div className="flex gap-2">
@@ -193,7 +183,7 @@ export default function Settings() {
         <Card title="Your data" icon={Download}>
           <a href="/api/export" className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-line font-semibold hover:bg-card2"><Download size={18} /> Download everything (JSON)</a>
           <p className="mt-2 text-xs text-mute">Program v{s.program.version}. For reviews, Claude uses <code>npm run export</code> on the PC.</p>
-          <Btn kind="soft" icon={LogOut} className="mt-3 w-full" onClick={async () => { await send("POST", "/logout"); location.reload(); }}>Log out this device</Btn>
+          <Btn kind="soft" icon={LogOut} className="mt-3 w-full" onClick={async () => { await send("POST", "/logout"); forgetPhotos(); setMe(null); location.reload(); }}>Log out this device</Btn>
         </Card>
 
         {isDev() && (

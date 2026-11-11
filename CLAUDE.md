@@ -27,6 +27,11 @@ Commands: `npm run dev` · `npm run check` (validate program + types) · `npm ru
 - APK = Trusted Web Activity of the live site (`scripts/build-apk.mjs`, Bubblewrap core). Package `com.workingshady.ironlog`, key `private/android/iron-log.keystore` (password in `private/SETUP.md`), fingerprint served at `public/.well-known/assetlinks.json`. Releases: `gh release create vX-android <apk>` (gh at "C:/Program Files/GitHub CLI/gh.exe"). Bump versionCode each build; never change the key.
 - Brand: `public/icon.svg` (app icon: barbell under an up-chevron), `icon-maskable.svg`, `icon-monochrome.svg` (Android themed icon), `favicon.svg`, `public/brand/{mark,logo,logo-dark,logo-light,logo-compact,logo-compact-light}.svg`; PNGs are renders of these. A new icon needs a new APK build.
 
+## Login, profile, photos
+- `users` (real DB; DEV has its own "dev" row): unique lower-case `username`, name, bio, `avatar_id` (a photo), `pass_hash` = PBKDF2-SHA256 20k + salt + pepper (`AUTH_PEPPER` secret, falls back to `APP_PASSCODE`). Cookie `u.<id>.<hmac>` covers the hash → a passcode change logs other devices out. `login_attempts` = growing lockout per username and IP. Before any user exists, the old APP_PASSCODE logs in to a one-time `POST /api/setup` screen.
+- Data is still single-owner (no user_id on tracking tables). Adding friends later = add `user_id` columns + scope `db(c)` queries.
+- `photos`: full JPEG + `thumb` (360 px square) as base64; `GET /api/photos/:id/img[?s=t]` is immutable → cached by the browser and `public/sw.js` (cache `il-photos-v1`, max 600). refKind: set | exercise | journal | session | progress | avatar | other. `/api/notes` attaches photos to set/journal notes.
+
 ## Modes & databases
 - `DB` (iron-log) = real data. `DB_DEV` (iron-log-dev) = test data, used when logged in with the `DEV_PASSCODE` secret (cookie prefixed `dev.`). Every handler uses `db(c)` which picks the right one. Never seed, reset or experiment on `DB`; use DEV mode (`POST /api/dev/seed` refills it).
 - Migrations must be applied to BOTH: `wrangler d1 migrations apply iron-log --remote` and `... iron-log-dev --remote`. Take `wrangler d1 export iron-log --remote --output private/backups/...` before migrating real data; additive schema changes only, data mappings via custom migrations (see 0005).

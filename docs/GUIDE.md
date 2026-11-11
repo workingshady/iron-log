@@ -86,7 +86,7 @@ Home's main card follows the adapted plan ("Adapted week: Legs moved…").
 Plan → **Grip & Wrist** (12-15 min, up to 2×/week): barbell finger curls (roll the bar to your fingertips and back), behind-the-back wrist curls, reverse wrist curls, dumbbell pronation/supination, radial deviation (hammer lever), heavy dumbbell holds. It covers every direction the wrist moves plus grip. Do it after Chest+Back / Shoulders+Arms or on a rest day — never before Pull or the day before Pull (grip must be fresh for pulling). It starts as an *extra* and never moves your place in the plan. Weekly forearm work without it: Pull dead hangs, Legs farmer's carries, Chest+Back wrist curls, Shoulders+Arms reverse curls.
 
 ## DEV / test mode
-Log in with the **DEV passcode** instead of yours → an orange "DEV MODE" bar, a **separate test database**, and separate phone storage. Settings → **Fill with dummy data** loads ~3 weeks of fake training (all set types, notes, pain, football, cardio, creatine). Try anything; your real tracking is never touched. Log out and use your normal passcode to go back.
+Log in with username **dev** + the **DEV passcode** instead of yours → an orange "DEV MODE" bar, a **separate test database**, and separate phone storage. Settings → **Fill with dummy data** loads ~3 weeks of fake training (all set types, notes, pain, football, cardio, creatine). Try anything; your real tracking is never touched. Log out and use your normal passcode to go back.
 
 ## Preview a workout (without starting it)
 - **Preview** (👁) on Home's workout card, on every day in Plan, on Grip & Wrist, and on a planned day in *This week*.
@@ -165,8 +165,17 @@ Log in with the **DEV passcode** instead of yours → an orange "DEV MODE" bar, 
 - **Smart tags**: dashed "+ tag" suggestions from your numbers (too heavy / too light vs the rep range, hard / easy vs the RIR target) and your words (Arabic or English: lost count, grip, straps, pump…). Never added without a tap.
 - **Again** logs a copy of the set now; **Save** is enabled only when something changed.
 
+## Login & profile
+- Log in with **username + passcode**. The username is unique (letters, numbers, `.` `_`), ready for friends later. 5 wrong tries → a lockout that grows (1 min, 2, 4 … up to 24 h).
+- First time after the update: log in with your old passcode once → **Create your login** (pick username + passcode). Your data doesn't change.
+- **Profile** (avatar on Home, top of More, or the desktop sidebar), laid out like Instagram: @username · new photo · all pages · settings on top; round profile photo + Workouts / PRs / Photos; name, bio, "training since"; **Edit profile** (photo, name, username with live "available?" check, bio, height / weight / background, change passcode); shortcut circles (Months, PRs, Body, Journal); photo grid with tabs **All · Progress · Form · Machines · Journal**.
+- Progress tab → **Compare** any two progress photos side by side (days apart shown).
+
 ## Photos
-- Attach photos to a **set** (form, setup) or to an **exercise** (machine seat / pin settings: exercise sheet → setup). Camera or gallery; shrunk on the phone (≤1280 px, ~200-350 KB), private (only after login). Tap a photo for full size, caption, delete. Needs a connection.
+- One look everywhere: the same 64 px tiles on sets, machines and journal entries; a 3-column square grid on the profile (progress photos show their date).
+- Add from: a **set** (form), an **exercise** (machine seat / pin settings), a **journal entry** (up to 6, previewed before saving), or the profile **+** (pick → preview → type, caption, date → Share).
+- Tap any photo → full-screen viewer: swipe or ← → to move, swipe down / Esc to close, zoom, edit caption + date, set as profile photo, open the workout, delete.
+- Shrunk on the phone (≤1280 px + a 360 px thumbnail). Each photo is downloaded **once** and then comes from the phone's cache (grids load the small thumbnail). Private: only after login; logging out clears the cache. Needs a connection to add.
 
 ## Swapping exercises
 ⋯ → **Swap**. Pick **why** (equipment busy, pain, …), then the alternative. The app:

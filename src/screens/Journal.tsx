@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
-import { Activity, Dumbbell, FlaskConical, HeartPulse, NotebookPen, Pencil, Scale, Search, Trash2, TriangleAlert, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Activity, Camera, Dumbbell, FlaskConical, HeartPulse, ImagePlus, Loader2, NotebookPen, Pencil, Scale, Search, Trash2, TriangleAlert, X } from "lucide-react";
+import { PhotoStrip, PhotoTiles, uploadPhoto, type PhotoMeta } from "../components/Photos";
 import { send, track, uid } from "../lib/api";
 import { useLoad } from "../lib/useLoad";
 import { cx, niceDate, today } from "../lib/util";
@@ -8,12 +9,12 @@ import { joinTags, parseTags, suggestTags } from "../../shared/notes";
 import { VOICE_LANGS, VoiceButton, appendText, getVoiceLang, setVoiceLang, type VoiceLang } from "../components/Voice";
 
 type Kind = "journal" | "set" | "workout" | "cardio" | "body" | "test";
-type Note = { id: string; kind: Kind; date: string; at: number; text: string; tag?: string | null; mood?: number | null; title?: string; link?: string; pain?: string | null };
+type Note = { id: string; kind: Kind; date: string; at: number; text: string; tag?: string | null; mood?: number | null; title?: string; link?: string; pain?: string | null; photos?: PhotoMeta[] };
 
 const TAGS = ["win", "struggle", "pain", "life", "food", "sleep", "idea"];
 const KINDS: { id: Kind | "pain"; label: string }[] = [
   { id: "journal", label: "Journal" }, { id: "set", label: "Set notes" }, { id: "workout", label: "Workouts" },
-  { id: "cardio", label: "Cardio" }, { id: "body", label: "Body" }, { id: "test", label: "Tests" }, { id: "pain", label: "Pain" },
+  { id: "cardio", label: "Cardio" }, { id: "body", label: "Body" }, { id: "test", label: "Tests" }, { id: "pain", label: "Pain" }, { id: "photos" as Kind, label: "📷 Photos" },
 ];
 const ICON: Record<Kind, typeof NotebookPen> = { journal: NotebookPen, set: Dumbbell, workout: Activity, cardio: HeartPulse, body: Scale, test: FlaskConical };
 const COLOR: Record<Kind, string> = { journal: "text-acc", set: "text-ink", workout: "text-ink", cardio: "text-info", body: "text-vio", test: "text-warn" };
@@ -73,13 +74,30 @@ export default function Journal() {
   const [q, setQ] = useState("");
   const [edit, setEdit] = useState<{ id: string; text: string; tags: string[]; mood: number | null } | null>(null);
   const [lang, setLang] = useState<VoiceLang>(getVoiceLang());
+  // photos picked for the entry being written: previewed locally, uploaded when you press "Add entry"
+  const [staged, setStaged] = useState<{ file: File; url: string }[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const pick = useRef<HTMLInputElement>(null);
+  useEffect(() => () => staged.forEach((x) => URL.revokeObjectURL(x.url)), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const unstage = (k: number) => setStaged((a) => { URL.revokeObjectURL(a[k].url); return a.filter((_, i) => i !== k); });
 
   async function save() {
-    if (!text.trim()) return;
-    await send("POST", "/journal", { id: uid(), date, text: text.trim(), tags: joinTags(tags), mood });
-    track("journal_add", { tags, mood, chars: text.trim().length, suggested: suggestTags(text) });
-    setText(""); setTags([]); setMood(null); setDate(today());
-    reload();
+    if (!text.trim() && !staged.length) return;
+    setSaving(true); setErr(null);
+    const id = uid();
+    try {
+      await send("POST", "/journal", { id, date, text: text.trim(), tags: joinTags(tags), mood });
+      for (const x of staged) await uploadPhoto(x.file, { refKind: "journal", refId: id, date });
+      track("journal_add", { tags, mood, chars: text.trim().length, suggested: suggestTags(text), photos: staged.length });
+      staged.forEach((x) => URL.revokeObjectURL(x.url));
+      setText(""); setTags([]); setMood(null); setDate(today()); setStaged([]);
+    } catch (e) {
+      setErr(`Saved the text, but a photo failed: ${(e as Error).message}`);
+    } finally {
+      setSaving(false);
+      reload();
+    }
   }
   async function saveEdit() {
     if (!edit || !edit.text.trim()) return;
@@ -96,7 +114,7 @@ export default function Journal() {
   const list = useMemo(() => {
     const nq = norm(q.trim());
     return (data ?? []).filter((n) =>
-      (!kind || (kind === "pain" ? !!n.pain || parseTags(n.tag).includes("pain") : n.kind === kind)) &&
+      (!kind || (kind === "pain" ? !!n.pain || parseTags(n.tag).includes("pain") : kind === "photos" ? !!n.photos?.length : n.kind === kind)) &&
       (!nq || norm(`${n.text} ${n.title ?? ""} ${n.tag ?? ""} ${n.pain ?? ""}`).includes(nq)));
   }, [data, kind, q]);
   const groups = useMemo(() => {
@@ -138,14 +156,35 @@ export default function Journal() {
             </div>
           </div>
           <p className="mt-1 text-[11px] text-faint">🎤 Tap, talk (up to 2 min), tap again — it's written out for you. Mixed Arabic + English works best on “عربي + English”.</p>
+          {/* photos for this entry (same tiles as everywhere else) */}
+          <ul className="mt-3 flex flex-wrap gap-2" aria-label="Photos for this entry">
+            {staged.map((x, k) => (
+              <li key={x.url} className="relative h-16 w-16 overflow-hidden rounded-xl bg-card3">
+                <img src={x.url} alt={`Photo ${k + 1} to add`} className="h-full w-full object-cover" />
+                <button type="button" onClick={() => unstage(k)} className="absolute right-0 top-0 flex h-7 w-7 items-center justify-center rounded-bl-lg bg-black/60 text-white" aria-label={`Remove photo ${k + 1}`}><X size={14} aria-hidden /></button>
+              </li>
+            ))}
+            {staged.length < 6 && (
+              <li>
+                <button type="button" onClick={() => pick.current?.click()} className={cx("flex h-16 items-center justify-center gap-1.5 rounded-xl border border-dashed border-line text-xs text-info hover:bg-card2", staged.length ? "w-16" : "px-4")}>
+                  {staged.length ? <ImagePlus size={18} aria-hidden /> : <Camera size={18} aria-hidden />}
+                  {staged.length ? <span className="sr-only">Add another photo</span> : "Add photo"}
+                </button>
+              </li>
+            )}
+          </ul>
+          <input ref={pick} type="file" accept="image/*" multiple className="hidden"
+            onChange={(e) => { const fs = [...(e.target.files ?? [])].filter((f) => f.type.startsWith("image/") || /\.(heic|heif)$/i.test(f.name)).slice(0, 6 - staged.length); setStaged((a) => [...a, ...fs.map((file) => ({ file, url: URL.createObjectURL(file) }))]); e.target.value = ""; }} />
+
           <div className="mb-1.5 mt-3 text-xs text-mute">How do you feel? <span className="text-faint">(optional)</span></div>
           <MoodPicker value={mood} onChange={setMood} />
           <div className="mb-1.5 mt-3 text-xs text-mute">Tags {sugNow && <span className="text-info">· dashed = suggested from your words</span>}</div>
           <TagPicker value={tags} onChange={setTags} text={text} />
           <div className="mt-3 flex gap-2">
             <input type="date" value={date} max={today()} onChange={(e) => setDate(e.target.value || today())} className="min-h-12 rounded-xl bg-card2 px-3 text-sm outline-none" aria-label="Date" />
-            <Btn kind="primary" className="flex-1" onClick={save} disabled={!text.trim()}>Add entry</Btn>
+            <Btn kind="primary" className="flex-1" icon={saving ? Loader2 : undefined} onClick={save} disabled={saving || (!text.trim() && !staged.length)}>{saving ? "Saving…" : "Add entry"}</Btn>
           </div>
+          {err && <p role="alert" className="mt-2 text-xs text-bad">{err}</p>}
         </div>
 
         {/* feed */}
@@ -201,6 +240,7 @@ export default function Journal() {
                             </div>
                             <div className="mt-2"><MoodPicker value={edit.mood} onChange={(m) => setEdit({ ...edit, mood: m })} /></div>
                             <div className="mt-2"><TagPicker value={edit.tags} onChange={(t) => setEdit({ ...edit, tags: t })} text={edit.text} /></div>
+                            <div className="mt-2"><PhotoStrip refKind="journal" refId={n.id} label="Add photo" /></div>
                             <div className="mt-2 grid grid-cols-[auto_1fr_1fr] gap-2">
                               <button onClick={() => del(n.id)} className="flex min-h-11 w-11 items-center justify-center rounded-xl bg-card2 text-bad" aria-label="Delete"><Trash2 size={16} /></button>
                               <Btn kind="soft" onClick={() => setEdit(null)}>Cancel</Btn>
@@ -208,7 +248,10 @@ export default function Journal() {
                             </div>
                           </div>
                         ) : (
-                          <p dir="auto" className="bidi whitespace-pre-wrap text-sm leading-relaxed"><Hl text={n.text} q={q} /></p>
+                          <>
+                            {n.text && <p dir="auto" className="bidi whitespace-pre-wrap text-sm leading-relaxed"><Hl text={n.text} q={q} /></p>}
+                            {!!n.photos?.length && <div className={n.text ? "mt-2" : ""}><PhotoTiles photos={n.photos} onChanged={reload} /></div>}
+                          </>
                         )}
                       </article>
                     );

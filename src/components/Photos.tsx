@@ -172,7 +172,7 @@ export function PhotoStrip({ refKind, refId, exKey, sessionId, label = "Photo" }
 /** Instagram-style 3-column square grid. Progress photos show their date; other kinds show a small type icon. */
 export function PhotoGrid({ photos, onOpen }: { photos: PhotoMeta[]; onOpen: (i: number) => void }) {
   return (
-    <ul className="grid grid-cols-3 gap-0.5" aria-label="Photos">
+    <ul className="grid grid-cols-3 gap-0.5 md:gap-1" aria-label="Photos">
       {photos.map((p, i) => {
         const K = KIND[p.refKind] ?? KIND.other;
         return (

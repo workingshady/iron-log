@@ -53,9 +53,9 @@ export default function Profile() {
   if (!me) return <div className="py-20 text-center text-mute" role="status">Loading profile…</div>;
 
   return (
-    <div className="-mx-4 md:mx-0">
+    <div className="-mx-4 md:mx-auto md:max-w-2xl">
       {/* top bar: @username · new photo · all pages · settings (Instagram order) */}
-      <header className="flex items-center gap-1 px-4 pb-2">
+      <header className="-mr-2 flex items-center gap-0.5 pb-3 pl-4 pr-4">
         <h1 className="flex min-w-0 flex-1 items-center gap-1 text-xl font-bold">
           <span className="truncate">{me.username}</span>
           {isDev() && <span className="rounded bg-warn px-1.5 text-[10px] font-bold text-black">DEV</span>}
@@ -67,16 +67,16 @@ export default function Profile() {
       <input ref={pick} type="file" accept="image/*" className="hidden" onChange={(e) => { setNewFile(e.target.files?.[0] ?? null); e.target.value = ""; }} />
 
       {/* avatar + stats */}
-      <section className="flex items-center gap-5 px-4" aria-label="Profile">
+      <section className="flex items-center gap-6 px-4 md:gap-10" aria-label="Profile">
         <button type="button" onClick={() => setAvatarSheet(true)} className="relative rounded-full focus-visible:ring-2 focus-visible:ring-acc" aria-label={me.avatarId ? "Change profile photo" : "Add profile photo"}>
           <Avatar id={me.avatarId} name={me.name ?? me.username} size={86} ring={!!me.avatarId} />
           <span className="absolute -bottom-0.5 -right-0.5 flex h-7 w-7 items-center justify-center rounded-full border-2 border-bg bg-acc text-acc-ink" aria-hidden><Camera size={14} /></span>
         </button>
         <dl className="grid flex-1 grid-cols-3 text-center">
           {[["Workouts", me.stats.workouts], ["PRs", me.stats.prs], ["Photos", me.stats.photos]].map(([l, v]) => (
-            <div key={l} className="flex flex-col-reverse">
+            <div key={l} className="flex flex-col-reverse items-center gap-0.5">
               <dt className="text-xs text-mute">{l}</dt>
-              <dd className="text-lg font-bold num">{v}</dd>
+              <dd className="text-lg font-bold leading-none num">{v}</dd>
             </div>
           ))}
         </dl>
@@ -84,23 +84,25 @@ export default function Profile() {
 
       {/* name · bio · since */}
       <div className="mt-3 px-4">
-        <div className="font-semibold">{me.name || me.username}</div>
+        <div className="text-[15px] font-semibold leading-tight">{me.name || me.username}</div>
         {me.bio && <p dir="auto" className="bidi mt-0.5 whitespace-pre-wrap text-sm leading-snug">{me.bio}</p>}
         {me.stats.since && <p className="mt-0.5 text-xs text-mute">Training since {since(me.stats.since)}</p>}
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-2 px-4">
-        <Btn kind="soft" onClick={() => setEditing(true)}>Edit profile</Btn>
-        <Btn kind="soft" icon={ImagePlus} onClick={() => pick.current?.click()}>Add photo</Btn>
+      <div className="mt-4 grid grid-cols-2 gap-2 px-4">
+        <button type="button" onClick={() => setEditing(true)} className="flex h-10 items-center justify-center rounded-lg bg-card2 text-sm font-semibold hover:bg-card3 active:bg-card3">Edit profile</button>
+        <button type="button" onClick={() => pick.current?.click()} className="flex h-10 items-center justify-center gap-1.5 rounded-lg bg-card2 text-sm font-semibold hover:bg-card3 active:bg-card3"><ImagePlus size={16} aria-hidden />Add photo</button>
       </div>
 
       {/* highlights */}
-      <nav aria-label="Shortcuts" className="mt-4 overflow-x-auto px-4">
-        <ul className="flex gap-4">
+      <nav aria-label="Shortcuts" className="mt-5 px-4">
+        <ul className="grid grid-cols-4 gap-2 md:flex md:gap-8">
           {HIGHLIGHTS.map((h) => (
-            <li key={h.href}>
-              <a href={h.href} className="flex w-16 flex-col items-center gap-1 text-[11px] text-mute">
-                <span className="flex h-14 w-14 items-center justify-center rounded-full border border-line bg-card ring-2 ring-card2 ring-offset-2 ring-offset-bg" aria-hidden><h.icon size={22} className="text-ink" /></span>
+            <li key={h.href} className="flex justify-center">
+              <a href={h.href} className="group flex flex-col items-center gap-1.5 rounded-xl text-xs text-ink focus-visible:ring-2 focus-visible:ring-acc">
+                <span className="rounded-full border border-line p-[3px] transition-colors group-hover:border-mute" aria-hidden>
+                  <span className="flex h-14 w-14 items-center justify-center rounded-full bg-card2"><h.icon size={22} strokeWidth={1.8} /></span>
+                </span>
                 {h.label}
               </a>
             </li>
@@ -109,13 +111,13 @@ export default function Profile() {
       </nav>
 
       {/* tabs (icons, like Instagram) */}
-      <div role="tablist" aria-label="Photo types" className="sticky top-0 z-10 mt-4 flex border-b border-line bg-bg">
+      <div role="tablist" aria-label="Photo types" className="sticky top-0 z-10 mt-5 flex border-b border-line bg-bg">
         {TABS.map((x) => {
           const on = tab === x.id;
           const count = x.kinds ? all.filter((p) => (x.kinds as readonly string[]).includes(p.refKind)).length : all.length;
           return (
             <button key={x.id} role="tab" aria-selected={on} aria-controls="ptab" id={`ptab-${x.id}`} onClick={() => setTab(x.id)} title={x.label}
-              className={cx("flex h-12 flex-1 items-center justify-center border-b-2", on ? "border-ink text-ink" : "border-transparent text-faint")}>
+              className={cx("-mb-px flex h-12 flex-1 items-center justify-center border-b-2 transition-colors", on ? "border-ink text-ink" : "border-transparent text-faint hover:text-mute")}>
               <x.icon size={22} strokeWidth={on ? 2.4 : 1.8} aria-hidden />
               <span className="sr-only">{x.label} ({count})</span>
             </button>

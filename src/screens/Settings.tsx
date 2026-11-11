@@ -166,6 +166,16 @@ export default function Settings() {
           </div>
         </Card>
 
+        <Card title="Equipment — clips / collars" icon={Dumbbell}>
+          <p className="mb-2 text-xs text-mute">Weight of EACH clip, added to barbell totals. Spring clips ≈ 0; competition collars 2.5 kg.</p>
+          <div className="flex flex-wrap gap-1.5">
+            {[0, 0.5, 1.25, 2.5].map((c) => {
+              const on = Number(s.settings.collarKg ?? 0) === c;
+              return <button key={c} onClick={() => set("collarKg", String(c))} className={cx("min-h-10 rounded-full border px-3 text-sm num", on ? "border-acc bg-acc/15 font-semibold text-acc" : "border-line text-mute")}>{c === 0 ? "None / spring" : `${c} kg each`}</button>;
+            })}
+          </div>
+        </Card>
+
         <Card title="Equipment — bar weights" icon={Dumbbell}>
           <p className="mb-2 text-xs text-mute">Bars count in the total you enter. EZ bars vary from 5 to 14 kg — weigh yours or read the label. Fixed-weight bars: set 0 and enter the number printed on the bar.</p>
           <div className="grid grid-cols-2 gap-2">

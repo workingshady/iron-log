@@ -100,7 +100,8 @@ Log in with the **DEV passcode** instead of yours → an orange "DEV MODE" bar, 
 - **Compare**: the ⇄ button on a workout compares it with the previous one of the same day; or "Compare 2 workouts" → tap any two. Shows volume, sets, minutes and, per exercise, both sessions' sets with the change in volume and estimated max.
 
 ## Plates & rest timer
-- **Plate picture**: barbell/EZ lifts show the bar with colour-coded plates per side (IWF colours: 25 red, 20 blue, 15 yellow, 10 green, 5 white, 2.5 red, 1.25 chrome). Uses only the plates your gym has (Settings → Equipment — plates). Weights you can't load exactly say so and give the nearest.
+- **Plate picture**: a realistic bar (knurled shaft, collars, sleeves) with true-proportion IWF plates (25 red, 20 blue, 15 yellow, 10 green bumpers; 5 white, 2.5 red, 1.25 chrome change plates), the weight printed on each plate and numbered loading steps ("each side: 1 → 25, 2 → 10…"). Only your gym's plates are used (Settings → Equipment); clip weight is optional (Settings → clips / collars).
+- **Plate loader**: tap the bar or "plates" → tap a plate to add a pair, tap a plate on the bar to take it off, live total → **Use** fills your set.
 - **Rest timer settings** (Settings → Rest timer, synced to all devices): start automatically (or a Start button), sound + volume + Test, vibration, 3-2-1 countdown.
 - **Rest per exercise**: open an exercise (video button) → *Rest between sets* → pick a time or Off; overrides the plan for that exercise everywhere (supersets use the longest rest in the group). Reset to plan anytime; Settings lists your custom rests.
 

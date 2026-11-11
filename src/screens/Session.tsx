@@ -18,7 +18,7 @@ import { barOf, barsFrom, basisFor, kgHelp, kgLabel, loadOf, shownKg, type Bars 
 import type { AppState } from "../../shared/api";
 import { useLoad } from "../lib/useLoad";
 import { VoiceButton, appendText } from "../components/Voice";
-import { PlateBar } from "../components/PlateBar";
+import { PlateBar, PlateLoader } from "../components/PlateBar";
 import { restFor, restPrefs } from "../lib/restPrefs";
 import { ExerciseSheet, SetupNote } from "../components/ExerciseSheet";
 import { totalKg } from "../../shared/load";
@@ -539,7 +539,7 @@ function ExerciseCard({ i, it, sets, last, rec, live, bars, feedback, open, onTo
                     <button key={k} onClick={() => onLog({ ...d, weight: String(w.kg), reps: String(w.reps), rir: "", strict: "", note: "" }, "W")} className="flex min-h-10 items-center gap-3 rounded-lg border border-dashed border-line px-3 text-left text-sm">
                       <span className="w-14 text-xs text-mute">warm-up</span>
                       <span className="flex-1 num">{kg(w.kg)} kg × {w.reps}</span>
-                      {isBarbell(it.ex) && <span className="text-[11px] text-faint">{plateText(w.kg, barOf(it.ex, bars), bars.plates)}</span>}
+                      {isBarbell(it.ex) && <span className="text-[11px] text-faint">{plateText(w.kg, barOf(it.ex, bars), bars.plates, bars.collarKg)}</span>}
                       <Plus size={14} className="text-info" />
                     </button>
                   ))}
@@ -789,8 +789,8 @@ function SupersetHead({ plan, sets, i }: { plan: PlanItem[]; sets: SetLog[]; i: 
   );
 }
 
-function plateText(total: number, bar = 20, available?: number[]) {
-  const p = plates(total, bar, available);
+function plateText(total: number, bar = 20, available?: number[], collarKg = 0) {
+  const p = plates(total - 2 * collarKg, bar, available);
   if (!p) return "";
   return p.length ? `per side: ${p.join(" + ")}` : "empty bar";
 }
@@ -833,6 +833,7 @@ function useDraft(it: PlanItem, sets: SetLog[], last: { sets: SetLog[] } | undef
 }
 
 function SetInput({ it, d, setD, n, total, bars, onLog, hidden }: { it: PlanItem; d: Draft; setD: React.Dispatch<React.SetStateAction<Draft>>; n: number; total: number; bars: Bars; onLog?: () => void; hidden?: boolean }) {
+  const [loader, setLoader] = useState(false);
   const [hold, setHold] = useState<number | null>(null);
   const [perSide, setPerSide] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
@@ -862,7 +863,7 @@ function SetInput({ it, d, setD, n, total, bars, onLog, hidden }: { it: PlanItem
   const showRir = m === "weight_reps" || m === "reps" || m === "assist_reps";
   const bar = barOf(it.ex, bars);
   const isBar = isBarbell(it.ex);
-  const pt = isBar && d.weight ? plateText(Number(d.weight), bar, bars.plates) : "";
+  const pt = isBar && d.weight ? plateText(Number(d.weight), bar, bars.plates, bars.collarKg) : "";
   const side = d.weight ? Math.max(0, (Number(d.weight) - bar) / 2) : 0;
   const sideField = (
     <div className="min-w-0 flex-1">
@@ -898,12 +899,18 @@ function SetInput({ it, d, setD, n, total, bars, onLog, hidden }: { it: PlanItem
         <div className="mt-1.5 flex items-start justify-between gap-2 text-[11px] text-faint">
           <span>{isBar && perSide ? `Total = ${bar} kg bar + 2 × ${+side.toFixed(2)} = ${d.weight || bar} kg` : kgHelp(it.ex, bars)}</span>
           {isBar && (
-            <button onClick={() => setPerSide(!perSide)} className="shrink-0 rounded-full bg-card2 px-2.5 py-1 text-info">{perSide ? "enter total" : "per side"}</button>
+            <span className="flex shrink-0 gap-1">
+              <button onClick={() => setLoader(true)} className="rounded-full bg-card2 px-2.5 py-1 text-info">plates</button>
+              <button onClick={() => setPerSide(!perSide)} className="rounded-full bg-card2 px-2.5 py-1 text-info">{perSide ? "enter total" : "per side"}</button>
+            </span>
           )}
         </div>
       )}
       {/* what to load on the bar: colour-coded plates per side (IWF colours, your gym's plates) */}
-      {m === "weight_reps" && isBar && Number(d.weight) > 0 && <PlateBar total={Number(d.weight)} bar={bar} available={bars.plates} className="mt-2 rounded-lg bg-card2/60 py-2" />}
+      {m === "weight_reps" && isBar && Number(d.weight) > 0 && (
+        <PlateBar total={Number(d.weight)} bar={bar} ez={loadOf(it.ex) === "ez"} collarKg={bars.collarKg} available={bars.plates} onBuilder={() => setLoader(true)} className="mt-2 rounded-xl bg-card2/60 py-2" />
+      )}
+      {loader && <PlateLoader start={Number(d.weight) || bar} bar={bar} ez={loadOf(it.ex) === "ez"} collarKg={bars.collarKg} available={bars.plates} onUse={(w) => setD((v) => ({ ...v, weight: String(w) }))} onClose={() => setLoader(false)} />}
       {m === "time" && (
         <button
           onClick={() => {

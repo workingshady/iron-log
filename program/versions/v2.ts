@@ -66,12 +66,15 @@ const D3: E[] = [
 ];
 
 const D5: E[] = [
-  { ex: "db_bench", s: ["3x8-10", "3x8-10", "4x8-10", "2x10"], rest: 0, tag: "A1", t: "Deep stretch" },
-  { ex: "cs_row", s: ["3x8-10", "3x8-10", "4x8-10", "2x10"], rest: 105, tag: "A2", t: "Squeeze 1 s" },
-  { ex: "machine_press", s: ["2x10-12", "3x10-12", "3x10-12", "2x12"], rest: 0, tag: "B1", t3: "Last set: drop set (−20-25%)" },
-  { ex: "wide_cable_row", s: ["2x10-12", "3x10-12", "3x10-12", "2x12"], rest: 90, tag: "B2", t: "Elbows out, pull to sternum" },
-  { ex: "db_pullover", s: ["2x12", "3x12", "3x12-15", "1x12"], rest: 0, tag: "C1", t: "Big stretch" },
-  { ex: "kelso_shrug", s: ["2x12", "3x12", "3x12-15", "2x12"], rest: 75, tag: "C2", t: "Pinch blades, hold 2 s" },
+  // v2.6: barbell row back (heavy back thickness; Legs is 2 days away, Sh+Arms next day doesn't load the low back),
+  // pec deck replaces machine press (2nd flat press was redundant; fly = loaded stretch, Pedrosa 2022),
+  // cable straight-arm pulldown replaces DB pullover (pullover is mostly a chest move on EMG; cable keeps lat tension at the stretch)
+  { ex: "bb_row", s: ["3x6-8", "3x6-8", "4x6-8", "2x8"], rest: 150, heavy: true, t: "Hinge ~45°, flat back, bar to belly button · stop the set if the low back rounds" },
+  { ex: "db_bench", s: ["3x8-10", "3x8-10", "4x8-10", "2x10"], rest: 0, tag: "A1", t: "Deep stretch, 2 s down" },
+  { ex: "wide_cable_row", s: ["2x10-12", "3x10-12", "3x10-12", "2x12"], rest: 105, tag: "A2", t: "Elbows out, pull to sternum" },
+  { ex: "pec_deck", s: ["2x12-15", "3x12-15", "3x12-15", "2x12"], rest: 0, tag: "B1", t: "Open to a deep stretch, squeeze 1 s", t3: "Last set: drop set (−20-25%)" },
+  { ex: "straight_arm_pulldown", s: ["2x12-15", "3x12-15", "3x12-15", "1x12"], rest: 90, tag: "B2", t: "Cable pullover: arms long, big lat stretch at the top" },
+  { ex: "kelso_shrug", s: ["2x12", "3x12", "3x12-15", "2x12"], rest: 75, t: "Pinch blades, hold 2 s" },
   { ex: "hollow_hold", s: ["3x20s", "3x30s", "3x40s", "2x20s"], rest: 60, noRir: true },
   { ex: "pushup", s: ["1xmax", "2xmax", "2xmax", "1xmax"], rest: 60, fin: true, t: "Push-up burnout: strict, chest to floor" },
   { ex: "wrist_curl", s: ["2x15-20", "2x15-20", "3x15-20", "1x20"], rest: 0, tag: "E1", fin: true },
@@ -117,10 +120,10 @@ const days = (n: number): DayPlan[] => [
 
 export const v2: Program = {
   id: "ppl-arnold",
-  version: "2.5.0",
+  version: "2.6.0",
   name: "PPL × Arnold · Intensive v2",
   changelog:
-    "2.5: from your first 2 sessions — machine shrug on Pull (what your gym has), isolation rests 75-90 s (Singer 2024: >60 s helps, plateau ~90 s), clearer face-pull/neck/overhead-triceps cues; weights for all 4 weeks shown in Plan. 2.4: drop sets only on machines/cables/dumbbell isolation (leg press → leg extension, EZ curl drop removed — one drop per superset), −20-25% per drop, never 2 days before football. 2.3: Grip & Wrist extra session (6 forearm/grip exercises), football-aware week planner. 2.2: from your first Push — close-grip earlier with safety, laterals before shoulder press, ab wheel moved off Push, smarter weight engine (per-hand dumbbells, RIR-aware). 2.1: barbell row → machine row on Pull day (same growth, saves the lower back for Legs the next day). 2.0: No dips, pull-ups, bands or assisted machine. Per-session volume capped at ~11 sets per muscle, weekly volume spread for more growth. Stretch-biased picks, seated leg curl, techniques only on last isolation sets, small muscles as finishers, pull-up roadmap.",
+    "2.6: Chest + Back rebuilt from research — barbell row back (heavy, first), pec deck instead of a 2nd flat press, cable straight-arm pulldown instead of DB pullover. 2.5: from your first 2 sessions — machine shrug on Pull (what your gym has), isolation rests 75-90 s (Singer 2024: >60 s helps, plateau ~90 s), clearer face-pull/neck/overhead-triceps cues; weights for all 4 weeks shown in Plan. 2.4: drop sets only on machines/cables/dumbbell isolation (leg press → leg extension, EZ curl drop removed — one drop per superset), −20-25% per drop, never 2 days before football. 2.3: Grip & Wrist extra session (6 forearm/grip exercises), football-aware week planner. 2.2: from your first Push — close-grip earlier with safety, laterals before shoulder press, ab wheel moved off Push, smarter weight engine (per-hand dumbbells, RIR-aware). 2.1: barbell row → machine row on Pull day (same growth, saves the lower back for Legs the next day). 2.0: No dips, pull-ups, bands or assisted machine. Per-session volume capped at ~11 sets per muscle, weekly volume spread for more growth. Stretch-biased picks, seated leg curl, techniques only on last isolation sets, small muscles as finishers, pull-up roadmap.",
   order: ["D1", "D2", "D3", "D5", "D6"],
   schedules: {
     "A (Mon start)": ["rest", "D1", "D2", "D3", "rest", "D5", "D6"],

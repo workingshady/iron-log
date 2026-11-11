@@ -15,6 +15,18 @@ export interface VersionEntry {
 
 export const HISTORY: VersionEntry[] = [
   {
+    id: "ppl-arnold@2.6.0", version: "2.6.0", date: "2026-11-11", kind: "minor",
+    title: "Chest + Back: most effective exercises",
+    why: "Your request + research: DB pullover is mostly a chest exercise on EMG (pecs ≫ lats) and loads the lats poorly; a 2nd flat press after DB bench adds little; stretched-position work (fly) grows the chest well (Pedrosa 2022); barbell row is a top back-thickness builder and the low back is fresh on this day.",
+    changes: [
+      "Barbell row added first (3-4×6-8, heavy) — back thickness; chest-supported row stays as its swap if the low back is tired.",
+      "Chest-supported DB row → wide-grip cable row paired with DB bench (A1/A2).",
+      "Machine chest press → pec deck (loaded stretch, joint-friendly; drop set on the last set in Week 3).",
+      "DB pullover → cable straight-arm pulldown (constant lat tension, big stretch at the top).",
+      "Kelso shrug now on its own (no superset) so the traps get full sets.",
+    ],
+  },
+  {
     id: "ppl-arnold@2.5.0", version: "2.5.0", date: "2026-11-11", kind: "minor",
     title: "Review of Week 1 Push + Pull",
     why: "Your first 2 sessions (47 sets, 21 notes) + research: Plotkin 2022 (load or rep progression both grow muscle), Singer 2024 (rest > 60 s helps, plateau ~90 s).",

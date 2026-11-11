@@ -2,6 +2,16 @@
 
 Each version: what changed, and the data that justified it.
 
+
+## ppl-arnold@2.6.0 · 2026-11-11 — Chest + Back rebuilt for effectiveness
+No new sessions since 2.5.0 (still W1 Push + Pull, 47 sets) — this is an exercise-selection change, from research:
+- **DB pullover → cable straight-arm pulldown.** EMG (J Appl Biomech 2011, n=8): pullover is mostly a pec exercise (pecs ≫ lats); a dumbbell loads the lat poorly at the top. The cable version keeps tension through the stretch.
+- **Machine chest press → pec deck.** A 2nd flat press after DB bench adds little; a fly loads the chest at long length (Pedrosa 2022: lengthened training ≥ shortened for growth). Joint-friendly; drop set on the last set in W3.
+- **Barbell row added first (3-4×6-8).** It was removed from Pull in 2.1 to spare the low back before Legs the next day; on Chest + Back the next day is Shoulders + Arms, so the heavy hinge row fits here. Chest-supported row stays as its swap.
+- **Chest-supported DB row → wide-grip cable row** paired with DB bench; Kelso shrug no longer in a superset.
+Volume per muscle unchanged (~6-8 chest, ~8-10 back sets).
+Starting weights (estimates, set 1 = test): barbell row ~47.5 × 8, DB bench 27.5/h × 10, wide cable row 40 × 12, pec deck ~22.5 × 15, straight-arm pulldown ~30 × 15.
+
 ## ppl-arnold@2.5.0 · 2026-11-11 — data review after W1 Push + Pull
 Data: 2 sessions (69 + 80 min, RPE 8), 47 sets, 21 notes, 363 taps. Research: Plotkin 2022 (load or rep progression both grow muscle, load slightly better for strength → keep double progression), Singer 2024 meta-analysis (rest > 60 s slightly better for growth, plateau ~90 s).
 - **Shrug on Pull: barbell → Machine Shrug.** Your note: "its device not dumbell". The 4 sets of 2026-11-10 were relabelled from "dumbbell shrug 50 kg/hand" (= 100 kg, wrong) to "machine shrug 50 kg" (backup: private/backups/iron-log-pre-shrugfix-…). Grip slipped → straps allowed on shrugs (traps are the target; grip has its own work).

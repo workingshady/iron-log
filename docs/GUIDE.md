@@ -108,7 +108,12 @@ Log in with the **DEV passcode** instead of yours → an orange "DEV MODE" bar, 
 ## Inside a workout
 - **Tap an exercise** to open or close it. After each set, the app moves you to the right place: superset partners alternate A1 → A2 → A1, then it goes to the next exercise.
 - **The order for each set:** check the suggested kg/reps (already filled in) → do the set → tap **reps left in the tank** (RIR, optional) → **Log set**. Faded rows below show the sets still to come.
-- **Warm-up sets** (heavy lifts): "Show warm-up sets" gives a ramp (bar → 50% → 70% → 85%). Tap each after doing it.
+- **Warm-up sets** (the ramp to your working weight, separate from the joint warm-up) are shown open at the top of each exercise, with % and the reason:
+  - **First heavy lift for a muscle** (bench, squat, pulldown, barbell row…): empty bar ×10 → 40% ×8 → 60% ×5 → 80% ×2.
+  - **First other compound for a muscle**: 50% ×8 → 75% ×4. **Cold isolation** (laterals, curls on a new muscle): 50% ×10.
+  - **Muscle already warm** from an earlier exercise: heavy lift → 1 feeder set (70% ×3, plus the empty bar for barbells); otherwise none — start your work sets.
+  - **Supersets**: do both exercises' warm-ups first, then start round 1. Warm-ups never start the rest timer; rest ~1 min.
+  - Logged as warm-up: not counted in volume, PRs or the weight engine.
 - **Plates per side** appear for barbell lifts (20 kg bar).
 - **🏆 PR**: beat your best estimated max, reps or hold time, and it lights up. PRs are listed when you finish and in Stats.
 - **Quick check** after the last set of each exercise: how hard (Easy / Just right / Hard / Too much) and joints (Fine / Achy / Pain). Optional, two taps. It tunes next time's weight.

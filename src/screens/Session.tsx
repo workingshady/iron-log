@@ -12,7 +12,7 @@ import { Btn, Chips, Label, NumInput, Sheet, Thumb, scale } from "../components/
 import { TechNote, InfoDot } from "../components/Terms";
 import { TERMS } from "../../program/learn";
 import { ArrowDown, ArrowLeftRight, ArrowUp, Check, Hash, ChevronLeft, Clock, Dumbbell, Equal, Flame, Layers, MessageSquare, MoreHorizontal, NotebookPen, PlayCircle, Plus, Repeat, Ruler, SkipForward, Sparkles, Timer, TrendingDown, TrendingUp, TriangleAlert, Trophy } from "lucide-react";
-import { e1rm, isBarbell, plates, recommend, warmups, type ExHistory, type Rec, type RecKind } from "../../shared/recommend";
+import { e1rm, isBarbell, plates, recommend, type ExHistory, type Rec, type RecKind } from "../../shared/recommend";
 import { CURRENT } from "../../program";
 import { barOf, barsFrom, basisFor, kgHelp, kgLabel, loadOf, shownKg, type Bars } from "../../shared/load";
 import type { AppState } from "../../shared/api";
@@ -20,6 +20,7 @@ import { useLoad } from "../lib/useLoad";
 import { VoiceButton, appendText } from "../components/Voice";
 import { PlateBar, PlateLoader } from "../components/PlateBar";
 import { restFor, restPrefs } from "../lib/restPrefs";
+import { warmupFor, type WarmPlan } from "../../shared/warmup";
 import { ExerciseSheet, SetupNote } from "../components/ExerciseSheet";
 import { totalKg } from "../../shared/load";
 import { Link2, ListOrdered } from "lucide-react";
@@ -267,6 +268,7 @@ export default function SessionScreen({ id }: { id: string }) {
             sets={sets.filter((x) => x.itemIdx === i)}
             last={b.last[it.ex]}
             rec={recs[i]}
+            warm={warmupFor(plan, i, recs[i].weightKg, barOf(it.ex, bars))}
             live={live}
             bars={bars}
             feedback={b.feedback?.[`${id}:${i}`]}
@@ -462,8 +464,8 @@ const REC_TONE: Record<RecKind, string> = { up: "text-acc", hold: "text-info", d
 const REC_ICON: Record<RecKind, typeof TrendingUp> = { up: TrendingUp, hold: Equal, down: TrendingDown, start: Sparkles, deload: TrendingDown, estimate: Sparkles };
 const KIND_LABEL: Record<string, string> = { W: "warm-up", D: "drop", F: "failure", R: "rest-p." };
 
-function ExerciseCard({ i, it, sets, last, rec, live, bars, feedback, open, onToggle, onLog, onSet, onFeedback, onHow, onMenu, autoDrop, onChainDone, restSec }: {
-  restSec?: number;
+function ExerciseCard({ i, it, sets, last, rec, live, bars, feedback, open, onToggle, onLog, onSet, onFeedback, onHow, onMenu, autoDrop, onChainDone, restSec, warm: warmPlan }: {
+  restSec?: number; warm: WarmPlan;
   i: number; it: PlanItem; sets: SetLog[]; last?: { date: string; sets: SetLog[] }; rec: Rec; live: boolean; bars: Bars;
   autoDrop?: boolean; onChainDone?: (logged: number) => void;
   feedback?: { effort: string | null; joints: string | null };
@@ -474,7 +476,7 @@ function ExerciseCard({ i, it, sets, last, rec, live, bars, feedback, open, onTo
   const complete = work.length >= it.sets;
   const draft = useDraft(it, sets, last, rec);
   const [d, setD] = useState<Draft>(draft);
-  const [showWarm, setShowWarm] = useState(false);
+  const [showWarm, setShowWarm] = useState(true); // open by default: warm-ups come first
   const [extra, setExtra] = useState<null | "D" | "R" | "N">(null);
   useEffect(() => { if (autoDrop) setExtra("D"); }, [autoDrop]);
   const lastRef = useRef(sets.length);
@@ -484,8 +486,8 @@ function ExerciseCard({ i, it, sets, last, rec, live, bars, feedback, open, onTo
 
   const RecIcon = REC_ICON[rec.kind];
   const recText = rec.weightKg != null ? `${kg(rec.weightKg)} kg${loadOf(it.ex) === "pair" ? "/hand" : ""}${rec.reps ? ` × ${rec.reps}` : ""}` : rec.seconds ? `${rec.seconds} s` : rec.reps ? `${rec.reps} reps` : "";
-  const warm = it.metric === "weight_reps" && rec.weightKg && (isBarbell(it.ex) ? rec.weightKg > barOf(it.ex, bars) + 10 : rec.weightKg >= 15) ? warmups(it.ex, rec.weightKg, barOf(it.ex, bars) || 20) : [];
-  const hasWarmLogged = sets.some((s) => s.kind === "W");
+  const warm = warmPlan.sets;
+  const warmDone = sets.filter((s) => s.kind === "W").length;
   const remainingRows = Math.max(0, it.sets - work.length - 1);
 
   return (
@@ -502,7 +504,7 @@ function ExerciseCard({ i, it, sets, last, rec, live, bars, feedback, open, onTo
           <span className="block truncate text-xs text-mute">
             {complete && !open ? <span className="text-acc">{fmtChain(sets)}</span> : <>
             {targetLabel(it)} · <Clock size={10} className="inline" /> {restSec === 0 ? "no timer" : restLabel(restSec ?? it.rest)}
-            {!complete && recText && <span className={cx("ml-1", REC_TONE[rec.kind])}>· {recText}</span>}</>}
+            {!complete && recText && <span className={cx("ml-1", REC_TONE[rec.kind])}>· {recText}</span>}{!complete && work.length === 0 && warm.length > 0 && <span className="ml-1 text-warn">· {warm.length} warm-up</span>}</>}
           </span>
         </span>
         <span className="text-sm text-mute num">{work.length}/{it.sets}</span>
@@ -527,23 +529,25 @@ function ExerciseCard({ i, it, sets, last, rec, live, bars, feedback, open, onTo
             <SetupNote exKey={it.ex} compact />
           </div>
 
-          {/* 2. optional warm-up ramp */}
+          {/* 2. warm-up sets: first exercise for a cold muscle gets a ramp, warm muscles get 0-1 feeder set */}
           {warm.length > 0 && !complete && work.length === 0 && (
-            <div className="mb-3">
-              <button onClick={() => setShowWarm(!showWarm)} className="inline-flex items-center gap-1.5 text-xs text-info">
-                <Flame size={13} /> {showWarm ? "Hide" : "Show"} warm-up sets ({warm.length}){hasWarmLogged ? " · some done" : ""}
+            <div className="mb-3 rounded-xl border border-dashed border-warn/40 bg-warn/[0.04] p-2.5">
+              <button onClick={() => setShowWarm(!showWarm)} className="flex w-full items-center gap-1.5 text-left text-xs font-semibold text-warn">
+                <Flame size={13} /> Warm-up sets · {Math.min(warmDone, warm.length)}/{warm.length} done
+                <span className="ml-auto font-normal text-mute">{showWarm ? "hide" : "show"}</span>
               </button>
               {showWarm && (
                 <div className="mt-2 grid gap-1.5">
+                  <p className="text-[11px] text-mute">{warmPlan.why}{it.tag ? " Superset: warm up both exercises first, then start round 1." : ""}</p>
                   {warm.map((w, k) => (
-                    <button key={k} onClick={() => onLog({ ...d, weight: String(w.kg), reps: String(w.reps), rir: "", strict: "", note: "" }, "W")} className="flex min-h-10 items-center gap-3 rounded-lg border border-dashed border-line px-3 text-left text-sm">
-                      <span className="w-14 text-xs text-mute">warm-up</span>
-                      <span className="flex-1 num">{kg(w.kg)} kg × {w.reps}</span>
+                    <button key={k} disabled={k < warmDone} onClick={() => onLog({ ...d, weight: String(w.kg), reps: String(w.reps), rir: "", strict: "", note: "" }, "W")} className={cx("flex min-h-11 items-center gap-3 rounded-lg px-3 text-left text-sm", k < warmDone ? "bg-acc/10 text-acc" : "bg-card2")}>
+                      <span className="w-14 text-xs text-mute">{k < warmDone ? "✓ done" : `${w.pct}%`}</span>
+                      <span className="flex-1 num">{kg(w.kg)} kg{loadOf(it.ex) === "pair" ? "/hand" : ""} × {w.reps}</span>
                       {isBarbell(it.ex) && <span className="text-[11px] text-faint">{plateText(w.kg, barOf(it.ex, bars), bars.plates, bars.collarKg)}</span>}
                       <Plus size={14} className="text-info" />
                     </button>
                   ))}
-                  <p className="text-[11px] text-faint">Tap a row after doing it to log it as a warm-up (not counted in volume).</p>
+                  <p className="text-[11px] text-faint">Tap a row after doing it. Short rest (~1 min), no timer. Not counted in volume, PRs or weights.</p>
                 </div>
               )}
             </div>
@@ -784,7 +788,7 @@ function SupersetHead({ plan, sets, i }: { plan: PlanItem[]; sets: SetLog[]; i: 
           {Array.from({ length: rounds }, (_, r) => <span key={r} className={cx("h-2 w-2 rounded-full", r < doneRounds ? "bg-acc" : r === doneRounds && !allDone ? "bg-info" : "bg-card3")} />)}
         </span>
       </div>
-      <div className="mt-0.5 text-[11px] text-mute">{g.map(({ p }) => p.tag).join(" → ")} back-to-back, no rest between · rest {restLabel(rest)} after each round</div>
+      <div className="mt-0.5 text-[11px] text-mute">{g.map(({ p }) => p.tag).join(" → ")} back-to-back, no rest between · rest {restLabel(rest)} after each round{doneRounds === 0 && !allDone ? " · warm up both first" : ""}</div>
     </div>
   );
 }

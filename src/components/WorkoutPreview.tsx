@@ -4,7 +4,8 @@ import type { AppState, Lifts, PlanItem } from "../../shared/api";
 import { CURRENT } from "../../program";
 import { EX_GROUP } from "../../program/groups";
 import { buildPlan, targetLabel } from "../../shared/plan";
-import { isBarbell, recommend, warmups, type RecKind } from "../../shared/recommend";
+import { recommend, type RecKind } from "../../shared/recommend";
+import { warmupFor } from "../../shared/warmup";
 import { barOf, barsFrom, loadOf } from "../../shared/load";
 import { track } from "../lib/api";
 import { useLoad } from "../lib/useLoad";
@@ -46,12 +47,12 @@ export function WorkoutPreview({ week, dayKey, onStart, onClose }: { week: numbe
   const deload = /deload/i.test(wk.name);
   const bars = barsFrom(s?.settings);
   const day = [...wk.days, ...(wk.extras ?? [])].find((d) => d.key === dayKey);
-  const rows = plan.items.map((it) => {
+  const rows = plan!.items.map((it, i) => {
     const rec = recommend(it.ex, it, lifts?.hist ?? {}, { deload, step: it.step, bodyKg: Number(s?.settings?.bodyKg) || null });
-    const warm = it.metric === "weight_reps" && rec.weightKg && (isBarbell(it.ex) ? rec.weightKg > barOf(it.ex, bars) + 10 : rec.weightKg >= 15) ? warmups(it.ex, rec.weightKg, barOf(it.ex, bars) || 20) : [];
+    const warm = warmupFor(plan!.items, i, rec.weightKg, barOf(it.ex, bars)).sets;
     return { it, rec, warm };
   });
-  const warmTotal = rows.reduce((a, r) => a + (r.warm.length ? Math.min(2, r.warm.length) : 0), 0); // usually only the first lifts get a full ramp
+  const warmTotal = rows.reduce((a, r) => a + r.warm.length, 0);
   const minutes = estimateMinutes(plan.items, warmTotal);
   const sets = plan.items.reduce((a, it) => a + it.sets, 0);
   const groups = new Map<string, number>();

@@ -36,6 +36,7 @@ Object.assign(twa, {
   fallbackType: "customtabs",
   enableNotifications: false,
   orientation: "portrait",
+  monochromeIconUrl: "https://iron-log.workingshady.workers.dev/icon-monochrome-512.png", // Android 13+ themed icon
   display: "standalone",
 });
 fs.rmSync(project, { recursive: true, force: true });

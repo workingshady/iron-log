@@ -25,7 +25,7 @@ Commands: `npm run dev` · `npm run check` (validate program + types) · `npm ru
 
 ## Android app
 - APK = Trusted Web Activity of the live site (`scripts/build-apk.mjs`, Bubblewrap core). Package `com.workingshady.ironlog`, key `private/android/iron-log.keystore` (password in `private/SETUP.md`), fingerprint served at `public/.well-known/assetlinks.json`. Releases: `gh release create vX-android <apk>` (gh at "C:/Program Files/GitHub CLI/gh.exe"). Bump versionCode each build; never change the key.
-- Brand: `public/icon.svg` (app icon), `public/icon-maskable.svg`, `public/brand/{mark,logo,logo-light}.svg`; PNGs are renders of these.
+- Brand: `public/icon.svg` (app icon: barbell under an up-chevron), `icon-maskable.svg`, `icon-monochrome.svg` (Android themed icon), `favicon.svg`, `public/brand/{mark,logo,logo-dark,logo-light,logo-compact,logo-compact-light}.svg`; PNGs are renders of these. A new icon needs a new APK build.
 
 ## Modes & databases
 - `DB` (iron-log) = real data. `DB_DEV` (iron-log-dev) = test data, used when logged in with the `DEV_PASSCODE` secret (cookie prefixed `dev.`). Every handler uses `db(c)` which picks the right one. Never seed, reset or experiment on `DB`; use DEV mode (`POST /api/dev/seed` refills it).

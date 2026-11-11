@@ -117,7 +117,11 @@ export default function Home() {
               </div>
             </section>
           ) : (
-            <Card><div className="text-2xl font-bold">Program complete 🎉</div><p className="mt-2 text-sm text-mute">Log your re-tests, run <code>npm run export</code>, and ask Claude for the next version.</p></Card>
+            <Card>
+              <div className="text-2xl font-bold">{s.block?.name ?? "This month"} complete 🎉</div>
+              <p className="mt-2 text-sm text-mute">Log your re-tests, say “review” to Claude for the next version, then start the next month — the plan goes back to Week 1 with your weights carried over.</p>
+              <Btn kind="primary" className="mt-3 w-full" onClick={() => { location.hash = "/months"; }}>Start the next month</Btn>
+            </Card>
           )}
         </div>
 

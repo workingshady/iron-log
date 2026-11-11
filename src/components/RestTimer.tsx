@@ -92,14 +92,15 @@ export function RestTimer({ rest, setRest, prefs }: { rest: Rest | null; setRest
           <div className={cx("text-3xl font-bold num", over ? "text-acc" : "text-info")}>{over ? `GO · +${clock(-left)}` : clock(left)}</div>
           <div className="truncate text-xs text-mute">Resting · next: {rest.next}</div>
         </div>
-        <button onClick={() => adjust(-15)} className="h-12 w-12 rounded-xl bg-card2 text-sm font-semibold">−15</button>
-        <button onClick={() => adjust(15)} className="h-12 w-12 rounded-xl bg-card2 text-sm font-semibold">+15</button>
+        <button onClick={() => adjust(-15)} aria-label="15 seconds less rest" className="h-12 w-12 rounded-xl bg-card2 text-sm font-semibold">−15</button>
+        <button onClick={() => adjust(15)} aria-label="15 seconds more rest" className="h-12 w-12 rounded-xl bg-card2 text-sm font-semibold">+15</button>
         <button
           onClick={() => {
             track("rest_skip", { at: Math.round((t - rest.startedAt) / 1000) }, rest.sessionId);
             setRest(null);
           }}
-          className="h-12 rounded-xl bg-card2 px-3 text-sm font-semibold"
+          className="h-12 min-w-12 rounded-xl bg-card2 px-3 text-sm font-semibold"
+          aria-label="Skip rest"
         >
           ✕
         </button>

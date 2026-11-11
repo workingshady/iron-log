@@ -150,7 +150,7 @@ export default function History() {
       </div>
 
       {cmpMode && cmp.length === 2 && (
-        <div className="fixed inset-x-0 bottom-20 z-30 px-4 md:bottom-6 md:left-60">
+        <div className="fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-30 px-4 md:bottom-6 md:left-60">
           <Btn kind="primary" icon={GitCompare} className="mx-auto w-full max-w-md shadow-lg" onClick={() => { setShowCmp(true); track("compare_open", { a: cmp[0], b: cmp[1] }); }}>Compare these 2</Btn>
         </div>
       )}

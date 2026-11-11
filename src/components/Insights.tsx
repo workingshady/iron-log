@@ -16,7 +16,7 @@ export function InsightList({ items, max }: { items: InsightsData["insights"]; m
         const T = TONE[x.tone];
         return (
           <li key={i} className="flex gap-3">
-            <T.icon size={18} className={cx("mt-0.5 shrink-0", T.c)} />
+            <T.icon size={18} className={cx("mt-0.5 shrink-0", T.c)} aria-hidden />
             <div className="min-w-0">
               <div className="text-sm font-semibold">{x.title}</div>
               <div className="text-sm text-mute">{x.text}</div>

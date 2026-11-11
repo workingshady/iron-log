@@ -20,7 +20,7 @@ function Why({ title, children }: { title: string; children: ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button onClick={() => setOpen(true)} className="-m-2 inline-flex h-11 w-11 items-center justify-center text-info" aria-label={`How ${title} is calculated`}><Info size={16} /></button>
+      <button onClick={() => setOpen(true)} className="-m-2 inline-flex h-11 w-11 items-center justify-center text-info" aria-label={`How ${title} is calculated`}><Info size={16} aria-hidden /></button>
       <Sheet open={open} onClose={() => setOpen(false)} title={title} icon={Info}><div className="space-y-2 text-sm text-mute">{children}</div></Sheet>
     </>
   );
@@ -87,9 +87,9 @@ export function WeeklyTrend({ weeks, only }: { weeks: AnalyticsData["weeks"]; on
   return (
     <div>
       {!only && (
-        <div className="mb-2 grid grid-cols-5 gap-0.5 rounded-full bg-card2 p-0.5 text-[11px]" role="tablist">
+        <div className="mb-2 grid grid-cols-5 gap-0.5 rounded-full bg-card2 p-0.5 text-[11px]" role="group" aria-label="Measure">
           {(Object.keys(WEEK_METRICS) as (keyof typeof WEEK_METRICS)[]).map((k) => (
-            <button key={k} role="tab" aria-selected={m === k} onClick={() => setM(k)} className={cx("min-h-10 truncate rounded-full px-1", m === k ? "bg-card3 font-semibold text-ink" : "text-mute")}>{WEEK_METRICS[k].label}</button>
+            <button key={k} aria-pressed={m === k} onClick={() => setM(k)} className={cx("min-h-11 truncate rounded-full px-1", m === k ? "bg-card3 font-semibold text-ink" : "text-mute")}>{WEEK_METRICS[k].label}</button>
           ))}
         </div>
       )}
@@ -110,9 +110,9 @@ export function MuscleWeeks({ data }: { data: AnalyticsData["muscles"] }) {
   const isNow = idx === weeks.length - 1;
   return (
     <div>
-      <div className="-mx-1 mb-3 flex flex-wrap gap-1 text-xs">
+      <div className="-mx-1 mb-3 flex flex-wrap gap-1 text-xs" role="group" aria-label="Week">
         {weeks.map((x, k) => (
-          <button key={x.start} onClick={() => setI(k)} className={cx("min-h-10 rounded-full px-3", k === idx ? "bg-card3 text-ink" : "text-mute")}>{k === weeks.length - 1 ? "This week" : wkLabel(x.start)}</button>
+          <button key={x.start} onClick={() => setI(k)} aria-pressed={k === idx} className={cx("min-h-11 rounded-full px-3", k === idx ? "bg-card3 font-semibold text-ink" : "text-mute")}>{k === weeks.length - 1 ? "This week" : wkLabel(x.start)}</button>
         ))}
       </div>
       <div className="space-y-1.5">

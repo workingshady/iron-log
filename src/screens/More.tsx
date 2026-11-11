@@ -1,23 +1,35 @@
 import { ChevronRight, LayoutGrid } from "lucide-react";
-import { MORE } from "../nav";
-import { PageHead } from "../components/ui";
+import { moreGroups } from "../nav";
+import { PageHead, SectionHead } from "../components/ui";
 
+const TONE = { info: "text-info", vio: "text-vio", warn: "text-warn" } as const;
+
+/** Grouped list (one card per section, rows split by hairlines): scannable, 64 px rows, one line of help each. */
 export default function More() {
   return (
     <div>
-      <PageHead icon={LayoutGrid} title="More" sub="Tracking, benchmarks, notes, help, settings" />
-      <div className="space-y-2">
-        {MORE.map((m) => (
-          <a key={m.path} href={`#${m.path}`} className="flex items-center gap-3 rounded-2xl bg-card p-4 hover:bg-card2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-card2"><m.icon size={20} className={m.path === "/creatine" ? "text-vio" : m.path === "/cardio" ? "text-info" : m.path === "/learn" ? "text-info" : "text-ink"} /></div>
-            <div className="min-w-0 flex-1">
-              <div className="font-semibold">{m.label}</div>
-              <div className="text-xs text-mute">{m.sub}</div>
-            </div>
-            <ChevronRight size={18} className="text-faint" />
-          </a>
-        ))}
-      </div>
+      <PageHead icon={LayoutGrid} title="More" sub="Daily tracking, extras, library and settings" />
+      {moreGroups().map((g, gi) => (
+        <section key={g.id} aria-labelledby={`more-${g.id}`}>
+          <SectionHead className={gi === 0 ? "mt-2" : undefined}><span id={`more-${g.id}`}>{g.label}</span></SectionHead>
+          <ul className="divide-y divide-line overflow-hidden rounded-2xl bg-card">
+            {g.items.map((m) => (
+              <li key={m.path}>
+                <a href={`#${m.path}`} className="flex min-h-16 items-center gap-3 px-4 py-3 hover:bg-card2 active:bg-card2">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-card2" aria-hidden>
+                    <m.icon size={20} className={m.tone ? TONE[m.tone] : "text-ink"} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-semibold">{m.label}</span>
+                    <span className="block truncate text-xs text-mute">{m.sub}</span>
+                  </span>
+                  <ChevronRight size={18} className="shrink-0 text-faint" aria-hidden />
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
     </div>
   );
 }

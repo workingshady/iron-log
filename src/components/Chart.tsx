@@ -27,7 +27,7 @@ export function LineChart({ points, unit, height = 140 }: { points: P[]; unit: s
   };
   return (
     <div ref={ref}>
-      <div className="mb-1 flex items-baseline justify-between text-sm">
+      <div className="mb-1 flex items-baseline justify-between text-sm" aria-live="polite">
         <span className="font-semibold num">{points[sel].label ?? `${Math.round(points[sel].y * 10) / 10} ${unit}`}</span>
         <span className="text-xs text-mute">{points[sel].x}</span>
       </div>
@@ -81,7 +81,7 @@ export function Bars({ data, unit, tone = "var(--color-acc)", fmt }: { data: P[]
   const showLabel = (i: number) => i === data.length - 1 || (i % step === 0 && data.length - 1 - i >= step);
   return (
     <div>
-      <div className="mb-1 flex items-baseline justify-between text-sm">
+      <div className="mb-1 flex items-baseline justify-between text-sm" aria-live="polite">
         <span className="font-semibold num">{data[sel].label ?? `${fmt ? fmt(data[sel].y) : Math.round(data[sel].y).toLocaleString()} ${unit}`}</span>
         <span className="text-xs text-mute">{data[sel].x}</span>
       </div>
@@ -91,6 +91,7 @@ export function Bars({ data, unit, tone = "var(--color-acc)", fmt }: { data: P[]
             key={i}
             onPointerEnter={() => setHi(i)}
             onClick={() => setHi(i)}
+            aria-pressed={i === sel}
             className="flex h-full flex-1 items-end"
             aria-label={`${d.x}: ${d.y} ${unit}`}
           >
@@ -98,7 +99,7 @@ export function Bars({ data, unit, tone = "var(--color-acc)", fmt }: { data: P[]
           </button>
         ))}
       </div>
-      <div className="mt-1 flex gap-0.5 text-center text-[10px] text-mute">
+      <div className="mt-1 flex gap-0.5 text-center text-[10px] text-mute" aria-hidden>
         {data.map((d, i) => <span key={i} className="min-w-0 flex-1 overflow-visible whitespace-nowrap">{showLabel(i) ? d.x : ""}</span>)}
       </div>
     </div>

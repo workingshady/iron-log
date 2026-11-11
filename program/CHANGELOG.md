@@ -2,6 +2,20 @@
 
 Each version: what changed, and the data that justified it.
 
+## ppl-arnold@2.5.0 · 2026-11-11 — data review after W1 Push + Pull
+Data: 2 sessions (69 + 80 min, RPE 8), 47 sets, 21 notes, 363 taps. Research: Plotkin 2022 (load or rep progression both grow muscle, load slightly better for strength → keep double progression), Singer 2024 meta-analysis (rest > 60 s slightly better for growth, plateau ~90 s).
+- **Shrug on Pull: barbell → Machine Shrug.** Your note: "its device not dumbell". The 4 sets of 2026-11-10 were relabelled from "dumbbell shrug 50 kg/hand" (= 100 kg, wrong) to "machine shrug 50 kg" (backup: private/backups/iron-log-pre-shrugfix-…). Grip slipped → straps allowed on shrugs (traps are the target; grip has its own work).
+- **Isolation rests 60-75 s → 75-90 s** (laterals, overhead triceps, face pull, curls, pushdown, rear delts, Y-raise, calves, leg extension, BSS). Your real rests were +55-137 s over plan anyway (Push +13 min, Pull +22 min in total).
+- **Cues from your notes:** face pull (felt front/side delt, unsure about neck) → "rope to eyes, elbows high & wide, thumbs back, chin tucked"; neck → all 3 directions each set (you did only the front); shrugs → straps OK.
+- **Weights engine:**
+  - working weight = the weight of most sets (tie → the one you ended on), not the heaviest — machine row 70→60→65 "to enhance the form" now continues at 65;
+  - a different rep range is not a miss (laterals 12-15 on Push vs 15-20 on Legs) → converted from est. max;
+  - no double deload when an exercise appears twice in Week 4.
+- **Weights for all 4 weeks** shown in Plan → 4-week progression (engine run forward from your real history).
+
+Next weights (from the engine): W2 Push — bench 75×6, incline 22.5/h×9, close-grip 37.5×8 (↓, RIR 0 + bar nearly fell), laterals 12.5/h×12, seated DB press 12.5/h×10, overhead triceps 25×10 (↓, 30 kg → 10,8,5,5 + shoulder tight). W2 Pull — pulldown 65×8, machine row 65×8, neutral pulldown 45×11, face pull 36×14-15, machine shrug 50×12, incline curl 10/h×10, dead hang 30 s.
+Patterns to fix (not program changes): 8 sets at RIR 0 in Week 1 (target 2), 2 cheated sets, 2 accidental extra sets, dead hang skipped, no weigh-in / tests / cardio logged yet, creatine 10 g/day vs 5 g target.
+
 ## app update · 2026-11-10 (no program change)
 - Week planner rebuilt as an optimizer (scores every arrangement); Legs-left-out advice explains why.
 - Settings: week start + preferred rest days (replaces A/B presets, still read for old data), Profile (name, height, bodyweight, background).

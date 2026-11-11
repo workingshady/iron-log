@@ -71,6 +71,7 @@ export function recommend(
   if (metric === "time") {
     const best = Math.max(0, ...all.map((s) => s.seconds ?? 0));
     if (!best) return { weightKg: null, reps: null, seconds: rx.seconds ?? null, kind: "start", why: "First time: hold for the target time." };
+    if (opts.deload) return { weightKg: null, reps: null, seconds: rx.seconds ?? null, kind: "deload", why: "Deload week: just the target time, easy" };
     const allHit = all.length >= rx.sets && all.every((s) => (s.seconds ?? 0) >= (rx.seconds ?? 0));
     return { weightKg: null, reps: null, seconds: Math.max(rx.seconds ?? 0, best + (allHit ? 5 : 0)), kind: allHit ? "up" : "hold", why: allHit ? `Hit ${rx.seconds}s on every set → +5 s` : `Beat ${best}s` };
   }
@@ -125,9 +126,27 @@ export function recommend(
     const allDone = work.length >= rx.sets;
     return { ...base, weightKg: allDone ? lastW + step : lastW, reps: null, kind: allDone ? "up" : "hold", why: allDone ? `All carries done → +${step} kg${unit}` : "Same weight, finish all carries" };
   }
-  if (opts.deload) return { ...base, weightKg: roundDown(lastW * 0.9, step), reps: top, kind: "deload", why: "Deload week: ~10% lighter, easy sets" };
+  if (opts.deload) {
+    // last time was already a deload session (same exercise twice in the deload week) → keep it, don't cut again
+    const wasDeload = work.some((s) => { try { return JSON.parse(s.suggested ?? "null")?.kind === "deload"; } catch { return false; } });
+    if (wasDeload) return { ...base, weightKg: lastW, reps: top, kind: "deload", why: "Deload week: same easy weight as earlier this week" };
+    // ~10 % lighter, rounded to a weight you can actually load. With big jumps (2.5 kg dumbbells at 5 kg) one step
+    // can be a 50 % cut → keep the weight then; the deload comes from fewer sets + 3 reps in reserve.
+    let dw = round(lastW * 0.9, step);
+    if (dw >= lastW) dw = lastW - step >= lastW * 0.75 ? lastW - step : lastW;
+    return { ...base, weightKg: Math.max(step, dw), reps: top, kind: "deload", why: dw < lastW ? "Deload week: ~10% lighter, easy sets" : "Deload week: same weight (next step is too big a cut), fewer sets, 3 reps in reserve" };
+  }
   if (h?.joints === "pain" || all.some((s) => (s.painLevel ?? 0) >= 2)) {
     return { ...base, weightKg: roundDown(lastW - step, step), reps: top, kind: "down", why: "Pain last time → one step lighter. Swap the exercise if it hurts again." };
+  }
+
+  // fewer reps than this range asks for, but with reps still in the tank → last time was a DIFFERENT (heavier)
+  // rep range on purpose (e.g. laterals 12-15 on Push, 15-20 on Legs), not a miss → convert via estimated max
+  const rirAtTop = atTop.filter((s) => s.rir != null).map((s) => s.rir!);
+  // every set needs a logged RIR at/above target — otherwise it's treated as a real miss (e.g. 10, 8, 5, 5 with no RIR)
+  if (bot != null && avgReps < bot - 1.5 && bestE > 0 && rirAtTop.length === atTop.length && Math.min(...rirAtTop) >= rir) {
+    const w = Math.max(step, roundDown(bestE / (1 + (bot + rir) / 30), step));
+    return { ...base, weightKg: w, reps: bot, kind: "hold", why: `Higher-rep day (${bot}-${top ?? bot}) than last time (${Math.round(avgReps)} reps) → ${fmt(w)} kg${unit} from your est. max — not a miss` };
   }
 
   // clearly too heavy last time

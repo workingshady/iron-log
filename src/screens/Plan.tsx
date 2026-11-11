@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { projectProgram, projLabel } from "../../shared/project";
 import { Activity, CalendarDays, Check, ChevronDown, Clock, Eye, Info, Play } from "lucide-react";
 import { WorkoutPreview } from "../components/WorkoutPreview";
 import { track } from "../lib/api";
@@ -35,6 +36,14 @@ export default function Plan() {
   const week = CURRENT.weeks.find((w) => w.n === curWeek)!;
   const slot = (key: string) => s?.slots.find((x) => x.week === curWeek && x.dayKey === key);
   const nextKey = s?.next?.week === curWeek ? s.next.dayKey : null;
+  // weights for every week: the engine run forward from your real history (assumes each session goes as recommended)
+  const progWeek = s?.next?.week ?? 1;
+  const proj = useMemo(() => {
+    if (!lifts || !s) return {};
+    const done = new Set(s.slots.filter((x) => x.status === "done").map((x) => `${x.week}:${x.dayKey}`));
+    return projectProgram(CURRENT, lifts.hist, { fromWeek: progWeek, done, bodyKg: Number(s.settings.bodyKg) || null, includeExtras: true });
+  }, [lifts, s, progWeek]);
+  const doneSlot = (w: number, key: string) => !!s?.slots.find((x) => x.week === w && x.dayKey === key && x.status === "done");
   const expanded = openDay ?? nextKey ?? week.days.find((d) => slot(d.key)?.status !== "done")?.key ?? week.days[0].key;
 
   return (
@@ -74,7 +83,15 @@ export default function Plan() {
                           </td>
                           {CURRENT.weeks.map((w) => {
                             const rx = dayAt(w.n)?.items.find((x) => x.ex === ex);
-                            return <td key={w.n} className={cx("px-1 py-1.5 text-center", w.n === curWeek && "bg-info/10 text-ink", !rx && "text-faint")}>{rx ? targetLabel({ ...rx, rir: undefined }) : "—"}</td>;
+                            const idx = dayAt(w.n)?.items.findIndex((x) => x.ex === ex) ?? -1;
+                            const pj = proj[`${w.n}:${key}:${idx}`];
+                            const isDone = doneSlot(w.n, key);
+                            return (
+                              <td key={w.n} className={cx("px-1 py-1.5 text-center align-top", w.n === curWeek && "bg-info/10 text-ink", !rx && "text-faint")}>
+                                {rx ? targetLabel({ ...rx, rir: undefined }) : "—"}
+                                {rx && (isDone ? <span className="block text-[10px] text-acc">✓ done</span> : pj ? <span className={cx("block text-[10px]", pj.kind === "deload" ? "text-info" : pj.kind === "up" ? "text-acc" : "text-mute")}>{projLabel(ex, pj)}</span> : null)}
+                              </td>
+                            );
                           })}
                         </tr>
                       ))}
@@ -84,7 +101,7 @@ export default function Plan() {
               </section>
             );
           })}
-          <p className="text-xs text-mute">Sets × reps per week. Week 3 is the hardest, Week 4 is the deload. Tap an exercise for video, cues, your setup and history.</p>
+          <p className="text-xs text-mute">Sets × reps per week, and under it the weight for that week (/h = per hand): this week's is today's recommendation, later weeks are projected by the app's own rules from your real history, assuming each session goes as suggested. Beat a target → later weeks move up; miss → they wait. Week 3 is the hardest, Week 4 the deload (~10% lighter).</p>
         </div>
       )}
 
@@ -156,8 +173,10 @@ export default function Plan() {
                   <ul className="border-t border-line">
                     {d.items.map((rx, i) => {
                       const item = toItem(rx.ex, rx);
+                      // this week: today's recommendation · later weeks: the projected weight for that week
+                      const pj = week.n > progWeek ? proj[`${week.n}:${d.key}:${i}`] : undefined;
                       const rec = recommend(rx.ex, rx, lifts?.hist ?? {}, { deload: /deload/i.test(week.name), step: item.step });
-                      const recText = rec.weightKg != null ? `${kg(rec.weightKg)} kg` : rec.seconds ? `${rec.seconds} s` : rec.reps && rec.kind !== "start" ? `${rec.reps} reps` : "";
+                      const recText = pj ? `≈ ${projLabel(rx.ex, pj)}` : rec.weightKg != null ? `${kg(rec.weightKg)} kg` : rec.seconds ? `${rec.seconds} s` : rec.reps && rec.kind !== "start" ? `${rec.reps} reps` : "";
                       const grouped = rx.tag && d.items[i + 1]?.tag?.[0] === rx.tag[0];
                       const firstFinisher = rx.finisher && !d.items[i - 1]?.finisher;
                       return (

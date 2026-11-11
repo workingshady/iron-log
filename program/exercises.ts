@@ -69,7 +69,7 @@ const list: Exercise[] = [
   { key: "band_pull_apart", name: "Band Pull-Apart", metric: "reps", muscles: "Rear delts, mid traps", yt: "smSSXITNpCI",
     cues: ["Arms straight", "Pull band to chest"], alts: ["face_pull", "reverse_pec_deck"] },
   { key: "bb_shrug", name: "Barbell Shrug", metric: "weight_reps", muscles: "Upper traps", yt: "q4x4syK-eXM",
-    cues: ["Straight up to ears", "Hold 1-2 s", "No rolling"], alts: ["db_shrug", "farmer_carry", "rack_pull", "smith_shrug"] },
+    cues: ["Straight up to ears", "Hold 1-2 s", "No rolling"], alts: ["db_shrug", "farmer_carry", "rack_pull", "smith_shrug", "machine_shrug"] },
   { key: "ez_curl", name: "EZ-Bar / Barbell Curl", metric: "weight_reps", muscles: "Biceps", yt: "SDFZBaJcTsU",
     cues: ["Elbows pinned", "No swinging", "Full stretch"], alts: ["db_curl", "incline_curl", "preacher_curl", "cable_curl"] },
   { key: "db_curl", name: "Dumbbell Curl", metric: "weight_reps", muscles: "Biceps", yt: "ykJmrZ5v0Oo", step: 2.5,
@@ -145,7 +145,7 @@ const list: Exercise[] = [
   { key: "hammer_curl", name: "Hammer Curl", metric: "weight_reps", muscles: "Brachialis, forearms", yt: "zC3nLlEvin4", step: 2.5,
     cues: ["Thumbs up", "Slow", "No swing"], alts: ["db_curl", "reverse_curl"] },
   { key: "db_shrug", name: "Dumbbell Shrug", metric: "weight_reps", muscles: "Upper traps", yt: "xiLT85G_GuU", step: 2.5,
-    cues: ["Straight up", "Pause at top"], alts: ["bb_shrug", "kelso_shrug", "smith_shrug"] },
+    cues: ["Straight up", "Pause at top"], alts: ["bb_shrug", "kelso_shrug", "smith_shrug", "machine_shrug"] },
   { key: "cable_crunch", name: "Cable Crunch", metric: "weight_reps", muscles: "Abs", yt: "ToJeyhydUxU",
     cues: ["Kneel, rope by head", "Ribs to hips"], alts: ["ab_wheel", "hanging_knee_raise", "woodchop", "decline_crunch"] },
   { key: "tuck_lsit", name: "Tuck L-Sit", metric: "time", muscles: "Core, triceps, hip flexors", yt: "eRDcHCSlyo4", cues: ["Shoulders down", "Knees up"], alts: ["hollow_hold", "hanging_knee_raise"] },
@@ -289,9 +289,11 @@ const list: Exercise[] = [
   { key: "reverse_crunch", name: "Reverse Crunch", metric: "reps", muscles: "Lower abs", yt: "7VH0UB44RT0",
     cues: ["Lie down, knees bent", "Curl hips off the floor toward the chest", "Pause at the top", "Lower slowly, no swing"], alts: ["hanging_knee_raise", "dead_bug"] },
   { key: "smith_shrug", name: "Smith Machine Shrug", metric: "weight_reps", muscles: "Upper traps", yt: "8ppOGwvaFko", step: 5,
-    cues: ["Bar at arm's length", "Shrug straight up to the ears", "Hold 1 s", "Don't roll the shoulders"], alts: ["bb_shrug", "db_shrug"] },
+    cues: ["Bar at arm's length", "Shrug straight up to the ears", "Hold 1 s", "Don't roll the shoulders"], alts: ["bb_shrug", "db_shrug", "machine_shrug"] },
   { key: "hand_gripper", name: "Hand Gripper", metric: "reps", muscles: "Crushing grip, fingers", yt: "4vyQMJqKPYY", perSide: true,
     cues: ["Gripper deep in the hand", "Close fully, squeeze 1-2 s", "Open slowly", "Both hands"], alts: ["plate_pinch", "towel_hang"] },
+  { key: "machine_shrug", name: "Machine Shrug", metric: "weight_reps", muscles: "Upper traps (enter the number on the stack / pin)", yt: "HdoeBEuuS1c", step: 5,
+    cues: ["Handles at your sides, stand or sit tall", "Shrug straight up to the ears — no rolling", "Hold 1-2 s at the top", "Slow down; straps if grip slips before traps"], alts: ["bb_shrug", "db_shrug", "smith_shrug"] },
 ];
 
 /** Exercises done with two dumbbells (or two handles): the app asks for kg PER HAND. */

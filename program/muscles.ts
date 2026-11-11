@@ -104,6 +104,7 @@ export const EX_MUSCLES: Record<string, M> = {
   towel_hang: { p: ["forearm"], s: ["upper-back"] },
   db_hold: { p: ["forearm"], s: ["trapezius"] },
   // exercise bank (v2.4)
+  machine_shrug: { p: ["trapezius"], s: ["forearm"] },
   incline_bench: { p: ["chest", "front-deltoids"], s: ["triceps"] },
   smith_incline: { p: ["chest", "front-deltoids"], s: ["triceps"] },
   pec_deck: { p: ["chest"], s: ["front-deltoids"] },

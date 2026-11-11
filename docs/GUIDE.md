@@ -132,6 +132,7 @@ Log in with the **DEV passcode** instead of yours → an orange "DEV MODE" bar, 
 - Arabic and mixed text show right-to-left automatically, line by line.
 
 ## Plan screen
+- **4-week progression** now shows the **weight for every week** under each sets × reps: this week = today's recommendation; later weeks = the app's own rules run forward from your real history, assuming each session goes as suggested (/h = per hand, blue = deload, green = a step up, ✓ = already done). Viewing a future week also shows that week's projected weights on each day.
 - **This week's days**: each day with its muscle-group chips (sets per group). Tap a day to see the exercises.
 - **4-week progression**: one table per day, exercises × W1-W4 (sets × reps), with the current week highlighted. Week 3 is the hardest, Week 4 is the deload.
 - **Tap any exercise** for its sheet: video, cues, your setup note, the **next** recommended weight, your **best** and last-time sets, where it appears in the program each week, and the alternatives.

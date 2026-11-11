@@ -16,7 +16,7 @@ import { LineChart } from "../components/Chart";
 import { LiftTrends, WeeklyTrend, useAnalytics } from "../components/Analytics";
 import { MissedSheet, PickSheet, StartSheet } from "../components/StartSheets";
 import { WorkoutPreview } from "../components/WorkoutPreview";
-import { WeekPlanner, useWeekPlan } from "../components/WeekPlanner";
+import { WeekPlanner, useNextSession, useWeekPlan } from "../components/WeekPlanner";
 
 export default function Home() {
   const { data: s, error, reload } = useLoad<AppState>("/state");
@@ -27,6 +27,7 @@ export default function Home() {
   const [sheet, setSheet] = useState<null | "start" | "missed" | "pick" | "preview">(null);
   const [target, setTarget] = useState<SlotInfo | null>(null);
   const { plan: wp } = useWeekPlan();
+  const adapted = useNextSession();
   const { data: an } = useAnalytics(s ? weekConfig(s.settings, s.schedules).weekStart : 1);
 
   if (!s) return <p className="py-20 text-center text-mute">{error ?? "Loading…"}</p>;
@@ -35,7 +36,7 @@ export default function Home() {
   const nextPlanned = wp?.days.find((x) => x.kind === "planned" && !x.today) ?? null;
   const slotOf = (key?: string | null) => (key && s.next ? s.slots.find((x) => x.week === s.next!.week && x.dayKey === key) ?? null : null);
   const state: "train" | "rest" | "football" | "done" | "busy" = !todayDay ? "train" : todayDay.kind === "planned" ? "train" : todayDay.kind === "football" ? "football" : todayDay.kind === "done" ? "done" : todayDay.kind === "busy" ? "busy" : "rest";
-  const next = (state === "train" ? slotOf(wp?.todayKey) : slotOf(nextPlanned?.dayKey)) ?? s.next;
+  const next = (state === "train" ? slotOf(wp?.todayKey) : null) ?? adapted.next ?? s.next;
   const moved = state === "train" && next && s.next && next.dayKey !== s.next.dayKey;
   const week = next ? s.weeks.find((w) => w.n === next.week) : null;
   const weekStart = weekConfig(s.settings, s.schedules).weekStart;
@@ -166,7 +167,7 @@ export default function Home() {
       </div>
 
       {sheet === "preview" && target && <WorkoutPreview week={target.week} dayKey={target.dayKey} onClose={() => setSheet(null)} onStart={() => setSheet("start")} />}
-      <StartSheet open={sheet === "start"} slot={target} kind={target && target.dayKey !== s.next?.dayKey ? (target.status === "open" ? "picked" : "extra") : "planned"} onClose={() => setSheet(null)} />
+      <StartSheet open={sheet === "start"} slot={target} kind={target && target.dayKey !== s.next?.dayKey && target.dayKey !== adapted.next?.dayKey ? (target.status === "open" ? "picked" : "extra") : "planned"} onClose={() => setSheet(null)} />
       <MissedSheet open={sheet === "missed"} slot={target} onClose={() => setSheet(null)} onDone={() => { reload(); }} />
       <PickSheet open={sheet === "pick"} s={s} onClose={() => setSheet(null)} onPick={(x) => { setTarget(x); setSheet("start"); }} />
     </div>

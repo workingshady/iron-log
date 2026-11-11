@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { projectProgram, projLabel } from "../../shared/project";
 import { Activity, CalendarDays, Check, ChevronDown, Clock, Eye, Info, Play } from "lucide-react";
 import { WorkoutPreview } from "../components/WorkoutPreview";
+import { useNextSession } from "../components/WeekPlanner";
 import { track } from "../lib/api";
 import type { AppState, Lifts, PlanItem, SlotInfo } from "../../shared/api";
 import type { DayPlan } from "../../program/types";
@@ -35,7 +36,10 @@ export default function Plan() {
   const curWeek = wk ?? s?.next?.week ?? 1;
   const week = CURRENT.weeks.find((w) => w.n === curWeek)!;
   const slot = (key: string) => s?.slots.find((x) => x.week === curWeek && x.dayKey === key);
-  const nextKey = s?.next?.week === curWeek ? s.next.dayKey : null;
+  // "Up next" follows the adapted week (football, busy, your pins), same as Home
+  const nx = useNextSession();
+  const nextKey = nx.next?.week === curWeek ? nx.next.dayKey : null;
+  const nextWhen = nx.iso ? (nx.isToday ? "today" : new Date(`${nx.iso}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" })) : null;
   // weights for every week: the engine run forward from your real history (assumes each session goes as recommended)
   const progWeek = s?.next?.week ?? 1;
   const proj = useMemo(() => {
@@ -135,7 +139,7 @@ export default function Plan() {
                     <h2 className="text-lg font-bold">{d.name}</h2>
                     {sl?.status === "done" && <Badge tone="acc"><Check size={11} /> done</Badge>}
                     {sl?.status === "skipped" && <Badge>skipped</Badge>}
-                    {isNext && <Badge tone="info">next</Badge>}
+                    {isNext && <Badge tone="info">next{nextWhen ? ` · ${nextWhen}` : ""}</Badge>}
                   </div>
                   <div className="text-xs text-mute">{d.focus}</div>
                   <div className="mt-1 flex flex-wrap gap-1">
@@ -266,7 +270,7 @@ export default function Plan() {
 
       {how && <ExerciseSheet item={how} onClose={() => setHow(null)} />}
       {preview && <WorkoutPreview week={preview.week} dayKey={preview.dayKey} onClose={() => setPreview(null)} onStart={preview.slot ? () => { setStart(preview.slot); setPreview(null); } : undefined} />}
-      <StartSheet open={!!start} slot={start} kind={start?.dayKey.startsWith("X") ? "extra" : start && !(s?.next?.week === start.week && s?.next?.dayKey === start.dayKey) ? (start.status === "open" ? "picked" : "extra") : "planned"} onClose={() => setStart(null)} />
+      <StartSheet open={!!start} slot={start} kind={start?.dayKey.startsWith("X") ? "extra" : start && !(nx.next?.week === start.week && nx.next?.dayKey === start.dayKey) && !(s?.next?.week === start.week && s?.next?.dayKey === start.dayKey) ? (start.status === "open" ? "picked" : "extra") : "planned"} onClose={() => setStart(null)} />
     </div>
   );
 }

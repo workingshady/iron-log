@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Ban, CalendarClock, Check, Dumbbell, Eye, Moon, Trophy } from "lucide-react";
 import { WorkoutPreview } from "./WorkoutPreview";
-import type { AppState, HistoryRow } from "../../shared/api";
+import type { AppState, HistoryRow, SlotInfo } from "../../shared/api";
 import { planWeek, weekDates, type Mark, type WeekPlanOut } from "../../shared/weekplan";
 import { weekConfig } from "../../shared/week";
 import { queue, send, track, uid } from "../lib/api";
@@ -30,6 +30,22 @@ export function useWeekPlan() {
     return planWeek({ today: t, dates, schedule, slots, doneOn, marks });
   }, [s, hist, marks]);
   return { s, plan, marks, reload: () => { reloadState(); reloadHist(); } };
+}
+
+/**
+ * THE next session, for every screen (Home, Plan, Stats, start sheets): today's session if the adapted week trains
+ * today, otherwise the next planned day. Follows football / busy / rest marks and your pins (📌). Falls back to the
+ * program order (server's `next`) only when the week can't place anything.
+ */
+export function useNextSession(): { next: SlotInfo | null; iso: string | null; isToday: boolean; adapted: boolean } {
+  const { s, plan } = useWeekPlan();
+  if (!s) return { next: null, iso: null, isToday: false, adapted: false };
+  const slotOf = (key?: string | null) => (key && s.next ? s.slots.find((x) => x.week === s.next!.week && x.dayKey === key && x.status !== "done") ?? null : null);
+  const today = plan?.days.find((x) => x.today);
+  const day = today?.kind === "planned" ? today : plan?.days.find((x) => x.kind === "planned" && !x.today && x.iso > (today?.iso ?? ""));
+  const slot = slotOf(day?.dayKey);
+  if (slot && day) return { next: slot, iso: day.iso, isToday: !!day.today, adapted: slot.dayKey !== s.next?.dayKey };
+  return { next: s.next, iso: null, isToday: false, adapted: false };
 }
 
 const TILE: Record<string, string> = {

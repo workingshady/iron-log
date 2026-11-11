@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, ChevronDown, Equal, Sparkles, Target, Trophy, TriangleAlert } from "lucide-react";
-import type { AppState, Best, Lifts, PlanItem } from "../../shared/api";
+import type { Best, Lifts, PlanItem } from "../../shared/api";
 import { CURRENT } from "../../program";
 import { EXERCISES } from "../../program/exercises";
 import { EX_GROUP, GROUPS } from "../../program/groups";
@@ -11,6 +11,7 @@ import { cx, kg, niceDate, today } from "../lib/util";
 import { useLoad } from "../lib/useLoad";
 import { Card, Thumb } from "./ui";
 import { ExerciseSheet } from "./ExerciseSheet";
+import { useNextSession } from "./WeekPlanner";
 
 type Item = {
   exKey: string; name: string; target: { sets: number; reps: number | [number, number] | null; rir: number | [number, number] | null };
@@ -44,11 +45,11 @@ const KIND: Record<RecKind, { icon: typeof ArrowUp; label: string; cls: string }
 
 /** What the app will recommend next time, per exercise — with why, and what you did last time. */
 export function NextSession() {
-  const { data: st } = useLoad<AppState>("/state");
   const { data: lifts } = useLoad<Lifts>("/lifts");
   const [how, setHow] = useState<PlanItem | null>(null);
-  const wk = st?.next ? CURRENT.weeks.find((w) => w.n === st.next!.week) : null;
-  const next = wk?.days.find((d) => d.key === st!.next!.dayKey);
+  const nx = useNextSession(); // same "next" as Home and Plan (follows football / busy / pins)
+  const wk = nx.next ? CURRENT.weeks.find((w) => w.n === nx.next!.week) : null;
+  const next = wk?.days.find((d) => d.key === nx.next!.dayKey);
   if (!next || !lifts) return null;
   const deload = /deload/i.test(wk!.name);
   const rows = next.items.filter((x) => !x.finisher).map((rx) => ({ rx, r: recommend(rx.ex, rx, lifts.hist, { deload }), last: lifts.hist[rx.ex] }));

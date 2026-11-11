@@ -123,6 +123,14 @@ export function planWeek(input: {
     return s;
   }
 
+  // sessions you pinned to a (valid) future day are reserved for that day — never placed earlier/elsewhere
+  // (bug before: Legs pinned to Sat got put on Fri because the search fills days in order)
+  const reserved = new Set(future.filter((d) => {
+    const pin = pinOf(d);
+    const r = pin ? remaining.find((x) => x.dayKey === pin) : null;
+    return !!r && !(isLegs(r) && legsHard(d.iso));
+  }).map((d) => pinOf(d)!));
+
   let bestScore = Infinity;
   let bestPlan: (SlotIn | null)[] = [...plan];
   function dfs(k: number) {
@@ -144,6 +152,7 @@ export function planWeek(input: {
     if (!canLift(d)) return;
     for (let i = 0; i < remaining.length; i++) {
       if (used[i]) continue;
+      if (reserved.has(remaining[i].dayKey)) continue; // waits for its pinned day
       if (isLegs(remaining[i]) && legsHard(d.iso)) continue;
       used[i] = true;
       plan[k] = remaining[i];

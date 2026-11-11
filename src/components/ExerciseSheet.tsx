@@ -10,6 +10,8 @@ import { send, track } from "../lib/api";
 import { useLoad } from "../lib/useLoad";
 import { cx, kg, niceDate } from "../lib/util";
 import { Btn, Sheet } from "./ui";
+import { hasRestOverride, restFor } from "../lib/restPrefs";
+import { clock } from "../lib/util";
 
 /** Your saved setup for an exercise (seat height, pin, grip…) — stored in settings as "setup:<exKey>". */
 export function useSetupNote(exKey: string) {
@@ -39,6 +41,34 @@ export function SetupNote({ exKey, compact }: { exKey: string; compact?: boolean
       <MapPin size={13} className="shrink-0 text-info" />
       {value ? <span><span className="text-mute">Setup:</span> {value}</span> : compact ? "Add setup (seat, pin…)" : "Add your setup note (seat height, pin, grip…) — remembered every session"}
     </button>
+  );
+}
+
+/** Your rest for this exercise (overrides the plan; "Off" = no timer). Saved in settings → synced everywhere. */
+export function RestSetting({ item }: { item: PlanItem }) {
+  const { data: s, setData } = useLoad<AppState>("/state");
+  const cur = restFor(s?.settings, item);
+  const custom = hasRestOverride(s?.settings, item.ex);
+  const save = async (v: number | null) => {
+    const key = `rest:${item.ex}`;
+    setData((x) => (x ? { ...x, settings: { ...x.settings, [key]: v == null ? "" : String(v) } } : x));
+    await send("PUT", `/settings/${key}`, { value: v == null ? "" : String(v) });
+    track("rest_pref", { ex: item.ex, rest: v });
+  };
+  const opts = [45, 60, 75, 90, 120, 150, 180, 240];
+  return (
+    <div>
+      <div className="mb-1.5 flex items-baseline justify-between text-[11px] uppercase tracking-wide text-mute">
+        <span>Rest between sets</span>
+        <span className="normal-case tracking-normal">{custom ? <button onClick={() => save(null)} className="text-info">reset to plan ({clock(item.rest * 1000)})</button> : `plan: ${clock(item.rest * 1000)}`}</span>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {opts.map((o) => (
+          <button key={o} onClick={() => save(o)} className={cx("min-h-9 rounded-full border px-2.5 text-xs num", cur === o && (custom || o === item.rest) ? "border-info bg-info/15 font-semibold text-info" : "border-line text-mute")}>{clock(o * 1000)}</button>
+        ))}
+        <button onClick={() => save(0)} className={cx("min-h-9 rounded-full border px-2.5 text-xs", custom && cur === 0 ? "border-info bg-info/15 font-semibold text-info" : "border-line text-mute")}>Off</button>
+      </div>
+    </div>
   );
 }
 
@@ -76,6 +106,7 @@ export function ExerciseSheet({ item, onClose, onSwap }: { item: PlanItem; onClo
       <p className="mt-3 text-sm text-mute">{item.muscles}</p>
       <ul className="mt-2 space-y-1">{item.cues.map((c) => <li key={c} className="flex gap-2 text-sm"><span className="text-acc">•</span>{c}</li>)}</ul>
       <div className="mt-3 rounded-xl bg-card2 p-3"><SetupNote exKey={item.ex} /></div>
+      <div className="mt-3 rounded-xl bg-card2 p-3"><RestSetting item={item} /></div>
 
       <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
         <div className="rounded-xl bg-card2 p-3">

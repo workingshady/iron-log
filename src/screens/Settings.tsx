@@ -6,6 +6,10 @@ import { send, track, isDev, clearScreenCache } from "../lib/api";
 import { useLoad } from "../lib/useLoad";
 import { cx, today } from "../lib/util";
 import { Btn, Card, NumInput, PageHead, Chips } from "../components/ui";
+import { restPrefs, VOL, type Volume } from "../lib/restPrefs";
+import { EXERCISES } from "../../program/exercises";
+import { beep, clock, unlockAudio, vibrate } from "../lib/util";
+import { Timer } from "lucide-react";
 import { VOICE_LANGS, getVoiceLang, setVoiceLang, type VoiceLang } from "../components/Voice";
 
 export default function Settings() {
@@ -99,9 +103,67 @@ export default function Settings() {
           <p className="mt-2 text-xs text-mute">3-5 g is the researched range.</p>
         </Card>
 
+        <Card title="Rest timer" icon={Timer}>
+          {(() => {
+            const rp = restPrefs(s.settings);
+            const Toggle = ({ k, on, label, hint }: { k: string; on: boolean; label: string; hint: string }) => (
+              <button onClick={() => set(k, on ? "0" : "1")} className="flex min-h-12 w-full items-center gap-3 border-b border-line/50 py-2 text-left last:border-0">
+                <span className="min-w-0 flex-1"><span className="block text-sm">{label}</span><span className="block text-[11px] text-mute">{hint}</span></span>
+                <span className={cx("relative h-6 w-11 shrink-0 rounded-full transition", on ? "bg-acc" : "bg-card3")}><span className={cx("absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all", on ? "left-[22px]" : "left-0.5")} /></span>
+              </button>
+            );
+            const overrides = Object.entries(s.settings).filter(([k, v]) => k.startsWith("rest:") && v !== "");
+            return (
+              <>
+                <Toggle k="restAuto" on={rp.auto} label="Start automatically" hint="After each set. Off = a Start button appears instead." />
+                <Toggle k="restSound" on={rp.sound} label="Sound when rest is over" hint="Beep at the end of the rest." />
+                {rp.sound && (
+                  <div className="flex items-center gap-2 border-b border-line/50 py-2">
+                    <span className="flex-1 text-sm">Volume</span>
+                    {(["low", "normal", "high"] as Volume[]).map((v) => (
+                      <button key={v} onClick={() => set("restVolume", v)} className={cx("min-h-9 rounded-full border px-3 text-xs capitalize", rp.volume === v ? "border-acc bg-acc/15 font-semibold text-acc" : "border-line text-mute")}>{v}</button>
+                    ))}
+                    <button onClick={() => { unlockAudio(); beep(VOL[rp.volume]); if (rp.vibrate) vibrate([300, 150, 300]); }} className="min-h-9 rounded-full bg-card2 px-3 text-xs text-info">Test</button>
+                  </div>
+                )}
+                <Toggle k="restVibrate" on={rp.vibrate} label="Vibrate when rest is over" hint="Works with music on / phone in pocket." />
+                <Toggle k="restCountdown" on={rp.countdown} label="3-2-1 countdown beeps" hint="Short beeps in the last 3 seconds." />
+                <div className="mt-2 text-[11px] text-mute">
+                  Rest per exercise: open an exercise (video button) → <b>Rest between sets</b>.
+                  {overrides.length > 0 && (
+                    <ul className="mt-1.5 space-y-1">
+                      {overrides.map(([k, v]) => (
+                        <li key={k} className="flex items-center gap-2 text-xs text-ink">
+                          <span className="min-w-0 flex-1 truncate">{EXERCISES[k.slice(5)]?.name ?? k.slice(5)}</span>
+                          <span className="num text-mute">{v === "0" ? "no timer" : clock(Number(v) * 1000)}</span>
+                          <button onClick={() => set(k, "")} className="min-h-8 px-1 text-info">reset</button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </>
+            );
+          })()}
+        </Card>
+
         <Card title="Voice notes" icon={Mic}>
           <Chips small options={VOICE_LANGS.map((l) => ({ id: l.id, label: l.label }))} value={vlang} onChange={(v) => { if (!v) return; setVoiceLang(v as VoiceLang); setVlang(v as VoiceLang); track("voice_lang", { lang: v }); }} />
           <p className="mt-2 text-xs text-mute">{VOICE_LANGS.find((l) => l.id === vlang)?.hint}. Tap 🎤 next to any note, talk, tap again — Whisper (free, on Cloudflare) writes it out. Offline it falls back to the phone's own recognizer (one language).</p>
+        </Card>
+
+        <Card title="Equipment — plates your gym has" icon={Dumbbell}>
+          <p className="mb-2 text-xs text-mute">Tap to turn on/off. The plate picture in a workout only uses these.</p>
+          <div className="flex flex-wrap gap-1.5">
+            {[25, 20, 15, 10, 5, 2.5, 2, 1.25, 1, 0.5].map((p) => {
+              const cur = (s.settings.plates ?? "25,20,15,10,5,2.5,1.25").split(",").map(Number);
+              const on = cur.includes(p);
+              return (
+                <button key={p} onClick={() => { const next = on ? cur.filter((x) => x !== p) : [...cur, p]; if (!next.length) return; set("plates", next.sort((a, b) => b - a).join(",")); }}
+                  className={cx("min-h-10 min-w-12 rounded-full border px-3 text-sm num", on ? "border-acc bg-acc/15 font-semibold text-acc" : "border-line text-mute")}>{p} kg</button>
+              );
+            })}
+          </div>
         </Card>
 
         <Card title="Equipment — bar weights" icon={Dumbbell}>

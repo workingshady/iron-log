@@ -52,17 +52,17 @@ export function unlockAudio() {
     /* no audio */
   }
 }
-export function beep() {
+export function beep(volume = 0.25, freq = 880, seconds = 0.5) {
   try {
     ctx ??= new AudioContext();
     const o = ctx.createOscillator();
     const g = ctx.createGain();
-    o.frequency.value = 880;
-    g.gain.setValueAtTime(0.25, ctx.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+    o.frequency.value = freq;
+    g.gain.setValueAtTime(Math.max(0.001, volume), ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + seconds);
     o.connect(g).connect(ctx.destination);
     o.start();
-    o.stop(ctx.currentTime + 0.5);
+    o.stop(ctx.currentTime + seconds);
   } catch {
     /* no audio */
   }

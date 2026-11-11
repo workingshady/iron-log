@@ -94,6 +94,16 @@ Log in with the **DEV passcode** instead of yours → an orange "DEV MODE" bar, 
 - On top: estimated minutes, exercises, total sets and the muscle groups hit. Tap an exercise for its video, cues, last time and alternatives.
 - Nothing is logged and the clock doesn't start. **Start this workout** at the bottom goes straight to the start screen.
 
+## History: calendar, search, compare
+- **Month calendar**: green = workout, amber = partial, red ring = missed; dots = cardio (blue), creatine (violet), notes (grey). ‹ › to change month. **Tap a day** → everything you did: workouts with every set, cardio, creatine, body log, journal.
+- **Search** an exercise, day or note; filter **All / Workouts / Missed** and by **day type** (Push, Pull…).
+- **Compare**: the ⇄ button on a workout compares it with the previous one of the same day; or "Compare 2 workouts" → tap any two. Shows volume, sets, minutes and, per exercise, both sessions' sets with the change in volume and estimated max.
+
+## Plates & rest timer
+- **Plate picture**: barbell/EZ lifts show the bar with colour-coded plates per side (IWF colours: 25 red, 20 blue, 15 yellow, 10 green, 5 white, 2.5 red, 1.25 chrome). Uses only the plates your gym has (Settings → Equipment — plates). Weights you can't load exactly say so and give the nearest.
+- **Rest timer settings** (Settings → Rest timer, synced to all devices): start automatically (or a Start button), sound + volume + Test, vibration, 3-2-1 countdown.
+- **Rest per exercise**: open an exercise (video button) → *Rest between sets* → pick a time or Off; overrides the plan for that exercise everywhere (supersets use the longest rest in the group). Reset to plan anytime; Settings lists your custom rests.
+
 ## Inside a workout
 - **Tap an exercise** to open or close it. After each set, the app moves you to the right place: superset partners alternate A1 → A2 → A1, then it goes to the next exercise.
 - **The order for each set:** check the suggested kg/reps (already filled in) → do the set → tap **reps left in the tank** (RIR, optional) → **Log set**. Faded rows below show the sets still to come.

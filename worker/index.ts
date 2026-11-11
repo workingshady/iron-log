@@ -282,16 +282,54 @@ app.get("/history", async (c) => {
   const m = new Map(agg.map((a) => [a.sessionId, a]));
   const volRows = await d.select({ sessionId: t.sets.sessionId, exKey: t.sets.exKey, weightKg: t.sets.weightKg, kgBasis: t.sets.kgBasis, reps: t.sets.reps, kind: t.sets.kind })
     .from(t.sets).where(eq(t.sets.deleted, 0));
+  const exOf = new Map<string, Set<string>>();
   for (const v of volRows) {
     const a = m.get(v.sessionId);
     if (a && v.kind !== "W") a.vol += totalKg(v) * (v.reps ?? 0);
+    if (!exOf.has(v.sessionId)) exOf.set(v.sessionId, new Set());
+    exOf.get(v.sessionId)!.add(v.exKey);
   }
   const out: HistoryRow[] = rows.map((r) => ({
     id: r.id, date: r.date, week: r.week, dayKey: r.dayKey, dayName: r.dayName, status: r.status as HistoryRow["status"],
     kind: r.kind as HistoryRow["kind"], startedAt: r.startedAt, endedAt: r.endedAt, excuse: r.excuse, note: r.note, rpe: r.rpe,
     sets: m.get(r.id)?.n ?? 0, volume: Math.round(m.get(r.id)?.vol ?? 0), pains: m.get(r.id)?.pains ?? 0,
+    exKeys: [...(exOf.get(r.id) ?? [])],
   }));
   return c.json(out);
+});
+
+/** Everything that happened on one date: workouts (with sets per exercise), cardio, creatine, body log, journal, notes. */
+app.get("/day/:date", async (c) => {
+  const d = db(c);
+  const date = c.req.param("date");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return c.json({ error: "bad date" }, 400);
+  const [sess, cardio, intake, body, journal] = await Promise.all([
+    d.select().from(t.sessions).where(eq(t.sessions.date, date)).orderBy(t.sessions.createdAt),
+    d.select().from(t.cardio).where(eq(t.cardio.date, date)),
+    d.select().from(t.intake).where(eq(t.intake.date, date)).orderBy(t.intake.at),
+    d.select().from(t.body).where(eq(t.body.date, date)),
+    d.select().from(t.journal).where(eq(t.journal.date, date)).orderBy(t.journal.createdAt),
+  ]);
+  const ids = sess.map((x) => x.id);
+  const sets = ids.length ? await d.select().from(t.sets).where(and(inArray(t.sets.sessionId, ids), eq(t.sets.deleted, 0))).orderBy(t.sets.doneAt) : [];
+  return c.json({
+    date,
+    sessions: sess.map((x) => {
+      const plan = j<PlanItem[]>(x.plan) ?? [];
+      const ss = sets.filter((y) => y.sessionId === x.id);
+      const byEx = [...new Set(ss.map((y) => y.itemIdx))].map((i) => {
+        const list = ss.filter((y) => y.itemIdx === i && y.kind !== "W");
+        return { exKey: list[0]?.exKey ?? plan[i]?.ex, name: plan[i]?.name ?? EXERCISES[list[0]?.exKey ?? ""]?.name ?? "?", sets: list.map((y) => ({ kg: shownKg(y), reps: y.reps, seconds: y.seconds, kind: y.kind, rir: y.rir })), notes: list.filter((y) => y.note).map((y) => y.note as string), pain: list.some((y) => (y.painLevel ?? 0) > 0) };
+      }).filter((e) => e.sets.length);
+      return { id: x.id, dayName: x.dayName, week: x.week, status: x.status, kind: x.kind, excuse: x.excuse, note: x.note, rpe: x.rpe,
+        minutes: x.startedAt && x.endedAt ? Math.round((x.endedAt - x.startedAt) / 60000) : null,
+        volume: Math.round(ss.filter((y) => y.kind !== "W").reduce((a, y) => a + totalKg(y) * (y.reps ?? 0), 0)), exercises: byEx };
+    }),
+    cardio: cardio.map((x) => ({ id: x.id, protocol: x.protocol, status: x.status, minutes: x.minutes, kcal: x.kcalEst, note: x.note })),
+    creatine: { grams: intake.filter((x) => x.item === "creatine").reduce((a, x) => a + x.amount, 0), entries: intake.filter((x) => x.item === "creatine").map((x) => ({ amount: x.amount, at: x.at })) },
+    body: body[0] ?? null,
+    journal: journal.map((x) => ({ id: x.id, text: x.text, tags: x.tags, mood: x.mood })),
+  });
 });
 
 app.get("/progress", async (c) => {

@@ -18,6 +18,8 @@ import { barOf, barsFrom, basisFor, kgHelp, kgLabel, loadOf, shownKg, type Bars 
 import type { AppState } from "../../shared/api";
 import { useLoad } from "../lib/useLoad";
 import { VoiceButton, appendText } from "../components/Voice";
+import { PlateBar } from "../components/PlateBar";
+import { restFor, restPrefs } from "../lib/restPrefs";
 import { ExerciseSheet, SetupNote } from "../components/ExerciseSheet";
 import { totalKg } from "../../shared/load";
 import { Link2, ListOrdered } from "lucide-react";
@@ -203,11 +205,13 @@ export default function SessionScreen({ id }: { id: string }) {
       setOpen(nx);
       if (sameGroup(plan, i, nx)) setTimeout(() => document.getElementById(`ex-${nx}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
     }
-    const r = isExtra ? { rest: it.rest, round: null } : restAfter(plan, after, i);
+    // your rest per exercise (Settings / exercise sheet) overrides the plan's
+    const effPlan = plan.map((p) => ({ ...p, rest: restFor(appState?.settings, p) }));
+    const r = isExtra ? { rest: effPlan[i].rest, round: null } : restAfter(effPlan, after, i);
     if (live && r.rest > 0 && nx >= 0) {
       const nxIt = plan[nx];
       const label = nxIt.tag && r.round ? `Round ${r.round + 1} · ${nxIt.tag} ${nxIt.name}` : `${nxIt.name} · set ${workSets(after, nx).length + 1}`;
-      setRest({ sessionId: id, startedAt: t, endAt: t + r.rest * 1000, planned: r.rest, next: label });
+      setRest({ sessionId: id, startedAt: t, endAt: t + r.rest * 1000, planned: r.rest, next: label, pending: !restPrefs(appState?.settings).auto });
       track("rest_start", { planned: r.rest, superset: it.tag ?? null, round: r.round }, id);
     } else {
       setRest(null);
@@ -274,6 +278,7 @@ export default function SessionScreen({ id }: { id: string }) {
             open={open === i}
             onToggle={() => { setOpen(open === i ? -2 : i); track("ex_open", { i, ex: it.ex }, id); }}
             onLog={(d, kind) => logSet(i, d, kind)}
+            restSec={restFor(appState?.settings, it)}
             autoDrop={autoDrop === i}
             onChainDone={(n) => {
               if (autoDrop === i) setAutoDrop(null);
@@ -308,7 +313,7 @@ export default function SessionScreen({ id }: { id: string }) {
         </div>
       )}
 
-      {live && <RestTimer rest={rest} setRest={setRest} />}
+      {live && <RestTimer rest={rest} setRest={setRest} prefs={restPrefs(appState?.settings)} />}
 
       {sheet?.k === "how" && <ExerciseSheet item={plan[sheet.i]} onClose={() => setSheet(null)} onSwap={live ? () => setSheet({ k: "swap", i: sheet.i }) : undefined} />}
       {sheet?.k === "log" && <SessionLog plan={plan} sets={sets} onClose={() => setSheet(null)} onSet={(x) => setSheet({ k: "set", s: x })} />}
@@ -457,7 +462,8 @@ const REC_TONE: Record<RecKind, string> = { up: "text-acc", hold: "text-info", d
 const REC_ICON: Record<RecKind, typeof TrendingUp> = { up: TrendingUp, hold: Equal, down: TrendingDown, start: Sparkles, deload: TrendingDown, estimate: Sparkles };
 const KIND_LABEL: Record<string, string> = { W: "warm-up", D: "drop", F: "failure", R: "rest-p." };
 
-function ExerciseCard({ i, it, sets, last, rec, live, bars, feedback, open, onToggle, onLog, onSet, onFeedback, onHow, onMenu, autoDrop, onChainDone }: {
+function ExerciseCard({ i, it, sets, last, rec, live, bars, feedback, open, onToggle, onLog, onSet, onFeedback, onHow, onMenu, autoDrop, onChainDone, restSec }: {
+  restSec?: number;
   i: number; it: PlanItem; sets: SetLog[]; last?: { date: string; sets: SetLog[] }; rec: Rec; live: boolean; bars: Bars;
   autoDrop?: boolean; onChainDone?: (logged: number) => void;
   feedback?: { effort: string | null; joints: string | null };
@@ -495,7 +501,7 @@ function ExerciseCard({ i, it, sets, last, rec, live, bars, feedback, open, onTo
           <span className={cx("block truncate font-semibold", it.skipped && "line-through")}>{it.name}</span>
           <span className="block truncate text-xs text-mute">
             {complete && !open ? <span className="text-acc">{fmtChain(sets)}</span> : <>
-            {targetLabel(it)} · <Clock size={10} className="inline" /> {restLabel(it.rest)}
+            {targetLabel(it)} · <Clock size={10} className="inline" /> {restSec === 0 ? "no timer" : restLabel(restSec ?? it.rest)}
             {!complete && recText && <span className={cx("ml-1", REC_TONE[rec.kind])}>· {recText}</span>}</>}
           </span>
         </span>
@@ -533,7 +539,7 @@ function ExerciseCard({ i, it, sets, last, rec, live, bars, feedback, open, onTo
                     <button key={k} onClick={() => onLog({ ...d, weight: String(w.kg), reps: String(w.reps), rir: "", strict: "", note: "" }, "W")} className="flex min-h-10 items-center gap-3 rounded-lg border border-dashed border-line px-3 text-left text-sm">
                       <span className="w-14 text-xs text-mute">warm-up</span>
                       <span className="flex-1 num">{kg(w.kg)} kg × {w.reps}</span>
-                      {isBarbell(it.ex) && <span className="text-[11px] text-faint">{plateText(w.kg, barOf(it.ex, bars))}</span>}
+                      {isBarbell(it.ex) && <span className="text-[11px] text-faint">{plateText(w.kg, barOf(it.ex, bars), bars.plates)}</span>}
                       <Plus size={14} className="text-info" />
                     </button>
                   ))}
@@ -783,8 +789,8 @@ function SupersetHead({ plan, sets, i }: { plan: PlanItem[]; sets: SetLog[]; i: 
   );
 }
 
-function plateText(total: number, bar = 20) {
-  const p = plates(total, bar);
+function plateText(total: number, bar = 20, available?: number[]) {
+  const p = plates(total, bar, available);
   if (!p) return "";
   return p.length ? `per side: ${p.join(" + ")}` : "empty bar";
 }
@@ -856,7 +862,7 @@ function SetInput({ it, d, setD, n, total, bars, onLog, hidden }: { it: PlanItem
   const showRir = m === "weight_reps" || m === "reps" || m === "assist_reps";
   const bar = barOf(it.ex, bars);
   const isBar = isBarbell(it.ex);
-  const pt = isBar && d.weight ? plateText(Number(d.weight), bar) : "";
+  const pt = isBar && d.weight ? plateText(Number(d.weight), bar, bars.plates) : "";
   const side = d.weight ? Math.max(0, (Number(d.weight) - bar) / 2) : 0;
   const sideField = (
     <div className="min-w-0 flex-1">
@@ -896,6 +902,8 @@ function SetInput({ it, d, setD, n, total, bars, onLog, hidden }: { it: PlanItem
           )}
         </div>
       )}
+      {/* what to load on the bar: colour-coded plates per side (IWF colours, your gym's plates) */}
+      {m === "weight_reps" && isBar && Number(d.weight) > 0 && <PlateBar total={Number(d.weight)} bar={bar} available={bars.plates} className="mt-2 rounded-lg bg-card2/60 py-2" />}
       {m === "time" && (
         <button
           onClick={() => {

@@ -29,11 +29,13 @@ export function loadOf(exKey: string): Load {
 }
 
 /** Bar weights (Settings → Equipment). */
-export interface Bars { barKg: number; ezKg: number }
+/** Bar weights + the plates your gym has (heaviest first; Settings → Equipment). */
+export interface Bars { barKg: number; ezKg: number; plates?: number[] }
 export const DEFAULT_BARS: Bars = { barKg: 20, ezKg: 10 };
 export function barsFrom(settings?: Record<string, string> | null): Bars {
   const n = (v: string | undefined, d: number) => (v != null && v !== "" && !Number.isNaN(Number(v)) ? Number(v) : d);
-  return { barKg: n(settings?.barKg, 20), ezKg: n(settings?.ezKg, 10) };
+  const pl = (settings?.plates ?? "").split(",").map((x) => Number(x.trim())).filter((x) => x > 0 && x <= 50);
+  return { barKg: n(settings?.barKg, 20), ezKg: n(settings?.ezKg, 10), plates: pl.length ? [...new Set(pl)].sort((a, b) => b - a) : undefined };
 }
 export const barOf = (exKey: string, b: Bars) => (loadOf(exKey) === "ez" ? b.ezKg : loadOf(exKey) === "barbell" ? b.barKg : 0);
 

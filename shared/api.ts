@@ -135,6 +135,8 @@ export interface HistoryRow {
   sets: number;
   volume: number;
   pains: number;
+  /** Exercises done in this session (for search). */
+  exKeys?: string[];
 }
 
 export interface ProgressPoint {

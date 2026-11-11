@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { VoiceButton, appendText } from "../components/Voice";
-import { Check, ChevronDown, Flame, Footprints, Minus, Pause, Play, Plus, Square, Timer, Trash2, TriangleAlert, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, ChevronDown, Flame, Footprints, Minus, Pause, Play, Plus, SkipForward, Square, Timer, Trash2, TriangleAlert, X } from "lucide-react";
 import type { AppState, CardioLog, DashboardData, HistoryRow } from "../../shared/api";
-import { CARDIO_PLAN, CARDIO_TIPS, PROTOCOLS, estimateKcal, segments, type CardioProtocol, type SegKind } from "../../program/cardio";
+import { CARDIO_PLAN, CARDIO_TIPS, PROTOCOLS, estimateKcal, kcalPerMin, segments, type CardioProtocol, type SegKind } from "../../program/cardio";
 import { queue, send, track, uid } from "../lib/api";
 import { useLoad } from "../lib/useLoad";
 import { beep, clock, cx, niceDate, today, unlockAudio, vibrate } from "../lib/util";
@@ -18,7 +18,7 @@ const KIND: Record<SegKind, { dot: string; text: string; label: string }> = {
   hard: { dot: "bg-warn", text: "text-warn", label: "hard" },
 };
 const LIVE = "il_cardio_live";
-type Live = { id: string; protocol: string; startedAt: number; pausedAt: number | null; pausedMs: number; speedAdj: number };
+type Live = { id: string; protocol: string; startedAt: number; pausedAt: number | null; pausedMs: number; speedAdj: number; inclineAdj?: number };
 
 function loadLive(): Live | null {
   try { return JSON.parse(localStorage.getItem(LIVE) ?? "null"); } catch { return null; }
@@ -253,7 +253,19 @@ function LiveTimer({ live, setLive, kg, onFinish, logSheet, setLogSheet, reload 
   const left = Math.max(0, acc + seg.sec - elapsed);
   const done = elapsed >= total;
   const next = segs[idx + 1];
-  const speed = seg.speed + (seg.kind === "hard" ? live.speedAdj : 0);
+  const ia = live.inclineAdj ?? 0;
+  const spOf = (x: typeof seg) => x.speed + (x.kind === "hard" ? live.speedAdj : 0);
+  const inOf = (x: typeof seg) => Math.max(0, x.incline + (x.kind === "hard" ? 0 : ia));
+  const speed = spOf(seg);
+  // live distance + kcal: finished parts + the current one (ACSM equations, your bodyweight)
+  const { km, kcal } = (() => {
+    let t = 0, d = 0, c = 0;
+    for (const x of segs) {
+      const s2 = Math.max(0, Math.min(x.sec, elapsed - t)); if (s2 <= 0) break;
+      d += (spOf(x) * s2) / 3600; c += kcalPerMin(spOf(x), inOf(x), kg) * (s2 / 60); t += x.sec;
+    }
+    return { km: d, kcal: Math.round(c) };
+  })();
 
   // beeps: short 3-2-1 before each change, buzz + beep when the part changes
   const prevIdx = useRef(idx);
@@ -273,6 +285,9 @@ function LiveTimer({ live, setLive, kg, onFinish, logSheet, setLogSheet, reload 
   const k = KIND[seg.kind];
   const round = seg.round ? `Round ${seg.round}/${p.blocks.find((b) => b.rounds)?.rounds}` : "";
   const adj = (d: number) => setLive({ ...live, speedAdj: Math.round((live.speedAdj + d) * 10) / 10 });
+  const adjI = (d: number) => setLive({ ...live, inclineAdj: Math.max(-10, Math.min(10, ia + d)) });
+  const skip = () => { if (!next) return; setLive({ ...live, startedAt: live.startedAt - left * 1000 }); track("cardio_skip_part", { protocol: live.protocol, idx }); };
+  const dS = next ? spOf(next) - speed : 0, dI = next ? inOf(next) - inOf(seg) : 0;
 
   return (
     <div className="mx-auto max-w-md">
@@ -280,36 +295,63 @@ function LiveTimer({ live, setLive, kg, onFinish, logSheet, setLogSheet, reload 
         <span>{p.name}</span>
         <span className="num">{clock(elapsed * 1000)} / {clock(total * 1000)}</span>
       </div>
-      <div className="h-1.5 rounded bg-card2"><div className="h-1.5 rounded bg-acc transition-all" style={{ width: `${Math.min(100, (elapsed / total) * 100)}%` }} /></div>
+      {/* whole session at a glance: one bar per part (height = speed, colour = kind), current part outlined */}
+      <div className="flex h-10 items-end gap-px" aria-hidden>
+        {segs.map((x, i) => (
+          <div key={i} className={cx("rounded-t-sm", KIND[x.kind].dot, i < idx ? "opacity-30" : i === idx ? "outline outline-2 outline-ink" : "opacity-70")}
+            style={{ flexGrow: x.sec, height: `${30 + Math.min(70, (spOf(x) / 12) * 70)}%` }} />
+        ))}
+      </div>
+      <div className="mt-1 h-1.5 rounded bg-card2"><div className="h-1.5 rounded bg-acc transition-all" style={{ width: `${Math.min(100, (elapsed / total) * 100)}%` }} /></div>
+      <div className="mt-2 grid grid-cols-3 gap-2 text-center text-xs">
+        <div className="rounded-xl bg-card2 py-1.5"><div className="font-bold num">{km.toFixed(2)}</div><div className="text-[10px] text-mute">km</div></div>
+        <div className="rounded-xl bg-card2 py-1.5"><div className="font-bold num">{kcal}</div><div className="text-[10px] text-mute">kcal (est.)</div></div>
+        <div className="rounded-xl bg-card2 py-1.5"><div className="font-bold num">{idx + 1}/{segs.length}</div><div className="text-[10px] text-mute">part</div></div>
+      </div>
 
       <section className={cx("mt-4 rounded-3xl p-6 text-center", seg.kind === "hard" ? "bg-warn/15" : "bg-card")}>
         <div className={cx("text-xs font-semibold uppercase tracking-widest", k.text)}>{k.label}{round && ` · ${round}`}</div>
         <div className={cx("mt-1 text-3xl font-bold", seg.kind === "hard" && "text-warn")}>{seg.label}</div>
         <div className="mt-5 grid grid-cols-2 gap-3">
           <div className="rounded-2xl bg-card2 p-3"><div className="text-[11px] uppercase text-mute">Speed km/h</div><div className="text-5xl font-bold num">{speed.toFixed(1)}</div></div>
-          <div className="rounded-2xl bg-card2 p-3"><div className="text-[11px] uppercase text-mute">Incline</div><div className="text-5xl font-bold num">{seg.incline}%</div></div>
+          <div className="rounded-2xl bg-card2 p-3"><div className="text-[11px] uppercase text-mute">Incline</div><div className="text-5xl font-bold num">{inOf(seg)}%</div></div>
         </div>
         <div className="mt-5 text-6xl font-bold num">{clock(left * 1000)}</div>
         <div className="mt-1 text-xs text-mute">left in this part</div>
-        {next && <div className="mt-4 text-sm text-mute">Next: <b className="text-ink">{next.label}</b> · {(next.speed + (next.kind === "hard" ? live.speedAdj : 0)).toFixed(1)} km/h · {next.incline}%</div>}
+        {next && (
+          <div className={cx("mt-4 rounded-xl px-3 py-2 text-sm", left <= 10 ? "bg-warn/15 text-warn" : "bg-card2 text-mute")}>
+            <div>Next: <b className="text-ink">{next.label}</b>{next.round ? ` · round ${next.round}` : ""}</div>
+            <div className="mt-0.5 flex items-center justify-center gap-3 num">
+              <span className="inline-flex items-center gap-1">speed {speed.toFixed(1)} → <b className="text-ink">{spOf(next).toFixed(1)}</b>{dS > 0 ? <ArrowUp size={13} className="text-warn" /> : dS < 0 ? <ArrowDown size={13} className="text-info" /> : null}</span>
+              <span className="inline-flex items-center gap-1">incline {inOf(seg)} → <b className="text-ink">{inOf(next)}%</b>{dI > 0 ? <ArrowUp size={13} className="text-warn" /> : dI < 0 ? <ArrowDown size={13} className="text-info" /> : null}</span>
+            </div>
+          </div>
+        )}
       </section>
 
-      <div className="mt-3 flex items-center justify-center gap-2 text-sm">
-        <span className="text-mute">Run speed</span>
-        <button onClick={() => adj(-0.5)} className="flex h-11 w-11 items-center justify-center rounded-xl bg-card2" aria-label="Slower runs"><Minus size={18} /></button>
-        <span className="w-14 text-center font-semibold num">{live.speedAdj >= 0 ? "+" : ""}{live.speedAdj.toFixed(1)}</span>
-        <button onClick={() => adj(0.5)} className="flex h-11 w-11 items-center justify-center rounded-xl bg-card2" aria-label="Faster runs"><Plus size={18} /></button>
+      <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+        <div className="flex items-center justify-center gap-1.5 rounded-xl bg-card p-1.5">
+          <button onClick={() => adj(-0.5)} className="flex h-11 w-11 items-center justify-center rounded-xl bg-card2" aria-label="Slower runs"><Minus size={18} /></button>
+          <span className="min-w-0 flex-1 text-center"><span className="block text-[10px] text-mute">run speed</span><span className="font-semibold num">{live.speedAdj >= 0 ? "+" : ""}{live.speedAdj.toFixed(1)}</span></span>
+          <button onClick={() => adj(0.5)} className="flex h-11 w-11 items-center justify-center rounded-xl bg-card2" aria-label="Faster runs"><Plus size={18} /></button>
+        </div>
+        <div className="flex items-center justify-center gap-1.5 rounded-xl bg-card p-1.5">
+          <button onClick={() => adjI(-1)} className="flex h-11 w-11 items-center justify-center rounded-xl bg-card2" aria-label="Less incline on walks"><Minus size={18} /></button>
+          <span className="min-w-0 flex-1 text-center"><span className="block text-[10px] text-mute">walk incline</span><span className="font-semibold num">{ia >= 0 ? "+" : ""}{ia}%</span></span>
+          <button onClick={() => adjI(1)} className="flex h-11 w-11 items-center justify-center rounded-xl bg-card2" aria-label="More incline on walks"><Plus size={18} /></button>
+        </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-2">
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        <Btn kind="soft" stack icon={SkipForward} disabled={!next} onClick={skip}>Skip part</Btn>
         {live.pausedAt ? (
-          <Btn kind="primary" icon={Play} onClick={() => setLive({ ...live, pausedMs: live.pausedMs + (Date.now() - live.pausedAt!), pausedAt: null })}>Resume</Btn>
+          <Btn kind="primary" stack icon={Play} onClick={() => setLive({ ...live, pausedMs: live.pausedMs + (Date.now() - live.pausedAt!), pausedAt: null })}>Resume</Btn>
         ) : (
-          <Btn kind="soft" icon={Pause} onClick={() => setLive({ ...live, pausedAt: Date.now() })}>Pause</Btn>
+          <Btn kind="soft" stack icon={Pause} onClick={() => setLive({ ...live, pausedAt: Date.now() })}>Pause</Btn>
         )}
-        <Btn kind="danger" icon={Square} onClick={() => onFinish(Math.round(elapsed / 60), elapsed >= total - 30 ? "done" : "partial")}>End</Btn>
+        <Btn kind="danger" stack icon={Square} onClick={() => onFinish(Math.round(elapsed / 60), elapsed >= total - 30 ? "done" : "partial")}>End</Btn>
       </div>
-      <p className="mt-3 text-center text-xs text-faint">Beeps 3-2-1 before each change. The screen stays on.</p>
+      <p className="mt-3 text-center text-xs text-faint">Beeps 3-2-1 before each change, buzz on the change, the box turns amber 10 s before. Screen stays on. Distance and kcal are estimates from the set speeds.</p>
 
       {logSheet && <LogSheet s={logSheet} kg={kg} onClose={() => setLogSheet(null)} onSaved={() => { setLive(null); setLogSheet(null); reload(); }} />}
     </div>

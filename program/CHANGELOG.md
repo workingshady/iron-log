@@ -4,6 +4,12 @@ Each version: what changed, and the data that justified it.
 
 
 
+
+## ppl-arnold@2.8.0 · 2026-11-11 — core you won't skip + cardio timer
+- Core moved INTO supersets (no added time, never last): hanging knee raise with face pull (Pull, on the bar), ab wheel with standing calves (Legs), weighted cable crunch with Kelso shrug (Chest + Back). Hollow hold and the end-of-day knee raise removed.
+- Why these: highest abdominal EMG in J Strength Cond Res 2006 (power wheel / roll-out, hanging knee-up); ACE study: no device beats a crunch, so the loadable cable crunch carries progression. Planks/hollow holds rank low for growth.
+- Cardio timer: session timeline, next-change box (speed/incline with ↑↓, amber 10 s before), walk-incline ±, live distance + kcal, skip part.
+
 ## ppl-arnold@2.7.0 · 2026-11-11 — whole plan re-checked (exercises + volume)
 New `scripts/check-volume.ts` (fractional sets per muscle per week/session). Before → after (Week 3): delts 34 → 31 (15.5 → 12.5/session), lats 26 → 25 (13 → 12/session), traps 29.5 → 27, hamstrings 7 → 10, calves 7 → 8.
 - Shoulders + Arms: preacher curl + skull crusher (EZ bar) replace EZ curl + pushdown — Maeo 2022 (overhead/stretched triceps grew more than pushdowns), IJSM 2025 (preacher = distal, incline = proximal biceps). Knee-straight calf raise replaces seated (Kinoshita 2023: gastrocnemius grew ~10× more standing). Machine shrug 2 sets. Seated leg curl 2nd hamstring hit.

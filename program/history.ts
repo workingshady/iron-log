@@ -15,6 +15,18 @@ export interface VersionEntry {
 
 export const HISTORY: VersionEntry[] = [
   {
+    id: "ppl-arnold@2.8.0", version: "2.8.0", date: "2026-11-11", kind: "minor",
+    title: "Core you won't skip",
+    why: "You skip core when it's at the end. EMG research: ab wheel, hanging knee/leg raises and cable crunches activate the abs the most; planks and similar are at the bottom (J Strength Cond Res 2006; ACE). Abs grow like any muscle: progressive load.",
+    changes: [
+      "Core is now inside supersets, done in rest you take anyway — no extra minutes, never the last item.",
+      "Pull: hanging knee raise (C2, on the pull-up bar) with face pull → hanging leg raise at 3×15 strict.",
+      "Legs: ab wheel from the knees (C2) with standing calf raises.",
+      "Chest + Back: weighted cable crunch (C2) with the Kelso shrug — hollow hold removed.",
+      "~9-10 hard core sets/week; the weight engine progresses the cable crunch like any lift.",
+    ],
+  },
+  {
     id: "ppl-arnold@2.7.0", version: "2.7.0", date: "2026-11-11", kind: "minor",
     title: "Whole plan re-checked: exercises + volume",
     why: "Research: overhead/stretched triceps work > pushdowns (Maeo 2022); preacher (distal) + incline (proximal) curls cover the whole biceps (IJSM 2025); standing/knee-straight calf raises ≫ seated (Kinoshita 2023); cable = dumbbell laterals (Larsen 2025); ~10-20 hard sets/muscle/week with ~11/session cap (Pelland 2024). Volume check script showed delts, lats and traps over the caps, hamstrings and calves too low.",

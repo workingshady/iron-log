@@ -103,7 +103,17 @@ export function recommend(
     return { weightKg: null, reps: top, seconds: null, kind: "start", why };
   }
 
-  const lastW = Math.max(...work.map((s) => s.weightKg ?? 0));
+  // Working weight = the weight used for the MOST work sets; on a tie, the one you ended on.
+  // (Not simply the heaviest: if you drop 70 → 60 → 65 for better form, 65 is your weight — a real case from your data.)
+  // Sets are in the order they were done, so "ended on" = the latest of the tied weights.
+  const lastW = (() => {
+    const n = new Map<number, number>();
+    work.forEach((s) => n.set(s.weightKg ?? 0, (n.get(s.weightKg ?? 0) ?? 0) + 1));
+    const most = Math.max(...n.values());
+    const tied = new Set([...n.entries()].filter(([, c]) => c === most).map(([w]) => w));
+    for (let i = work.length - 1; i >= 0; i--) if (tied.has(work[i].weightKg ?? 0)) return work[i].weightKg ?? 0;
+    return Math.max(...work.map((s) => s.weightKg ?? 0));
+  })();
   const atTop = work.filter((s) => (s.weightKg ?? 0) >= lastW - 1e-9);
   const avgReps = atTop.reduce((a, s) => a + (s.reps ?? 0), 0) / Math.max(1, atTop.length);
   const trusted = work.filter((s) => s.weightKg && s.reps && s.reps <= 15 && (s.rir == null || s.rir <= 3));

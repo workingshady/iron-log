@@ -35,7 +35,11 @@ Object.assign(twa, {
   appVersionName: versionName,
   signingKey: { path: keystore, alias: "ironlog" },
   fallbackType: "customtabs",
-  enableNotifications: false,
+  // Notification delegation: Web Push from the site shows as the APP's notification (app name + monochrome small icon
+  // from monochromeIconUrl), controlled in Android Settings → Apps → Iron Log. Bubblewrap adds POST_NOTIFICATIONS
+  // (Android 13+ runtime permission) and androidbrowserhelper's NotificationPermissionRequestActivity, so the site's
+  // Notification.requestPermission() shows the native Android dialog. Needs a new APK build (docs/NOTIFICATIONS.md).
+  enableNotifications: true,
   orientation: "portrait",
   monochromeIconUrl: "https://iron-log.workingshady.workers.dev/icon-monochrome-512.png", // Android 13+ themed icon
   display: "standalone",

@@ -7,8 +7,9 @@ import { EXERCISES } from "../../program";
 import { EX_GROUP, GROUPS } from "../../program/groups";
 import { isPair, shownKg, totalKg } from "../../shared/load";
 import {
-  LIMITS, METRIC, POST_KINDS, PRIVACY_DEFAULTS, addDays, DATE_RE, sanitizePrivacy, weekStartOf,
-  type Board, type BoardRow, type Challenge, type Comment, type MetricId, type Notif, type Period, type Post, type PostKind, type PrSummary, type Relation, type UserLite, type WorkoutSummary,
+  BADGES, LIMITS, METRIC, POST_KINDS, needsMuscle, PRIVACY_DEFAULTS, addDays, DATE_RE, epley, sanitizePrivacy, weekStartOf,
+  type Badge, type Board, type BoardRow, type Challenge, type Comment, type LiftBest, type LiftDetail, type LiftRow, type LiftsBoard, type MetricId, type MuscleBoard, type Notif, type Period, type Post, type PostKind,
+  type PrSummary, type Relation, type Story, type UserLite, type WeekDay, type WorkoutSummary,
 } from "../../shared/social";
 import { ID_RE, LITE, blockedIds, canSee, friendIds, friendIdsSql, lite, notify, privacyOf, relationOf } from "../friends";
 
@@ -308,11 +309,47 @@ async function profileView(c: C, username: string, as?: "friends") {
     out.prs = { count: cnt.n, recent: prs.map((p) => ({ name: names.get(p.exKey)!, kg: shownKg(p), reps: p.reps, date: new Date(p.doneAt + 3 * 3600e3).toISOString().slice(0, 10) })) };
   }
   if (see.workouts) out.workouts = await recentWorkouts(raw, u.id);
+  if (see.stats || see.workouts) out.week = await weekStrip(raw, u.id, today);
+  if (see.stats || see.prs) out.badges = (await badgesOf(raw, u.id, today)).filter((b) => (see.prs || !b.id.startsWith("pr")) && (see.stats || b.id.startsWith("pr")) && (rel === "self" || b.earned));
   if (see.body) {
     const [bw] = await raw.select({ kg: t.body.weightKg, date: t.body.date }).from(t.body).where(and(eq(t.body.userId, u.id), sql`${t.body.weightKg} is not null`)).orderBy(desc(t.body.date)).limit(1);
     out.body = bw ?? null;
   }
   return out;
+}
+
+/** This week, Saturday → Friday: lifting and/or cardio per day. */
+async function weekStrip(raw: RawDB, uid: string, today: string): Promise<WeekDay[]> {
+  const from = weekStartOf(today);
+  const rows = await raw.all<{ d: string; k: string }>(sql`
+    select date d, 'l' k from sessions where user_id = ${uid} and status = 'done' and date >= ${from}
+    union select date d, 'c' k from cardio where user_id = ${uid} and status != 'skipped' and date >= ${from}`);
+  return Array.from({ length: 7 }, (_, i) => {
+    const date = addDays(from, i);
+    return { date, lift: rows.some((r) => r.d === date && r.k === "l"), cardio: rows.some((r) => r.d === date && r.k === "c") };
+  });
+}
+
+/** Longest run of qualifying weeks (2+ training days) in the last ~5 years. */
+function bestStreak(dates: string[], today: string) {
+  const per = new Map<string, number>();
+  for (const d of new Set(dates)) { const w = weekStartOf(d); per.set(w, (per.get(w) ?? 0) + 1); }
+  let best = 0, run = 0;
+  for (let w = weekStartOf(addDays(today, -1820)); w <= today; w = addDays(w, 7)) {
+    if ((per.get(w) ?? 0) >= 2) best = Math.max(best, ++run); else if (w !== weekStartOf(today)) run = 0;
+  }
+  return best;
+}
+
+async function badgesOf(raw: RawDB, uid: string, today: string): Promise<Badge[]> {
+  const [agg] = await raw.all<{ w: number; p: number; v: number; c: number }>(sql`
+    select (select count(*) from sessions where user_id = ${uid} and status = 'done') w,
+      (select count(*) from sets where user_id = ${uid} and pr = 1 and deleted = 0) p,
+      (select coalesce(sum(coalesce(weight_kg,0) * coalesce(reps,0) * case when kg_basis = 'per_hand' then 2 else 1 end), 0) from sets where user_id = ${uid} and deleted = 0 and kind != 'W') v,
+      (select count(*) from cardio where user_id = ${uid} and status != 'skipped') c`);
+  const dates = (await trainingDates(raw, [uid], addDays(today, -1830))).get(uid) ?? [];
+  const stat = { workouts: agg?.w ?? 0, prs: agg?.p ?? 0, tonnes: Math.floor((agg?.v ?? 0) / 1000), cardio: agg?.c ?? 0, bestStreak: bestStreak(dates, today) };
+  return BADGES.map((b) => ({ id: b.id, label: b.label, icon: b.icon, tier: b.tier, value: stat[b.stat], target: b.target, earned: stat[b.stat] >= b.target }));
 }
 
 async function recentWorkouts(raw: RawDB, uid: string) {
@@ -373,7 +410,11 @@ async function hydrate(raw: RawDB, uid: string, rows: (typeof t.posts.$inferSele
     raw.select({ p: t.postComments.postId, u: t.postComments.userId, text: t.postComments.text, at: t.postComments.createdAt }).from(t.postComments)
       .where(and(inArray(t.postComments.postId, ids), eq(t.postComments.deleted, 0))).orderBy(desc(t.postComments.createdAt)).limit(200),
   ]);
-  const prevU = await lite(raw, last.map((l) => l.u));
+  // "Liked by omar and 2 others": the two most recent likers that aren't me, friends first
+  const fset = new Set(await friendIds(raw, uid));
+  const likers = await raw.select({ p: t.postLikes.postId, u: t.postLikes.userId }).from(t.postLikes)
+    .where(and(inArray(t.postLikes.postId, ids), ne(t.postLikes.userId, uid))).orderBy(desc(t.postLikes.createdAt)).limit(300);
+  const prevU = await lite(raw, [...last.map((l) => l.u), ...likers.map((l) => l.u)]);
   const likeN = new Map(likes.map((l) => [l.p, l.n]));
   const mine = new Set(liked.map((l) => l.p));
   const comN = new Map(comments.map((x) => [x.p, x.n]));
@@ -387,6 +428,7 @@ async function hydrate(raw: RawDB, uid: string, rows: (typeof t.posts.$inferSele
       author: users.get(r.userId) ?? { id: r.userId, username: "unknown", name: null, avatarId: null },
       likes: likeN.get(r.id) ?? 0, liked: mine.has(r.id), comments: comN.get(r.id) ?? 0,
       preview: pv ? { username: prevU.get(pv.u)?.username ?? "", text: pv.text.slice(0, 140) } : null, mine: r.userId === uid,
+      likedBy: likers.filter((l) => l.p === r.id && !blocked.has(l.u)).sort((a, z) => Number(fset.has(z.u)) - Number(fset.has(a.u))).slice(0, 2).map((l) => prevU.get(l.u)).filter((x): x is UserLite => !!x),
     };
   });
 }
@@ -464,8 +506,22 @@ async function workoutSummary(c: C, sessionId: string): Promise<WorkoutSummary |
     volume: Math.round(work.reduce((a, x) => a + totalKg(x) * (x.reps ?? 0), 0)),
     exercises: [...byEx.entries()].slice(0, 12).map(([k, xs]) => ({ name: names.get(k)!, sets: xs.length, best: best(xs) })),
     prs: work.filter((x) => x.pr === 1).slice(0, 6).map((x) => ({ name: names.get(x.exKey)!, kg: shownKg(x), reps: x.reps })),
+    muscles: muscleSets(work),
   };
 }
+
+/** Hard sets per muscle group, biggest first (for the little bar viz on workout cards). */
+function muscleSets(work: { exKey: string; kind: string | null }[]) {
+  const m = new Map<string, number>();
+  for (const x of work) if ((x.kind === "N" || x.kind === "F") && EX_GROUP[x.exKey]) m.set(EX_GROUP[x.exKey], (m.get(EX_GROUP[x.exKey]) ?? 0) + 1);
+  return [...m.entries()].sort((a, z) => z[1] - a[1]).slice(0, 6).map(([group, sets]) => ({ group, sets }));
+}
+
+/** Preview of the share card before posting (my own finished workout). */
+socialRoutes.get("/social/workout-preview/:sessionId", async (c) => {
+  const w = await workoutSummary(c, c.req.param("sessionId"));
+  return w ? c.json(w) : bad(c, "Workout not found", 404);
+});
 
 async function prSummary(c: C, setId: string): Promise<PrSummary | null> {
   const [x] = await db(c).select().from(t.sets).where(and(eq(t.sets.id, setId), eq(t.sets.pr, 1), eq(t.sets.deleted, 0)));
@@ -619,16 +675,23 @@ socialRoutes.get("/notifications", async (c) => {
   const users = await lite(raw, rows.map((r) => r.actorId ?? ""));
   const postIds = rows.filter((r) => (r.kind === "like" || r.kind === "comment") && r.refId).map((r) => r.refId!);
   const chIds = rows.filter((r) => r.kind.startsWith("challenge_") && r.refId).map((r) => r.refId!);
-  const posts = postIds.length ? await raw.select({ id: t.posts.id, text: t.posts.text, kind: t.posts.kind, data: t.posts.data, deleted: t.posts.deleted }).from(t.posts).where(inArray(t.posts.id, [...new Set(postIds)].slice(0, 90))) : [];
+  const posts = postIds.length ? await raw.select({ id: t.posts.id, text: t.posts.text, kind: t.posts.kind, data: t.posts.data, deleted: t.posts.deleted, photoIds: t.posts.photoIds }).from(t.posts).where(inArray(t.posts.id, [...new Set(postIds)].slice(0, 90))) : [];
   const chs = chIds.length ? await raw.select({ id: t.challenges.id, title: t.challenges.title }).from(t.challenges).where(inArray(t.challenges.id, [...new Set(chIds)].slice(0, 90))) : [];
   const snip = (p: (typeof posts)[number]) => {
     if (p.text) return p.text.slice(0, 80);
     try { const d = JSON.parse(p.data ?? "null") as { dayName?: string; name?: string } | null; return d?.dayName ?? d?.name ?? `${p.kind} post`; } catch { return `${p.kind} post`; }
   };
+  const relKinds = new Set(["friend_request", "friend_accept", "cheer"]);
+  const relIds = [...new Set(rows.filter((r) => relKinds.has(r.kind) && r.actorId).map((r) => r.actorId!))].slice(0, 30);
+  const rels = new Map(await Promise.all(relIds.map(async (id) => [id, await relationOf(raw, uid, id)] as const)));
+  const thumbOf = (p: (typeof posts)[number] | undefined) => { try { return p && !p.deleted && p.photoIds ? (JSON.parse(p.photoIds) as string[])[0] ?? null : null; } catch { return null; } };
   const out: Notif[] = rows.map((r) => {
     const p = posts.find((x) => x.id === r.refId);
     const ch = chs.find((x) => x.id === r.refId);
-    return { id: r.id, kind: r.kind, actor: r.actorId ? users.get(r.actorId) ?? null : null, refId: p?.deleted ? null : r.refId, snippet: p ? (p.deleted ? "(deleted post)" : snip(p)) : ch ? ch.title : null, createdAt: r.createdAt, read: r.readAt != null };
+    return {
+      id: r.id, kind: r.kind, actor: r.actorId ? users.get(r.actorId) ?? null : null, refId: p?.deleted ? null : r.refId, snippet: p ? (p.deleted ? "(deleted post)" : snip(p)) : ch ? ch.title : null,
+      createdAt: r.createdAt, read: r.readAt != null, thumb: thumbOf(p), relation: r.actorId ? rels.get(r.actorId) : undefined,
+    };
   });
   return c.json({ items: out, next: rows.length === 40 ? rows[rows.length - 1].createdAt : null });
 });
@@ -678,9 +741,9 @@ async function metricValues(raw: RawDB, ids: string[], metric: MetricId, from: s
     }
     return out;
   }
-  if (metric === "cardio_minutes") {
-    const rows = await raw.all<{ u: string; m: number }>(sql`select user_id u, sum(coalesce(minutes,0)) m from cardio where user_id in (${idList(ids)}) and status != 'skipped' and ${range("date")} group by user_id`);
-    for (const r of rows) out.set(r.u, Math.round(r.m));
+  if (metric === "cardio_minutes" || metric === "cardio_sessions") {
+    const rows = await raw.all<{ u: string; m: number; n: number }>(sql`select user_id u, sum(coalesce(minutes,0)) m, count(*) n from cardio where user_id in (${idList(ids)}) and status != 'skipped' and ${range("date")} group by user_id`);
+    for (const r of rows) out.set(r.u, metric === "cardio_sessions" ? r.n : Math.round(r.m));
     return out;
   }
   if (metric === "streak") {
@@ -701,9 +764,10 @@ async function metricValues(raw: RawDB, ids: string[], metric: MetricId, from: s
     else if (metric === "prs") add = r.p;
     else if (metric === "muscle_sets") add = hard && EX_GROUP[r.ex] === muscle ? r.n : 0;
     else if (metric === "volume") add = r.k === "W" ? 0 : r.v * (isPair(r.ex) ? (r.b === "per_hand" ? 2 : 1) : 1);
+    else if (metric === "muscle_volume") add = r.k === "W" || EX_GROUP[r.ex] !== muscle ? 0 : r.v * (isPair(r.ex) ? (r.b === "per_hand" ? 2 : 1) : 1);
     out.set(r.u, (out.get(r.u) ?? 0) + add);
   }
-  if (metric === "volume") for (const [k, v] of out) out.set(k, Math.round(v));
+  if (metric === "volume" || metric === "muscle_volume") for (const [k, v] of out) out.set(k, Math.round(v));
   return out;
 }
 
@@ -735,7 +799,7 @@ socialRoutes.get("/compete/board", async (c) => {
   const uid = me(c);
   const metric = isMetric(c.req.query("metric")) ? (c.req.query("metric") as MetricId) : "workouts";
   const period: Period = (["week", "month", "all"] as const).find((p) => p === c.req.query("period")) ?? "week";
-  const muscle = metric === "muscle_sets" ? (isMuscle(c.req.query("muscle")) ? c.req.query("muscle")! : "Back") : null;
+  const muscle = needsMuscle(metric) ? (isMuscle(c.req.query("muscle")) ? c.req.query("muscle")! : "Back") : null;
   const today = todayOf(c);
   const { from, to, prevFrom, prevTo } = periodRange(period, today);
   const [meRow] = await raw.select({ privacy: t.users.privacy }).from(t.users).where(eq(t.users.id, uid));
@@ -752,7 +816,17 @@ socialRoutes.get("/compete/board", async (c) => {
   ]);
   const r = rank(cur), pr = prev ? rank(prev) : null;
   const users = await lite(raw, ids);
-  board.rows = ids.map((id): BoardRow => ({ user: users.get(id)!, value: cur.get(id) ?? 0, rank: r.get(id) ?? 0, prevRank: pr ? pr.get(id) ?? null : null, me: id === uid }))
+  // sparkline: the same metric for the last 8 calendar weeks (streak has no weekly value)
+  const wk0 = weekStartOf(today);
+  const weeks = metric === "streak" ? [] : await Promise.all(Array.from({ length: 8 }, (_, i) => {
+    const from = addDays(wk0, -7 * (7 - i));
+    return metricValues(raw, ids, metric, from, i === 7 ? today : addDays(from, 6), muscle);
+  }));
+  const dates = await trainingDates(raw, ids, addDays(today, -400));
+  board.rows = ids.map((id): BoardRow => ({
+    user: users.get(id)!, value: cur.get(id) ?? 0, rank: r.get(id) ?? 0, prevRank: pr ? pr.get(id) ?? null : null, me: id === uid,
+    trend: weeks.length ? weeks.map((w) => w.get(id) ?? 0) : undefined, streak: weeklyStreak(dates.get(id) ?? [], today),
+  }))
     .filter((x) => x.user)
     .sort((a, z) => (a.rank || 1e9) - (z.rank || 1e9) || a.user.username.localeCompare(z.user.username));
   return c.json(board);
@@ -845,8 +919,8 @@ socialRoutes.post("/challenges", async (c) => {
   const title = str(b.title, LIMITS.challengeTitle);
   if (!title) return bad(c, "Give it a name");
   if (!isMetric(b.metric) || !METRIC[b.metric].challenge) return bad(c, "Pick what counts");
-  const muscle = b.metric === "muscle_sets" ? (isMuscle(b.muscle) ? b.muscle : null) : null;
-  if (b.metric === "muscle_sets" && !muscle) return bad(c, "Pick a muscle group");
+  const muscle = needsMuscle(b.metric) ? (isMuscle(b.muscle) ? b.muscle : null) : null;
+  if (needsMuscle(b.metric) && !muscle) return bad(c, "Pick a muscle group");
   const target = b.target == null || b.target === 0 ? null : Number(b.target);
   if (target != null && (!Number.isFinite(target) || target <= 0 || target > 1e8)) return bad(c, "Target must be a positive number");
   const today = todayOf(c);
@@ -905,6 +979,126 @@ socialRoutes.delete("/challenges/:id", async (c) => {
   await raw.delete(t.challengeMembers).where(eq(t.challengeMembers.challengeId, res[0].id));
   await raw.delete(t.notifications).where(and(sql`${t.notifications.kind} like 'challenge_%'`, eq(t.notifications.refId, res[0].id)));
   return c.json({ ok: true });
+});
+
+// ================================================================== stories (feed top row)
+
+/** Me + friends, ring = trained today (only if their workouts are shared with friends), newest visible post to jump to. */
+socialRoutes.get("/social/stories", async (c) => {
+  const raw = rawDb(c);
+  const uid = me(c);
+  const today = todayOf(c);
+  const fids = (await friendIds(raw, uid)).slice(0, 89);
+  const ids = [uid, ...fids];
+  const [users, privs, dates, posts] = await Promise.all([
+    lite(raw, ids),
+    fids.length ? raw.select({ id: t.users.id, privacy: t.users.privacy }).from(t.users).where(inArray(t.users.id, fids)) : Promise.resolve([]),
+    trainingDates(raw, ids, today),
+    raw.all<{ u: string; id: string; at: number }>(sql`
+      select user_id u, id, max(created_at) at from posts where deleted = 0 and user_id in (${idList(ids)}) and (user_id = ${uid} or visibility = 'friends') group by user_id`),
+  ]);
+  const showsWorkouts = new Map(privs.map((p) => [p.id, privacyOf(p).workouts === "friends"]));
+  const out: Story[] = ids.filter((id) => users.has(id)).map((id) => {
+    const p = posts.find((x) => x.u === id);
+    const visible = id === uid || showsWorkouts.get(id) === true;
+    return { user: users.get(id)!, me: id === uid, trainedToday: visible && (dates.get(id) ?? []).includes(today), lastPostId: p?.id ?? null, lastPostAt: p?.at ?? null };
+  });
+  out.sort((a, z) => Number(z.me) - Number(a.me) || Number(z.trainedToday) - Number(a.trainedToday) || (z.lastPostAt ?? 0) - (a.lastPostAt ?? 0));
+  return c.json(out);
+});
+
+// ================================================================== lift comparison ("who lifts more")
+
+/**
+ * People I may compare with: me + friends who joined the leaderboard AND share `item` (prs for lifts, stats for muscle
+ * volume) with friends. Reciprocity: I must have joined too. Bodyweight only for people who share it with friends.
+ */
+async function comparePeople(c: C, item: "prs" | "stats") {
+  const raw = rawDb(c);
+  const uid = me(c);
+  const [meRow] = await raw.select({ privacy: t.users.privacy }).from(t.users).where(eq(t.users.id, uid));
+  const joined = privacyOf(meRow).leaderboard;
+  const fids = (await friendIds(raw, uid)).slice(0, 89);
+  const fr = fids.length ? await raw.select({ id: t.users.id, privacy: t.users.privacy }).from(t.users).where(inArray(t.users.id, fids)) : [];
+  const ok = fr.filter((f) => { const p = privacyOf(f); return p.leaderboard && p[item] === "friends"; });
+  const bodyOk = new Set([uid, ...ok.filter((f) => privacyOf(f).body === "friends").map((f) => f.id)]);
+  const ids = joined ? [uid, ...ok.map((f) => f.id)] : [];
+  const users = await lite(raw, ids);
+  const bw: Record<string, number> = {};
+  if (ids.length) {
+    const rows = await raw.all<{ u: string; kg: number }>(sql`
+      select b.user_id u, b.weight_kg kg from body_logs b where b.user_id in (${idList(ids)}) and b.weight_kg is not null
+        and b.date = (select max(x.date) from body_logs x where x.user_id = b.user_id and x.weight_kg is not null)`);
+    for (const r of rows) if (bodyOk.has(r.u)) bw[r.u] = r.kg;
+  }
+  return { raw, uid, joined, ids, people: ids.map((i) => users.get(i)).filter((x): x is UserLite => !!x), bodyweight: bw, hidden: fids.length - ok.length };
+}
+
+/** Per-hand kg for dumbbell pairs (same rule as shared/load shownKg), the logged number otherwise. */
+const shown = (ex: string, kg: number, basis: string | null) => (isPair(ex) && basis !== "per_hand" ? kg / 2 : kg);
+/** Strict sets for e1RM: normal + failure, 1-12 reps, real weight. Warm-ups, drops and rest-pause don't count. */
+const STRICT = sql`x.kind in ('N','F') and x.deleted = 0 and x.reps between 1 and 12 and coalesce(x.weight_kg, 0) > 0`;
+
+socialRoutes.get("/compete/lifts", async (c) => {
+  const { raw, joined, ids, people, bodyweight, hidden } = await comparePeople(c, "prs");
+  const out: LiftsBoard = { joined, people, bodyweight, lifts: [], hidden };
+  if (!ids.length) return c.json(out);
+  // SQLite: bare columns next to max() come from the row holding the max → the best set itself
+  const rows = await raw.all<{ u: string; ex: string; b: string | null; e: number; kg: number; reps: number; d: string }>(sql`
+    select x.user_id u, x.ex_key ex, x.kg_basis b, max(x.weight_kg * (1 + x.reps / 30.0)) e, x.weight_kg kg, x.reps reps, s.date d
+    from sets x join sessions s on s.id = x.session_id and s.user_id = x.user_id
+    where x.user_id in (${idList(ids)}) and ${STRICT} group by x.user_id, x.ex_key, x.kg_basis`);
+  const by = new Map<string, Record<string, LiftBest>>();
+  for (const r of rows) {
+    const kg = shown(r.ex, r.kg, r.b);
+    const best: LiftBest = { e1rm: epley(kg, r.reps), kg: Math.round(kg * 100) / 100, reps: r.reps, date: r.d };
+    const m = by.get(r.ex) ?? by.set(r.ex, {}).get(r.ex)!;
+    if (!m[r.u] || m[r.u].e1rm < best.e1rm) m[r.u] = best;
+  }
+  const names = await exNames(raw, [...by.keys()]);
+  const top = (r: Record<string, LiftBest>) => Math.max(...Object.values(r).map((x) => x.e1rm));
+  out.lifts = [...by.entries()].map(([key, best]): LiftRow => ({ key, name: names.get(key)!, group: EX_GROUP[key] ?? null, perHand: isPair(key), best }))
+    .sort((a, z) => Object.keys(z.best).length - Object.keys(a.best).length || top(z.best) - top(a.best));
+  return c.json(out);
+});
+
+socialRoutes.get("/compete/lifts/:exKey", async (c) => {
+  const ex = c.req.param("exKey");
+  if (!/^[\w.-]{1,80}$/.test(ex)) return bad(c, "bad exercise");
+  const { raw, joined, ids, people, bodyweight } = await comparePeople(c, "prs");
+  if (!joined) return bad(c, "Join the leaderboard first", 403);
+  const rows = await raw.all<{ u: string; b: string | null; e: number; kg: number; reps: number; d: string }>(sql`
+    select x.user_id u, x.kg_basis b, max(x.weight_kg * (1 + x.reps / 30.0)) e, x.weight_kg kg, x.reps reps, s.date d
+    from sets x join sessions s on s.id = x.session_id and s.user_id = x.user_id
+    where x.user_id in (${idList(ids)}) and x.ex_key = ${ex} and ${STRICT} group by x.user_id, s.date, x.kg_basis order by s.date`);
+  const out: LiftDetail = { key: ex, name: (await exNames(raw, [ex])).get(ex)!, perHand: isPair(ex), people, bodyweight, best: {}, series: {} };
+  for (const r of rows) {
+    const kg = shown(ex, r.kg, r.b);
+    const e = epley(kg, r.reps);
+    const s = out.series[r.u] ?? (out.series[r.u] = []);
+    const last = s[s.length - 1];
+    if (last?.date === r.d) last.e1rm = Math.max(last.e1rm, e); else s.push({ date: r.d, e1rm: e });
+    if (!out.best[r.u] || out.best[r.u].e1rm < e) out.best[r.u] = { e1rm: e, kg: Math.round(kg * 100) / 100, reps: r.reps, date: r.d };
+  }
+  for (const k of Object.keys(out.series)) out.series[k] = out.series[k].slice(-40);
+  return c.json(out);
+});
+
+/** Hard sets per muscle group per person (people who share their stats + joined the leaderboard). */
+socialRoutes.get("/compete/muscles", async (c) => {
+  const period: Period = (["week", "month", "all"] as const).find((p) => p === c.req.query("period")) ?? "month";
+  const { raw, ids, joined, people } = await comparePeople(c, "stats");
+  const out: MuscleBoard = { joined, people, period, groups: [] };
+  if (!ids.length) return c.json(out);
+  const { from, to } = periodRange(period, todayOf(c));
+  const rows = await raw.all<{ u: string; ex: string; n: number }>(sql`
+    select x.user_id u, x.ex_key ex, count(*) n from sets x join sessions s on s.id = x.session_id and s.user_id = x.user_id
+    where x.user_id in (${idList(ids)}) and x.deleted = 0 and x.kind in ('N','F') and s.date <= ${to} ${from ? sql`and s.date >= ${from}` : sql``}
+    group by x.user_id, x.ex_key`);
+  const g = new Map<string, Record<string, number>>();
+  for (const r of rows) { const grp = EX_GROUP[r.ex]; if (!grp) continue; const m = g.get(grp) ?? g.set(grp, {}).get(grp)!; m[r.u] = (m[r.u] ?? 0) + r.n; }
+  out.groups = GROUPS.filter((x) => g.has(x)).map((group) => ({ group, sets: g.get(group)! }));
+  return c.json(out);
 });
 
 // ================================================================== DEV seed

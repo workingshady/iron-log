@@ -14,6 +14,12 @@ export type Env = {
     /** Sign in with Google (optional; see docs/GOOGLE_SIGNIN.md). */
     GOOGLE_CLIENT_ID?: string;
     GOOGLE_CLIENT_SECRET?: string;
+    /** Web Push (see docs/NOTIFICATIONS.md). Public key = uncompressed P-256 point, base64url. */
+    VAPID_PUBLIC_KEY?: string;
+    /** Private key = the JWK "d" value, base64url (secret). */
+    VAPID_PRIVATE_KEY?: string;
+    /** Contact for push services: "mailto:…" or "https://…". */
+    VAPID_SUBJECT?: string;
   };
   Variables: { dev: boolean; userId: string; role?: string; programId?: string | null; prog?: import("../program").Program };
 };

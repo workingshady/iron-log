@@ -70,3 +70,24 @@ export function usePullRefresh(onRefresh: () => Promise<unknown> | void, setPull
 }
 
 export const INPUT = "min-h-11 w-full rounded-xl bg-card2 px-3 text-sm text-ink outline-none placeholder:text-faint focus:ring-2 focus:ring-acc";
+
+/** First name for compact UI ("Omar Test" → "Omar"). */
+export const firstName = (u: { name: string | null; username: string }) => (u.name?.trim().split(/\s+/)[0] || u.username);
+
+/** Tiny celebratory burst of dots from an element (Duolingo-style). No-op with reduced motion. */
+export function confetti(from: HTMLElement | null, n = 18) {
+  if (!from || reducedMotion() || typeof document === "undefined") return;
+  const r = from.getBoundingClientRect();
+  const colors = ["var(--color-acc)", "var(--color-warn)", "var(--color-info)", "var(--color-vio)", "var(--color-bad)"];
+  for (let i = 0; i < n; i++) {
+    const d = document.createElement("span");
+    const size = 5 + Math.random() * 5;
+    Object.assign(d.style, { position: "fixed", left: `${r.left + r.width / 2}px`, top: `${r.top + r.height / 2}px`, width: `${size}px`, height: `${size * (Math.random() > 0.5 ? 1 : 0.45)}px`, background: colors[i % colors.length], borderRadius: "2px", pointerEvents: "none", zIndex: "80" });
+    document.body.appendChild(d);
+    const a = (Math.PI * 2 * i) / n + Math.random() * 0.4, dist = 60 + Math.random() * 90;
+    d.animate([
+      { transform: "translate(-50%,-50%) rotate(0)", opacity: 1 },
+      { transform: `translate(calc(-50% + ${Math.cos(a) * dist}px), calc(-50% + ${Math.sin(a) * dist + 40}px)) rotate(${Math.random() * 540}deg)`, opacity: 0 },
+    ], { duration: 900 + Math.random() * 400, easing: "cubic-bezier(.2,.7,.3,1)" }).onfinish = () => d.remove();
+  }
+}

@@ -1,28 +1,48 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bell, Flag, Heart, Loader2, MessageCircle, PartyPopper, Trophy, UserCheck, UserPlus, Zap } from "lucide-react";
+import { Bell, ChevronLeft, Flag, Heart, Loader2, MessageCircle, PartyPopper, Trophy, UserCheck, UserPlus, Zap } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Notif, Post } from "../../shared/social";
-import { Empty, PageHead, Sheet } from "../components/ui";
+import { Sheet } from "../components/ui";
 import { UserAvatar } from "../components/social/UserAvatar";
 import { FriendButton } from "../components/social/FriendButton";
 import { PostCard } from "../components/social/PostCard";
 import { refreshUnread } from "../components/social/Badges";
-import { ago, fullTime, sx, useFocusRefresh } from "../components/social/lib";
+import { CheerButton } from "../components/social/compete-shared";
+import { ago, fullTime, socialPhotoUrl, sx, useFocusRefresh } from "../components/social/lib";
 import { cx } from "../lib/util";
 
-const KIND: Record<string, { icon: LucideIcon; tone: string; text: (n: Notif) => string }> = {
-  friend_request: { icon: UserPlus, tone: "text-info", text: () => "sent you a friend request" },
-  friend_accept: { icon: UserCheck, tone: "text-acc", text: () => "accepted your friend request" },
-  like: { icon: Heart, tone: "text-bad", text: (n) => `liked your post${n.snippet ? `: “${n.snippet}”` : ""}` },
-  comment: { icon: MessageCircle, tone: "text-info", text: (n) => `commented on your post${n.snippet ? `: “${n.snippet}”` : ""}` },
-  cheer: { icon: Zap, tone: "text-warn", text: () => "cheered you on 💪 Keep going!" },
-  challenge_invite: { icon: Flag, tone: "text-warn", text: (n) => `invited you to a challenge${n.snippet ? `: ${n.snippet}` : ""}` },
-  challenge_join: { icon: Flag, tone: "text-acc", text: (n) => `joined your challenge${n.snippet ? ` ${n.snippet}` : ""}` },
-  challenge_won: { icon: Trophy, tone: "text-warn", text: (n) => `You won${n.snippet ? ` “${n.snippet}”` : " a challenge"}! 🏆` },
-  challenge_done: { icon: PartyPopper, tone: "text-info", text: (n) => `${n.snippet ? `“${n.snippet}”` : "A challenge"} has finished. See how everyone did.` },
+/** Short post reference: nothing when a thumbnail already shows which post, else ≤ 28 chars. */
+const snip = (n: Notif) => (n.thumb || !n.snippet ? "" : ` “${n.snippet.length > 28 ? `${n.snippet.slice(0, 27).trimEnd()}…` : n.snippet}”`);
+const KIND: Record<string, { icon: LucideIcon; bg: string; text: (n: Notif) => string }> = {
+  friend_request: { icon: UserPlus, bg: "bg-info", text: () => "wants to be friends" },
+  friend_accept: { icon: UserCheck, bg: "bg-acc", text: () => "accepted your request. Say hi 👋" },
+  like: { icon: Heart, bg: "bg-bad", text: (n) => `liked your post${snip(n)}` },
+  comment: { icon: MessageCircle, bg: "bg-info", text: (n) => `commented${snip(n) ? ` on${snip(n)}` : " on your post"}` },
+  cheer: { icon: Zap, bg: "bg-warn", text: () => "cheered you on 💪" },
+  challenge_invite: { icon: Flag, bg: "bg-warn", text: (n) => `challenged you${n.snippet ? `: ${n.snippet}` : ""}` },
+  challenge_join: { icon: Flag, bg: "bg-acc", text: (n) => `joined ${n.snippet ? `“${n.snippet}”` : "your challenge"}` },
+  challenge_won: { icon: Trophy, bg: "bg-warn", text: (n) => `You won ${n.snippet ? `“${n.snippet}”` : "a challenge"}! 🏆` },
+  challenge_done: { icon: PartyPopper, bg: "bg-vio", text: (n) => `${n.snippet ? `“${n.snippet}”` : "A challenge"} is over. See who won` },
 };
 
-/** Activity: friend requests, likes, comments, cheers, challenges. Marked read when you open the page. */
+/** One row = one notification, or several likes on the same post merged ("omar and sara liked your post"). */
+interface Row { key: string; items: Notif[]; read: boolean; at: number }
+
+function group(items: Notif[]): { label: string; rows: Row[] }[] {
+  const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
+  const t0 = startOfDay.getTime(), wk = t0 - 6 * 864e5;
+  const buckets = [{ label: "Today", f: (n: Notif) => n.createdAt >= t0 }, { label: "This week", f: (n: Notif) => n.createdAt < t0 && n.createdAt >= wk }, { label: "Earlier", f: (n: Notif) => n.createdAt < wk }];
+  return buckets.map((b) => {
+    const rows: Row[] = [];
+    for (const n of items.filter(b.f)) {
+      const merge = n.kind === "like" && n.refId ? rows.find((r) => r.items[0].kind === "like" && r.items[0].refId === n.refId) : null;
+      if (merge) { merge.items.push(n); merge.read = merge.read && n.read; } else rows.push({ key: n.id, items: [n], read: n.read, at: n.createdAt });
+    }
+    return { label: b.label, rows };
+  }).filter((g) => g.rows.length);
+}
+
+/** Activity: friend requests (accept inline), likes, comments, cheers (cheer back), challenges. Marked read on open. */
 export default function Notifications() {
   const [items, setItems] = useState<Notif[] | null>(null);
   const [next, setNext] = useState<number | null>(null);
@@ -35,8 +55,7 @@ export default function Notifications() {
     try {
       const r = await sx<{ items: Notif[]; next: number | null }>("GET", "/notifications");
       const fresh = r.items.some((x) => !x.read);
-      // items that were new when you opened the page stay in "New" while you're here (they're marked read on the server)
-      r.items.forEach((x) => !x.read && seen.current.add(x.id));
+      r.items.forEach((x) => !x.read && seen.current.add(x.id)); // stay "new" while you're on the page
       setItems(r.items.map((x) => (seen.current.has(x.id) ? { ...x, read: false } : x))); setNext(r.next); setErr(null);
       if (fresh) setTimeout(() => { void sx("POST", "/notifications/read", {}).then(refreshUnread).catch(() => {}); }, 1200);
     } catch (e) { setErr((e as Error).message); }
@@ -53,51 +72,79 @@ export default function Notifications() {
   async function open(n: Notif) {
     if ((n.kind === "like" || n.kind === "comment") && n.refId) {
       try { setPost(await sx<Post>("GET", `/posts/${n.refId}`)); } catch (e) { setErr((e as Error).message); }
-    } else if (n.kind.startsWith("challenge_") || n.kind === "cheer") location.hash = "#/compete";
+    } else if (n.kind.startsWith("challenge_")) { try { sessionStorage.setItem("il:compete", "challenges"); } catch { /* ignore */ } location.hash = "#/compete"; }
     else if (n.actor) location.hash = `#/u/${encodeURIComponent(n.actor.username)}`;
   }
-
-  const day = 864e5;
-  const groups = items ? [
-    { label: "New", list: items.filter((x) => !x.read) },
-    { label: "This week", list: items.filter((x) => x.read && Date.now() - x.createdAt < 7 * day) },
-    { label: "Earlier", list: items.filter((x) => x.read && Date.now() - x.createdAt >= 7 * day) },
-  ].filter((g) => g.list.length) : [];
+  const requests = items?.filter((n) => n.kind === "friend_request" && n.relation === "incoming") ?? [];
 
   return (
     <div className="md:mx-auto md:max-w-xl">
-      <PageHead icon={Bell} title="Activity" sub="Requests, likes, comments, cheers and challenges" />
+      <header className="-ml-2 mb-3 flex items-center gap-1">
+        <button type="button" onClick={() => history.back()} className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-card2" aria-label="Back"><ChevronLeft size={26} aria-hidden /></button>
+        <h1 className="flex-1 text-[26px] font-extrabold tracking-tight">Activity</h1>
+      </header>
+      {requests.length > 1 && (
+        <a href="#/friends" className="mb-3 flex min-h-14 items-center gap-3 rounded-2xl bg-card px-3">
+          <span className="flex -space-x-3">{requests.slice(0, 3).map((n) => n.actor && <UserAvatar key={n.id} id={n.actor.avatarId} name={n.actor.name ?? n.actor.username} size={36} className="ring-2 ring-card" />)}</span>
+          <span className="flex-1 text-sm"><b>Friend requests</b><span className="block text-xs text-mute">{requests.length} waiting</span></span>
+          <span className="h-2.5 w-2.5 rounded-full bg-info" aria-hidden />
+        </a>
+      )}
       {err && <p role="alert" className="mb-2 text-sm text-bad">{err}</p>}
-      {items == null ? <ul aria-busy className="space-y-2">{[0, 1, 2, 3].map((k) => <li key={k} className="h-16 animate-pulse rounded-2xl bg-card" />)}</ul>
-        : items.length === 0 ? <Empty icon={Bell}>Nothing yet. When friends like, comment or cheer, it shows up here.</Empty>
-          : groups.map((g) => (
-            <section key={g.label} aria-label={g.label} className="mb-4">
-              <h2 className="mb-1 px-1 text-xs font-semibold uppercase tracking-wide text-mute">{g.label}</h2>
-              <ul className="divide-y divide-line overflow-hidden rounded-2xl bg-card">
-                {g.list.map((n) => {
-                  const k = KIND[n.kind] ?? { icon: Bell, tone: "text-mute", text: () => n.kind };
-                  const self = n.kind === "challenge_won" || n.kind === "challenge_done";
-                  return (
-                    <li key={n.id} className={cx("flex items-center gap-3 px-3 py-2.5", !n.read && "bg-info/5")}>
-                      <span className="relative shrink-0">
-                        {n.actor && !self ? <UserAvatar id={n.actor.avatarId} name={n.actor.name ?? n.actor.username} size={44} /> : <span className="flex h-11 w-11 items-center justify-center rounded-full bg-card2"><k.icon size={20} className={k.tone} aria-hidden /></span>}
-                        {n.actor && !self && <span className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-card bg-card2" aria-hidden><k.icon size={11} className={k.tone} /></span>}
-                      </span>
-                      <button type="button" onClick={() => open(n)} className="min-h-11 min-w-0 flex-1 text-left text-sm leading-snug">
-                        {n.actor && !self && <span className="font-semibold">{n.actor.username} </span>}
-                        <span dir="auto">{k.text(n)}</span>{" "}
-                        <time className="text-xs text-faint" title={fullTime(n.createdAt)}>{ago(n.createdAt)}</time>
-                        {!n.read && <span className="sr-only"> (new)</span>}
-                      </button>
-                      {n.kind === "friend_request" && !n.read && n.actor && <FriendButton userId={n.actor.id} relation="incoming" name={n.actor.username} onChange={() => void load()} />}
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          ))}
+      {items == null ? (
+        <ul aria-busy aria-label="Loading activity" className="space-y-3">{[0, 1, 2, 3, 4].map((k) => <li key={k} className="flex items-center gap-3"><span className="h-11 w-11 animate-pulse rounded-full bg-card2" /><span className="h-4 flex-1 animate-pulse rounded bg-card" /></li>)}</ul>
+      ) : items.length === 0 ? (
+        <div className="mt-6 flex flex-col items-center gap-3 text-center">
+          <span className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-line text-mute" aria-hidden><Heart size={34} /></span>
+          <p className="font-semibold">No activity yet</p>
+          <p className="max-w-[16rem] text-sm text-mute">Likes, comments and cheers from friends land here.</p>
+          <a href="#/friends" className="mt-1 inline-flex min-h-11 items-center rounded-xl bg-acc px-4 text-sm font-semibold text-acc-ink">Find friends</a>
+        </div>
+      ) : group(items).map((g) => (
+        <section key={g.label} aria-label={g.label} className="mb-5">
+          <h2 className="mb-1 text-base font-bold">{g.label}</h2>
+          <ul>
+            {g.rows.map((r) => <RowView key={r.key} r={r} onOpen={open} onChanged={() => void load()} />)}
+          </ul>
+        </section>
+      ))}
       {next && <div className="flex justify-center"><button type="button" onClick={more} disabled={busy} className="min-h-11 rounded-xl px-4 text-sm text-info">{busy ? <Loader2 size={16} className="animate-spin" aria-label="Loading" /> : "Show older"}</button></div>}
-      {post && <Sheet open onClose={() => setPost(null)} title="Post"><div className="-mx-4 md:-mx-6"><PostCard post={post} onDelete={() => setPost(null)} /></div></Sheet>}
+      {post && <Sheet open onClose={() => setPost(null)}><div className="-mx-4 md:-mx-6"><PostCard post={post} onDelete={() => setPost(null)} /></div></Sheet>}
     </div>
+  );
+}
+
+function RowView({ r, onOpen, onChanged }: { r: Row; onOpen: (n: Notif) => void; onChanged: () => void }) {
+  const n = r.items[0];
+  const k = KIND[n.kind] ?? { icon: Bell, bg: "bg-card3", text: () => n.kind };
+  const self = n.kind === "challenge_won" || n.kind === "challenge_done";
+  const actors = r.items.map((x) => x.actor).filter((a): a is NonNullable<Notif["actor"]> => !!a);
+  const who = actors.length > 2 ? <><b>{actors[0].username}</b> and <b>{actors.length - 1} others</b></> : actors.length === 2 ? <><b>{actors[0].username}</b> and <b>{actors[1].username}</b></> : actors[0] ? <b>{actors[0].username}</b> : null;
+  let right: React.ReactNode = null;
+  if (n.kind === "friend_request" && n.actor) right = n.relation === "incoming" ? <FriendButton userId={n.actor.id} relation="incoming" name={n.actor.username} onChange={onChanged} /> : n.relation === "friends" ? <span className="text-xs text-mute">Friends ✓</span> : null;
+  else if (n.kind === "friend_accept" && n.actor && n.relation === "friends") right = <a href={`#/chat/@${encodeURIComponent(n.actor.username)}`} className="inline-flex min-h-11 items-center rounded-xl bg-card2 px-3 text-sm font-semibold hover:bg-card3">Message</a>;
+  else if (n.kind === "cheer" && n.actor && n.relation === "friends") right = <CheerButton user={n.actor} label="Cheer back" />;
+  else if (n.kind === "challenge_invite") right = <button type="button" onClick={() => onOpen(n)} className="inline-flex min-h-11 items-center rounded-xl bg-acc px-3 text-sm font-semibold text-acc-ink">View</button>;
+  else if (n.thumb) right = <button type="button" onClick={() => onOpen(n)} className="shrink-0" aria-label="Open post"><img src={socialPhotoUrl(n.thumb, true)} alt="" className="h-11 w-11 rounded-lg object-cover" /></button>;
+  return (
+    <li className="flex min-h-16 items-center gap-3 py-1.5">
+      <span className={cx("h-2 w-2 shrink-0 rounded-full", r.read ? "bg-transparent" : "bg-info")} aria-hidden />
+      <span className="relative shrink-0">
+        {actors.length > 1 ? (
+          <span className="relative block h-11 w-11" aria-hidden>
+            <UserAvatar id={actors[1].avatarId} name={actors[1].name ?? actors[1].username} size={32} className="absolute right-0 top-0" />
+            <UserAvatar id={actors[0].avatarId} name={actors[0].name ?? actors[0].username} size={32} className="absolute bottom-0 left-0 ring-2 ring-bg" />
+          </span>
+        ) : n.actor && !self ? <UserAvatar id={n.actor.avatarId} name={n.actor.name ?? n.actor.username} size={44} />
+          : <span className={cx("flex h-11 w-11 items-center justify-center rounded-full text-black", k.bg)} aria-hidden><k.icon size={20} /></span>}
+        {(n.actor && !self) && <span className={cx("absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-bg text-black", k.bg)} aria-hidden><k.icon size={10} strokeWidth={2.6} /></span>}
+      </span>
+      <button type="button" onClick={() => onOpen(n)} className="min-h-11 min-w-0 flex-1 text-left text-sm leading-snug">
+        {who && !self && <>{who} </>}<span dir="auto" className="text-ink/90">{k.text(n)}</span>{" "}
+        <time className="whitespace-nowrap text-xs text-faint" title={fullTime(n.createdAt)}>{ago(r.at)}</time>
+        {!r.read && <span className="sr-only"> (new)</span>}
+      </button>
+      {right && <span className="shrink-0">{right}</span>}
+    </li>
   );
 }

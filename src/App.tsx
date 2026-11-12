@@ -4,6 +4,7 @@ import { get, isDev, onPending, setMode, Unauthorized } from "./lib/api";
 import { cx } from "./lib/util";
 import { MAIN, MORE, MORE_TAB, YOU_TAB, isSocialRoute, moreGroups, type NavItem } from "./nav";
 import { useBadges } from "./lib/badges";
+import { syncPush } from "./lib/push";
 import Login, { Setup } from "./screens/Login";
 import Splash from "./screens/Splash";
 import Home from "./screens/Home";
@@ -34,6 +35,7 @@ import Programs from "./screens/Programs";
 import ProgramEditor from "./screens/ProgramEditor";
 import Security from "./screens/Security";
 import Compete from "./screens/Compete";
+import Admin from "./screens/Admin";
 import { Avatar } from "./components/Avatar";
 import { setMe, useMe, type Me } from "./lib/me";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -73,7 +75,7 @@ function useRoute() {
 const PAGES: Record<string, () => React.ReactElement | null> = {
   "/": Home, "/plan": Plan, "/history": History, "/stats": Stats, "/body": Body, "/creatine": Creatine,
   "/tests": Tests, "/journal": Journal, "/notes": Journal, "/extra": Extras, "/library": Library, "/months": Months, "/learn": Learn, "/settings": Settings, "/more": More, "/cardio": Cardio, "/profile": Profile,
-  "/feed": Feed, "/friends": Friends, "/privacy": Privacy, "/notifications": Notifications, "/chats": Chats, "/programs": Programs, "/security": Security, "/compete": Compete,
+  "/feed": Feed, "/friends": Friends, "/privacy": Privacy, "/notifications": Notifications, "/chats": Chats, "/programs": Programs, "/security": Security, "/compete": Compete, "/admin": Admin,
 };
 
 export default function App() {
@@ -82,6 +84,8 @@ export default function App() {
   const [pending, setPending] = useState(0);
   const me = useMe();
   const badges = useBadges(auth === "in");
+  // re-register this phone for notifications if the server pruned it or the key changed (never prompts)
+  useEffect(() => { if (auth === "in" && me?.id) void syncPush(); }, [auth, me?.id]);
 
   useEffect(() => {
     get<{ dev?: boolean; user?: Me | null; setup?: boolean }>("/me")
@@ -134,7 +138,7 @@ export default function App() {
         <ProfileChip on={route === "/profile"} />
         <nav aria-label="Main">
           <NavList items={MAIN} route={route} />
-          {moreGroups().map((g) => (
+          {moreGroups(me?.role).map((g) => (
             <div key={g.id} className="mt-4">
               <h2 className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wide text-faint">{g.label}</h2>
               <NavList items={g.items} route={route} />

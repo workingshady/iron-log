@@ -6,6 +6,7 @@ import { send } from "../lib/api";
 import { forgetPhotos, setMe } from "../lib/me";
 import { cx } from "../lib/util";
 import { Badge, Btn, Card, Chips, PageHead, Sheet } from "../components/ui";
+import ConnectAI from "../components/connect/ConnectAI";
 import { call, Field, GoogleG, joinLink, mmss, Notice, PasscodeInput, prettyCode, takeAuthParams, useCountdown } from "../components/auth/kit";
 
 type Account = {
@@ -52,6 +53,7 @@ export default function Security() {
           {acc.dev && <Notice tone="info">DEV mode: test users log in with the DEV passcode, so passcode and Google settings are off here. Invites work (DEV database only).</Notice>}
           {!acc.dev && <SignIn acc={acc} reload={load} onFlash={setFlash} />}
           <Invites />
+          <ConnectAI dev={acc.dev} />
           {acc.role === "owner" && <OwnerTools dev={acc.dev} />}
           <Devices acc={acc} onFlash={setFlash} />
         </div>

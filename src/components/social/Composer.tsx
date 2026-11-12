@@ -1,150 +1,238 @@
 import { useEffect, useRef, useState } from "react";
-import { Camera, Check, Dumbbell, Globe2, ImagePlus, Loader2, Lock, PenLine, Share2, TrendingUp, Trophy, Type } from "lucide-react";
-import { LIMITS, type PostKind } from "../../../shared/social";
+import { Camera, Check, ChevronLeft, Dumbbell, Globe2, ImagePlus, Images, Lock, PenLine, Plus, Send, Share2, TrendingUp, Trophy, Type, X } from "lucide-react";
+import { LIMITS, type PostKind, type PrSummary, type WorkoutSummary } from "../../../shared/social";
 import { uid } from "../../lib/api";
+import { useMe } from "../../lib/me";
 import { cx, niceDate } from "../../lib/util";
-import { Btn, Chips, Sheet } from "../ui";
-import { uploadPhoto } from "../Photos";
+import { Btn, Sheet } from "../ui";
 import { PhotoEditor, type Edited } from "../PhotoEditor";
-import { INPUT, socialPhotoUrl, sx } from "./lib";
+import { INPUT, confetti, socialPhotoUrl, sx } from "./lib";
+import { PrHero, WorkoutHero } from "./PostCard";
+import { localSrc, startPost, type PhotoItem } from "./Uploads";
 
 interface Shareable { workouts: { id: string; date: string; dayName: string }[]; prs: { id: string; name: string; kg: number | null; reps: number | null; doneAt: number }[] }
 interface MyPhoto { id: string; date: string; refKind: string; caption: string | null; visibility: string }
+type Kind = "photo" | "workout" | "pr" | "text";
 
-const KINDS: { id: PostKind; label: string; icon: typeof Type }[] = [
-  { id: "workout", label: "Workout", icon: Dumbbell },
-  { id: "photo", label: "Photo", icon: Camera },
-  { id: "progress", label: "Progress", icon: TrendingUp },
-  { id: "pr", label: "PR", icon: Trophy },
-  { id: "text", label: "Text", icon: Type },
+const TYPES: { id: Kind; label: string; hint: string; icon: typeof Type; tone: string }[] = [
+  { id: "photo", label: "Photo", hint: "Up to 10", icon: Camera, tone: "bg-info/15 text-info" },
+  { id: "workout", label: "Workout", hint: "Share a session", icon: Dumbbell, tone: "bg-acc/15 text-acc" },
+  { id: "pr", label: "PR", hint: "Show off a record", icon: Trophy, tone: "bg-warn/15 text-warn" },
+  { id: "text", label: "Text", hint: "Say something", icon: Type, tone: "bg-vio/15 text-vio" },
 ];
 
-/** New post sheet: pick a kind → pick what to share → caption → who sees it. One primary button. */
+/**
+ * New post, Instagram sequence: choose a type → (photos: pick 1-10 → edit each) → caption + who sees it → Share.
+ * Share closes at once; the upload runs in the background with a progress toast and the post shows up top (Uploads.tsx).
+ */
 export function Composer({ open, onClose, onPosted, initial }: { open: boolean; onClose: () => void; onPosted: () => void; initial?: { kind?: PostKind; sessionId?: string } }) {
-  const [kind, setKind] = useState<PostKind>(initial?.kind ?? "workout");
+  const me = useMe();
+  const startKind: Kind | null = initial?.kind === "progress" ? "photo" : (initial?.kind as Kind | undefined) ?? null;
+  const [kind, setKind] = useState<Kind | null>(startKind);
+  const [progress, setProgress] = useState(initial?.kind === "progress");
+  const [items, setItems] = useState<PhotoItem[]>([]);
+  const [queue, setQueue] = useState<File[]>([]);
+  const [qi, setQi] = useState(0);
   const [text, setText] = useState("");
   const [vis, setVis] = useState<"friends" | "private">("friends");
   const [sessionId, setSessionId] = useState<string | null>(initial?.sessionId ?? null);
   const [setId, setSetId] = useState<string | null>(null);
-  const [photos, setPhotos] = useState<string[]>([]);
   const [share, setShare] = useState<Shareable | null>(null);
-  const [mine, setMine] = useState<MyPhoto[] | null>(null);
-  const [file, setFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState<WorkoutSummary | null>(null);
+  const [library, setLibrary] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const pick = useRef<HTMLInputElement>(null);
+  const hero = useRef<HTMLDivElement>(null);
+  const celebrated = useRef(false);
 
   useEffect(() => {
     if (!open) return;
-    sx<Shareable>("GET", "/social/shareable").then((s) => { setShare(s); if (!sessionId && s.workouts[0]) setSessionId(s.workouts[0].id); if (s.prs[0]) setSetId((x) => x ?? s.prs[0].id); }).catch(() => setShare({ workouts: [], prs: [] }));
-    sx<MyPhoto[]>("GET", "/social/my-photos").then(setMine).catch(() => setMine([]));
+    sx<Shareable>("GET", "/social/shareable").then((s) => { setShare(s); setSessionId((x) => x ?? s.workouts[0]?.id ?? null); setSetId((x) => x ?? s.prs[0]?.id ?? null); }).catch(() => setShare({ workouts: [], prs: [] }));
     sx<{ photos: "friends" | "private" }>("GET", "/privacy").then((p) => setVis(p.photos)).catch(() => {});
-  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open]);
+  useEffect(() => {
+    if (!open || kind !== "workout" || !sessionId) return;
+    setPreview(null);
+    sx<WorkoutSummary>("GET", `/social/workout-preview/${encodeURIComponent(sessionId)}`).then(setPreview).catch(() => setPreview(null));
+  }, [open, kind, sessionId]);
+  // finishing a workout is a celebration (once)
+  useEffect(() => {
+    if (preview && initial?.sessionId && !celebrated.current) { celebrated.current = true; setTimeout(() => confetti(hero.current, 26), 150); navigator.vibrate?.([10, 40, 10]); }
+  }, [preview, initial?.sessionId]);
 
-  const needsPhotos = kind === "photo" || kind === "progress";
-  const ready = !busy && !uploading && (kind === "text" ? !!text.trim() : kind === "workout" ? !!sessionId : kind === "pr" ? !!setId : photos.length > 0);
+  function reset() { setKind(startKind); setItems([]); setText(""); setQueue([]); setQi(0); setErr(null); setProgress(initial?.kind === "progress"); }
+  function close() { reset(); onClose(); }
+  function onFiles(list: FileList | null) {
+    const files = [...(list ?? [])].slice(0, LIMITS.photosPerPost - items.length);
+    if (!files.length) return;
+    setQueue(files); setQi(0);
+  }
+  function edited(x: Edited | null) {
+    if (x) setItems((l) => [...l, { kind: "new" as const, edited: x, id: uid(), done: false }].slice(0, LIMITS.photosPerPost));
+    if (qi + 1 < queue.length) setQi(qi + 1);
+    else { setQueue([]); setQi(0); setKind((k) => k ?? "photo"); }
+  }
+  const pr = share?.prs.find((x) => x.id === setId) ?? null;
+  const prData: PrSummary | null = pr ? { name: pr.name, kg: pr.kg, reps: pr.reps, e1rm: pr.kg && pr.reps && pr.reps <= 12 ? Math.round(pr.kg * (1 + pr.reps / 30) * 10) / 10 : null, date: new Date(pr.doneAt).toISOString().slice(0, 10) } : null;
+  const ready = kind === "text" ? !!text.trim() : kind === "workout" ? !!sessionId : kind === "pr" ? !!setId : kind === "photo" ? items.length > 0 : false;
 
-  async function upload(x: Edited) {
-    setFile(null); setUploading(x.thumbUrl); setErr(null);
-    try {
-      const id = await uploadPhoto(x, { refKind: kind === "progress" ? "progress" : "other" });
-      setPhotos((p) => [...p, id].slice(0, LIMITS.photosPerPost));
-      setMine((m) => [{ id, date: "", refKind: "other", caption: null, visibility: "private" }, ...(m ?? [])]);
-    } catch (e) { setErr((e as Error).message); }
-    finally { setUploading(null); }
+  function post() {
+    if (!kind || !ready || !me) return;
+    const k: PostKind = kind === "photo" && progress ? "progress" : kind;
+    startPost({
+      id: uid(), kind: k, text: text.trim(), visibility: vis, photos: kind === "pr" || kind === "text" ? [] : items,
+      sessionId: kind === "workout" ? sessionId : null, setId: kind === "pr" ? setId : null,
+      data: kind === "workout" ? preview : kind === "pr" ? prData : null,
+      author: { id: me.id, username: me.username, name: me.name, avatarId: me.avatarId },
+    });
+    reset();
+    onPosted();
   }
-  async function post() {
-    setBusy(true); setErr(null);
-    try {
-      await sx("POST", "/posts", { id: uid(), kind, text, visibility: vis, photoIds: needsPhotos || kind === "workout" ? photos : [], sessionId: kind === "workout" ? sessionId : undefined, setId: kind === "pr" ? setId : undefined });
-      setText(""); setPhotos([]);
-      onPosted();
-    } catch (e) { setErr((e as Error).message); }
-    finally { setBusy(false); }
-  }
-  const toggle = (id: string) => setPhotos((p) => (p.includes(id) ? p.filter((x) => x !== id) : p.length < LIMITS.photosPerPost ? [...p, id] : p));
+
+  const editingFile = queue[qi];
+  const title = kind == null ? "New post" : kind === "workout" && initial?.sessionId ? "Share your workout" : `New ${kind === "pr" ? "PR" : kind} post`;
 
   return (
-    <Sheet open={open} onClose={onClose} title="New post" icon={PenLine}>
-      <div role="radiogroup" aria-label="Post type" className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1 [scrollbar-width:none]">
-        {KINDS.map((k) => (
-          <button key={k.id} type="button" role="radio" aria-checked={kind === k.id} onClick={() => setKind(k.id)}
-            className={cx("inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm", kind === k.id ? "border-acc bg-acc font-semibold text-acc-ink" : "border-line hover:bg-card2")}>
-            <k.icon size={15} aria-hidden />{k.label}
-          </button>
-        ))}
-      </div>
-
-      {kind === "workout" && (
-        <fieldset className="mt-3">
-          <legend className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-mute">Which workout</legend>
-          {share == null ? <p className="text-sm text-mute" role="status">Loading…</p> : share.workouts.length === 0 ? <p className="text-sm text-mute">Finish a workout first, then share it here.</p> : (
-            <select value={sessionId ?? ""} onChange={(e) => setSessionId(e.target.value)} className={INPUT} aria-label="Workout">
-              {share.workouts.map((w) => <option key={w.id} value={w.id}>{w.dayName} · {niceDate(w.date)}</option>)}
-            </select>
-          )}
-          <p className="mt-1 text-[11px] text-faint">Shares day, time, sets, volume, best sets and PRs. Never your notes, pain or readiness.</p>
-        </fieldset>
-      )}
-      {kind === "pr" && (
-        <fieldset className="mt-3">
-          <legend className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-mute">Which PR</legend>
-          {share == null ? <p className="text-sm text-mute" role="status">Loading…</p> : share.prs.length === 0 ? <p className="text-sm text-mute">No PRs yet: they appear here when you beat your best.</p> : (
-            <select value={setId ?? ""} onChange={(e) => setSetId(e.target.value)} className={INPUT} aria-label="PR">
-              {share.prs.map((p) => <option key={p.id} value={p.id}>{p.name} · {p.kg ? `${p.kg} kg × ` : ""}{p.reps ?? ""} · {new Date(p.doneAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</option>)}
-            </select>
-          )}
-        </fieldset>
-      )}
-
-      {(needsPhotos || kind === "workout") && (
-        <fieldset className="mt-3">
-          <legend className="mb-1 flex w-full justify-between text-[11px] font-semibold uppercase tracking-wide text-mute"><span>Photos{kind === "workout" ? " (optional)" : ""}</span><span className="num">{photos.length}/{LIMITS.photosPerPost}</span></legend>
-          <ul className="grid grid-cols-4 gap-1">
-            <li>
-              <button type="button" onClick={() => pick.current?.click()} disabled={!!uploading || photos.length >= LIMITS.photosPerPost} className="flex aspect-square w-full flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-line text-[11px] text-info hover:bg-card2 disabled:opacity-40">
-                {uploading ? <Loader2 size={18} className="animate-spin" aria-label="Uploading" /> : <ImagePlus size={18} aria-hidden />}New
+    <Sheet open={open} onClose={close} title={title} icon={kind == null ? PenLine : TYPES.find((x) => x.id === kind)!.icon}>
+      {kind == null ? (
+        <ul className="grid grid-cols-2 gap-2.5" aria-label="Post type">
+          {TYPES.map((x) => (
+            <li key={x.id}>
+              <button type="button" onClick={() => (x.id === "photo" ? pick.current?.click() : setKind(x.id))}
+                className="flex w-full flex-col items-start gap-3 rounded-2xl bg-card2 p-4 text-left transition hover:bg-card3 active:scale-[.98]">
+                <span className={cx("flex h-11 w-11 items-center justify-center rounded-2xl", x.tone)} aria-hidden><x.icon size={22} /></span>
+                <span><span className="block font-semibold">{x.label}</span><span className="block text-xs text-mute">{x.hint}</span></span>
               </button>
             </li>
-            {(mine ?? []).slice(0, 39).map((m) => {
-              const on = photos.includes(m.id);
+          ))}
+        </ul>
+      ) : (
+        <>
+          {!initial?.sessionId && !initial?.kind && (
+            <button type="button" onClick={() => { setKind(null); setErr(null); }} className="-mt-2 mb-2 inline-flex min-h-11 items-center gap-1 pr-2 text-sm text-mute hover:text-ink"><ChevronLeft size={18} aria-hidden />Type</button>
+          )}
+
+          {kind === "photo" && (
+            <>
+              <ul className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" aria-label={`${items.length} photos`}>
+                {items.map((it, i) => (
+                  <li key={it.id} className="relative shrink-0">
+                    <img src={localSrc(it, true)} alt={`Photo ${i + 1}`} className="h-28 w-[90px] rounded-xl object-cover" />
+                    <span className="absolute left-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-[11px] font-bold text-white num" aria-hidden>{i + 1}</span>
+                    <button type="button" onClick={() => setItems((l) => l.filter((x) => x.id !== it.id))} className="absolute -right-1 -top-1 flex h-8 w-8 items-center justify-center rounded-full bg-card3 text-ink shadow" aria-label={`Remove photo ${i + 1}`}><X size={15} aria-hidden /></button>
+                  </li>
+                ))}
+                {items.length < LIMITS.photosPerPost && (
+                  <li className="flex shrink-0 flex-col gap-2">
+                    <button type="button" onClick={() => pick.current?.click()} className="flex h-[52px] w-[90px] flex-col items-center justify-center rounded-xl border border-dashed border-line text-[11px] text-info hover:bg-card2"><Plus size={18} aria-hidden />Add</button>
+                    <button type="button" onClick={() => setLibrary(true)} className="flex h-[52px] w-[90px] flex-col items-center justify-center rounded-xl border border-dashed border-line text-[11px] text-mute hover:bg-card2"><Images size={16} aria-hidden />Library</button>
+                  </li>
+                )}
+              </ul>
+              <button type="button" role="switch" aria-checked={progress} onClick={() => setProgress(!progress)} className="mt-3 flex min-h-12 w-full items-center gap-3 rounded-xl bg-card2 px-3 text-left text-sm">
+                <TrendingUp size={18} className="text-acc" aria-hidden />
+                <span className="flex-1">Progress photo{items.length === 2 && progress ? <span className="text-xs text-mute"> · before / after slider</span> : null}</span>
+                <span className={cx("relative h-6 w-10 rounded-full transition-colors", progress ? "bg-acc" : "bg-card3")} aria-hidden><span className={cx("absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all", progress ? "left-[18px]" : "left-0.5")} /></span>
+              </button>
+            </>
+          )}
+
+          {kind === "workout" && (
+            <>
+              {share && share.workouts.length > 1 && !initial?.sessionId && (
+                <ul className="-mx-4 mb-3 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none]" role="radiogroup" aria-label="Which workout">
+                  {share.workouts.map((w) => (
+                    <li key={w.id} className="shrink-0"><button type="button" role="radio" aria-checked={sessionId === w.id} onClick={() => setSessionId(w.id)}
+                      className={cx("min-h-11 shrink-0 whitespace-nowrap rounded-full border px-3 text-sm", sessionId === w.id ? "border-acc bg-acc font-semibold text-acc-ink" : "border-line hover:bg-card2")}>{w.dayName} · {niceDate(w.date)}</button></li>
+                  ))}
+                </ul>
+              )}
+              {share?.workouts.length === 0 ? <p className="py-6 text-center text-sm text-mute">Finish a workout first, then share it here 💪</p> : (
+                <div ref={hero} className="-mx-3">{preview ? <WorkoutHero w={preview} celebrate={!!initial?.sessionId} /> : <div className="mx-3 h-64 animate-pulse rounded-3xl bg-card2" aria-busy aria-label="Loading preview" />}</div>
+              )}
+              <div className="mt-3 flex gap-2">
+                {items.map((it) => (
+                  <span key={it.id} className="relative"><img src={localSrc(it, true)} alt="" className="h-14 w-14 rounded-lg object-cover" />
+                    <button type="button" onClick={() => setItems((l) => l.filter((x) => x.id !== it.id))} className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-card3" aria-label="Remove photo"><X size={13} aria-hidden /></button></span>
+                ))}
+                {items.length < LIMITS.photosPerPost && <button type="button" onClick={() => pick.current?.click()} className="flex min-h-14 items-center gap-2 rounded-xl border border-dashed border-line px-3 text-sm text-info hover:bg-card2"><ImagePlus size={17} aria-hidden />{items.length ? "" : "Add a gym pic"}</button>}
+              </div>
+            </>
+          )}
+
+          {kind === "pr" && (
+            share == null ? <div className="h-48 animate-pulse rounded-3xl bg-card2" aria-busy /> : share.prs.length === 0 ? <p className="py-6 text-center text-sm text-mute">No PRs yet. Beat your best and it lands here 🏆</p> : (
+              <>
+                <div className="-mx-3">{prData && <PrHero pr={prData} />}</div>
+                <ul className="-mx-4 mt-3 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none]" role="radiogroup" aria-label="Which PR">
+                  {share.prs.map((x) => (
+                    <li key={x.id} className="shrink-0"><button type="button" role="radio" aria-checked={setId === x.id} onClick={() => setSetId(x.id)}
+                      className={cx("flex min-h-12 shrink-0 flex-col justify-center rounded-2xl border px-3 text-left", setId === x.id ? "border-warn bg-warn/15" : "border-line hover:bg-card2")}>
+                      <span className="max-w-40 truncate text-xs font-semibold">{x.name}</span>
+                      <span className="text-xs text-mute num">{x.kg ? `${x.kg} kg × ` : ""}{x.reps ?? ""}</span>
+                    </button></li>
+                  ))}
+                </ul>
+              </>
+            )
+          )}
+
+          <label className="mt-3 block">
+            <span className="sr-only">{kind === "text" ? "What's on your mind?" : "Caption"}</span>
+            <textarea value={text} onChange={(e) => setText(e.target.value)} maxLength={LIMITS.postText} rows={kind === "text" ? 5 : 2} dir="auto" autoFocus={kind === "text"}
+              placeholder={kind === "text" ? "What's on your mind?" : kind === "workout" ? "How did it feel?" : kind === "pr" ? "Say something about it…" : "Write a caption…"} className={cx(INPUT, "py-2.5", kind === "text" && "text-lg")} />
+          </label>
+
+          <div role="radiogroup" aria-label="Who can see it" className="mt-3 flex rounded-xl bg-card2 p-1">
+            {([["friends", "Friends", Globe2], ["private", "Only me", Lock]] as const).map(([id, l, Icon]) => (
+              <button key={id} type="button" role="radio" aria-checked={vis === id} onClick={() => setVis(id)} className={cx("flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-lg text-sm", vis === id ? "bg-card3 font-semibold" : "text-mute")}><Icon size={15} aria-hidden />{l}</button>
+            ))}
+          </div>
+          {vis === "friends" && items.length > 0 && <p className="mt-1.5 text-[11px] text-faint">These photos become visible to friends.</p>}
+
+          {err && <p role="alert" className="mt-2 text-sm text-bad">{err}</p>}
+          <Btn kind="primary" icon={kind === "workout" && initial?.sessionId ? Share2 : Send} className="mt-4 w-full" disabled={!ready} onClick={post}>Share</Btn>
+        </>
+      )}
+
+      <input ref={pick} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { onFiles(e.target.files); e.target.value = ""; }} />
+      {editingFile && <PhotoEditor key={qi} src={editingFile} title={queue.length > 1 ? `Edit ${qi + 1} of ${queue.length}` : undefined} defaultAspect="4:5" onCancel={() => edited(null)} onDone={edited} />}
+      {library && <LibraryPicker exclude={items.map((x) => x.id)} max={LIMITS.photosPerPost - items.length} onClose={() => setLibrary(false)} onPick={(ids) => { setItems((l) => [...l, ...ids.map((id) => ({ kind: "existing" as const, id }))]); setLibrary(false); setKind((k) => k ?? "photo"); }} />}
+    </Sheet>
+  );
+}
+
+/** Pick photos you already have (progress, form…). */
+function LibraryPicker({ exclude, max, onClose, onPick }: { exclude: string[]; max: number; onClose: () => void; onPick: (ids: string[]) => void }) {
+  const [mine, setMine] = useState<MyPhoto[] | null>(null);
+  const [sel, setSel] = useState<string[]>([]);
+  useEffect(() => { sx<MyPhoto[]>("GET", "/social/my-photos").then(setMine).catch(() => setMine([])); }, []);
+  const list = (mine ?? []).filter((m) => !exclude.includes(m.id));
+  return (
+    <Sheet open onClose={onClose} title="Your photos" icon={Images}>
+      {mine == null ? <div className="grid grid-cols-4 gap-1">{Array.from({ length: 8 }, (_, k) => <span key={k} className="aspect-square animate-pulse rounded-lg bg-card2" />)}</div>
+        : !list.length ? <p className="py-6 text-center text-sm text-mute">No photos yet.</p> : (
+          <ul className="grid grid-cols-4 gap-1">
+            {list.slice(0, 60).map((m) => {
+              const on = sel.includes(m.id);
               return (
-                <li key={m.id}>
-                  <button type="button" onClick={() => toggle(m.id)} aria-pressed={on} aria-label={`Photo${m.date ? ` from ${niceDate(m.date)}` : ""}${on ? ", selected" : ""}`} className={cx("relative block aspect-square w-full overflow-hidden rounded-lg bg-card3", on && "ring-2 ring-acc")}>
-                    <img src={socialPhotoUrl(m.id, true)} alt="" loading="lazy" className={cx("h-full w-full object-cover", on && "opacity-80")} />
-                    {on && <span className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-acc text-[11px] font-bold text-acc-ink num" aria-hidden>{photos.indexOf(m.id) + 1}</span>}
-                  </button>
-                </li>
+                <li key={m.id}><button type="button" aria-pressed={on} onClick={() => setSel((s) => (on ? s.filter((x) => x !== m.id) : s.length < max ? [...s, m.id] : s))} aria-label={`Photo from ${niceDate(m.date)}`}
+                  className={cx("relative block aspect-square w-full overflow-hidden rounded-lg bg-card3", on && "ring-2 ring-acc")}>
+                  <img src={socialPhotoUrl(m.id, true)} alt="" loading="lazy" className={cx("h-full w-full object-cover", on && "opacity-75")} />
+                  {on && <span className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-acc text-[11px] font-bold text-acc-ink num" aria-hidden>{sel.indexOf(m.id) + 1}</span>}
+                </button></li>
               );
             })}
           </ul>
-          {mine == null && <p className="mt-1 text-xs text-mute" role="status">Loading your photos…</p>}
-        </fieldset>
-      )}
-
-      <label className="mt-3 block">
-        <span className="mb-1 flex justify-between text-[11px] text-mute"><span>{kind === "text" ? "What's up?" : "Caption"}</span><span className="text-faint num">{text.length}/{LIMITS.postText}</span></span>
-        <textarea value={text} onChange={(e) => setText(e.target.value)} maxLength={LIMITS.postText} rows={3} dir="auto" placeholder={kind === "progress" ? "e.g. 8 weeks in, same light and pose" : "Say something…"} className={cx(INPUT, "py-2")} />
-      </label>
-
-      <div className="mt-3">
-        <span className="mb-1 block text-[11px] text-mute">Who can see it</span>
-        <Chips clearable={false} options={[{ id: "friends", label: "Friends", icon: Globe2 }, { id: "private", label: "Only me", icon: Lock }]} value={vis} onChange={(v) => setVis((v ?? "friends") as "friends" | "private")} />
-        {vis === "friends" && photos.length > 0 && <p className="mt-1 text-[11px] text-faint">The chosen photos become visible to your friends. You can hide the post later.</p>}
-      </div>
-
-      {err && <p role="alert" className="mt-2 text-sm text-bad">{err}</p>}
-      <Btn kind="primary" icon={busy ? Loader2 : Check} className="mt-4 w-full" disabled={!ready} onClick={post}>{busy ? "Posting…" : "Post"}</Btn>
-      <input ref={pick} type="file" accept="image/*" className="hidden" onChange={(e) => { setFile(e.target.files?.[0] ?? null); e.target.value = ""; }} />
-      {file && <PhotoEditor src={file} defaultAspect="4:5" onCancel={() => setFile(null)} onDone={upload} />}
+        )}
+      <Btn kind="primary" icon={Check} className="mt-4 w-full" disabled={!sel.length} onClick={() => onPick(sel)}>Add {sel.length || ""}</Btn>
     </Sheet>
   );
 }
 
 /**
  * Drop-in for the finished-workout screen: <ShareWorkoutButton sessionId={id} />. Opens the composer with this workout
- * pre-selected; after posting it turns into "Shared ✓". Hidden when there's no connection.
+ * as a celebration card; after sharing it turns into "Shared ✓".
  */
 export function ShareWorkoutButton({ sessionId, className }: { sessionId: string; className?: string }) {
   const [open, setOpen] = useState(false);

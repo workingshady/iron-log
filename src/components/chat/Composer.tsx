@@ -1,9 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ImagePlus, Keyboard, Mic, Pencil, Reply, SendHorizontal, Smile, Square, Trash2, X } from "lucide-react";
 import { cx } from "../../lib/util";
-import { displayName, editMessage, getDraft, sendImage, sendSticker, sendText, sendTyping, sendVoice, setDraft, type ChatUser, type Msg } from "../../lib/chat";
-import { PhotoEditor, type Edited } from "../PhotoEditor";
+import { displayName, editMessage, getDraft, sendImages, sendSticker, sendText, sendTyping, sendVoice, setDraft, type ChatUser, type Msg } from "../../lib/chat";
 import { snippet } from "./Bubble";
+import { pushRecent, searchEmoji } from "./emoji";
+import { PhotoSend } from "./PhotoSend";
 import { Tray } from "./Tray";
 import { Bars, fmt, MAX_VOICE_MS, toBars, useRecorder, VoicePlayer } from "./Voice";
 
@@ -12,7 +13,8 @@ const MAX = 4000;
 
 /**
  * Message input: grows with the text, Enter sends on desktop (Shift+Enter = new line; on phones Enter = new line),
- * emoji / sticker tray, photo (→ PhotoEditor → caption → send), voice note (hold to record & release to send, slide left
+ * emoji / sticker tray (+ ":name" suggestions while typing), photos (pick up to 10, paste or drop → review screen with edit +
+ * caption → album), voice note (hold to record & release to send, slide left
  * to cancel; or tap to lock → stop → preview → send), reply + edit bars.
  */
 export function Composer({ convId, members, meId, replyTo, onCancelReply, editing, onCancelEdit, onSent, onError, onTray }: {
@@ -23,8 +25,8 @@ export function Composer({ convId, members, meId, replyTo, onCancelReply, editin
 }) {
   const [text, setText] = useState(() => getDraft(convId));
   const [tray, setTray] = useState(false);
-  const [file, setFile] = useState<File | null>(null);
-  const [img, setImg] = useState<Edited | null>(null);
+  const [files, setFiles] = useState<File[] | null>(null);
+  const [caret, setCaret] = useState(0);
   const [voice, setVoice] = useState<{ blob: Blob; ms: number; peaks: number[]; url: string } | null>(null);
   const [mode, setMode] = useState<"hold" | "locked" | null>(null);
   const [slide, setSlide] = useState(0);
@@ -32,6 +34,14 @@ export function Composer({ convId, members, meId, replyTo, onCancelReply, editin
   const fileIn = useRef<HTMLInputElement>(null);
   const hold = useRef<{ down: boolean; x: number; t0: number } | null>(null);
   const rec = useRecorder(onError);
+  const lastSubmit = useRef({ text: "", at: 0 });
+
+  // photos dropped on the room (desktop drag-and-drop) arrive here
+  useEffect(() => {
+    const f = (e: Event) => { const fs = (e as CustomEvent<File[]>).detail; if (fs?.length && !editing) setFiles(fs); };
+    window.addEventListener("il:chat-files", f);
+    return () => window.removeEventListener("il:chat-files", f);
+  }, [editing]);
 
   useEffect(() => { onTray?.(tray); }, [tray, onTray]);
   // editing: load the message text; leaving edit mode restores the draft
@@ -50,7 +60,19 @@ export function Composer({ convId, members, meId, replyTo, onCancelReply, editin
   }, [text]);
   useEffect(() => () => sendTyping(convId, false), [convId]);
 
-  const canSend = !!text.trim() || !!img;
+  const canSend = !!text.trim();
+  // ":fi" → emoji suggestions (Slack / Discord style); Tab or a tap inserts the first / chosen one
+  const sugQ = editing ? null : /(?:^|\s):([\p{L}_]{2,20})$/u.exec(text.slice(0, caret))?.[1] ?? null;
+  const sugs = sugQ ? searchEmoji(sugQ, 8) : [];
+  function pickSug(e: string) {
+    const start = text.slice(0, caret).lastIndexOf(":");
+    const next = text.slice(0, start) + e + " " + text.slice(caret);
+    pushRecent(e);
+    setText(next);
+    const pos = start + e.length + 1;
+    setCaret(pos);
+    requestAnimationFrame(() => { ta.current?.focus(); ta.current?.setSelectionRange(pos, pos); });
+  }
 
   async function submit() {
     const t = text.trim();
@@ -62,15 +84,12 @@ export function Composer({ convId, members, meId, replyTo, onCancelReply, editin
       if (t !== (m.text ?? "")) editMessage(convId, m.id, t).catch((e) => onError((e as Error).message));
       return;
     }
-    if (img) {
-      const cur = img;
-      setImg(null);
-      setText("");
-      try { await sendImage(convId, cur, t, replyTo); } catch (e) { onError((e as Error).message); }
-    } else if (t) {
-      sendText(convId, t, replyTo);
-      setText("");
-    } else return;
+    if (!t) return;
+    // Enter auto-repeat / double click can fire twice before React re-renders → never send the same text twice in a row that fast
+    if (lastSubmit.current.text === t && Date.now() - lastSubmit.current.at < 800) return;
+    lastSubmit.current = { text: t, at: Date.now() };
+    sendText(convId, t, replyTo);
+    setText("");
     onCancelReply();
     onSent();
     if (!desktop()) ta.current?.focus(); // keep the keyboard up on phones
@@ -81,6 +100,7 @@ export function Composer({ convId, members, meId, replyTo, onCancelReply, editin
     const a = el?.selectionStart ?? text.length, b = el?.selectionEnd ?? text.length;
     const next = text.slice(0, a) + s + text.slice(b);
     setText(next);
+    setCaret(a + s.length);
     requestAnimationFrame(() => { if (el && desktop()) { el.focus(); el.setSelectionRange(a + s.length, a + s.length); } });
   }
 
@@ -160,11 +180,12 @@ export function Composer({ convId, members, meId, replyTo, onCancelReply, editin
           <button type="button" className={cx(btn, "text-mute hover:bg-card2")} onClick={editing ? onCancelEdit : onCancelReply} aria-label={editing ? "Cancel editing" : "Cancel reply"}><X size={20} aria-hidden /></button>
         </div>
       )}
-      {img && (
-        <div className="flex items-center gap-3 px-3 pt-2">
-          <img src={img.thumbUrl} alt="Photo to send" className="h-14 w-14 rounded-lg object-cover" />
-          <p className="flex-1 text-sm text-mute">Add a caption (optional), then send</p>
-          <button type="button" className={cx(btn, "text-mute hover:bg-card2")} onClick={() => setImg(null)} aria-label="Remove photo"><X size={20} aria-hidden /></button>
+      {sugs.length > 0 && (
+        <div className="flex items-center gap-0.5 overflow-x-auto px-2 pt-1.5" role="group" aria-label={`Emoji for :${sugQ}. Tab inserts the first`}>
+          {sugs.map((x) => (
+            <button key={x.e} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pickSug(x.e)} aria-label={`Insert ${x.n.split(" ")[0]}`} title={x.n.split(" ").slice(0, 3).join(" ")}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[24px] hover:bg-card2">{x.e}</button>
+          ))}
         </div>
       )}
 
@@ -214,11 +235,17 @@ export function Composer({ convId, members, meId, replyTo, onCancelReply, editin
                 maxLength={MAX + 200}
                 dir="auto"
                 enterKeyHint={desktop() ? "send" : "enter"}
-                placeholder={editing ? "Edit message" : img ? "Add a caption…" : "Message"}
-                onChange={(e) => { setText(e.target.value); sendTyping(convId, !!e.target.value); }}
+                placeholder={editing ? "Edit message" : "Message"}
+                onChange={(e) => { setText(e.target.value); setCaret(e.target.selectionStart ?? e.target.value.length); sendTyping(convId, !!e.target.value); }}
+                onSelect={(e) => setCaret(e.currentTarget.selectionStart ?? 0)}
+                onPaste={(e) => {
+                  const fs = [...e.clipboardData.files].filter((f) => f.type.startsWith("image/"));
+                  if (fs.length && !editing) { e.preventDefault(); setFiles(fs); }
+                }}
                 onFocus={() => setTray(false)}
                 onBlur={() => sendTyping(convId, false)}
                 onKeyDown={(e) => {
+                  if (e.key === "Tab" && sugs.length && !e.shiftKey) { e.preventDefault(); pickSug(sugs[0].e); return; }
                   if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && desktop()) { e.preventDefault(); void submit(); }
                   if (e.key === "Escape" && (editing || replyTo)) { e.preventDefault(); if (editing) onCancelEdit(); else onCancelReply(); }
                 }}
@@ -226,7 +253,7 @@ export function Composer({ convId, members, meId, replyTo, onCancelReply, editin
               />
             </label>
             {!canSend && !editing && (
-              <button type="button" className={cx(btn, "text-mute hover:bg-card2 hover:text-ink")} onClick={() => fileIn.current?.click()} aria-label="Send a photo">
+              <button type="button" className={cx(btn, "text-mute hover:bg-card2 hover:text-ink")} onClick={() => fileIn.current?.click()} aria-label="Send photos">
                 <ImagePlus size={22} aria-hidden />
               </button>
             )}
@@ -252,11 +279,14 @@ export function Composer({ convId, members, meId, replyTo, onCancelReply, editin
           onSticker={(id) => { sendSticker(convId, id, replyTo); onCancelReply(); setTray(false); onSent(); }}
         />
       )}
-      <input ref={fileIn} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) setFile(f); }} />
-      {file && (
-        <PhotoEditor src={file} mode="post" title="Send a photo" defaultAspect="orig"
-          onCancel={() => setFile(null)}
-          onDone={(r) => { setFile(null); setImg(r); requestAnimationFrame(() => ta.current?.focus()); }} />
+      <input ref={fileIn} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { const fs = [...(e.target.files ?? [])]; e.target.value = ""; if (fs.length) setFiles(fs); }} />
+      {files && (
+        <PhotoSend files={files} title="Send photos"
+          onCancel={() => setFiles(null)}
+          onSend={(items) => {
+            setFiles(null);
+            sendImages(convId, items, replyTo).then(() => { onCancelReply(); onSent(); }, (e) => onError((e as Error).message));
+          }} />
       )}
     </div>
   );

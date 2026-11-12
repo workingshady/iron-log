@@ -3,7 +3,8 @@ import { ArrowDown, ArrowUp, ChevronRight, Clock, Dumbbell, Equal, Eye, Flame, L
 import type { AppState, Lifts, PlanItem } from "../../shared/api";
 import { useProgram } from "../lib/program";
 import { EX_GROUP } from "../../program/groups";
-import { buildPlan, targetLabel } from "../../shared/plan";
+import { targetLabel } from "../../shared/plan";
+import { previewPlan, withTarget } from "./connect/target";
 import { recommend, type RecKind } from "../../shared/recommend";
 import { warmupFor } from "../../shared/warmup";
 import { barOf, barsFrom, loadOf } from "../../shared/load";
@@ -43,13 +44,13 @@ export function WorkoutPreview({ week, dayKey, onStart, onClose }: { week: numbe
   const [how, setHow] = useState<PlanItem | null>(null);
   const wk = program.weeks.find((w) => w.n === week);
   let plan: { name: string; items: PlanItem[] } | null = null;
-  try { plan = buildPlan(program, week, dayKey); } catch { plan = null; }
+  try { plan = previewPlan(program, week, dayKey, s?.settings); } catch { plan = null; } // one-time AI override if set
   if (!plan || !wk) return null;
   const deload = /deload/i.test(wk.name);
   const bars = barsFrom(s?.settings);
   const day = [...wk.days, ...(wk.extras ?? [])].find((d) => d.key === dayKey);
   const rows = plan!.items.map((it, i) => {
-    const rec = recommend(it.ex, it, lifts?.hist ?? {}, { deload, step: it.step, bodyKg: Number(s?.settings?.bodyKg) || null });
+    const rec = withTarget(recommend(it.ex, it, lifts?.hist ?? {}, { deload, step: it.step, bodyKg: Number(s?.settings?.bodyKg) || null }), it.ex, s?.settings);
     const warm = warmupFor(plan!.items, i, rec.weightKg, barOf(it.ex, bars)).sets;
     return { it, rec, warm };
   });

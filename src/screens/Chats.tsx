@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
-import { BellOff, MessagesSquare, Search, SquarePen } from "lucide-react";
+import { BellOff, Check, CheckCheck, MessagesSquare, Search, SquarePen } from "lucide-react";
+import { PushNudge } from "../components/push/PushPrompt";
 import { PageHead } from "../components/ui";
 import { UserAvatar as Avatar } from "../components/social/UserAvatar";
 import { NewChatSheet } from "../components/chat/Sheets";
 import { useMe } from "../lib/me";
 import { cx, time12 } from "../lib/util";
-import { convTitle, otherMember, previewText, setChatMe, useChatList, type Conv } from "../lib/chat";
+import { convTitle, displayName, otherMember, previewText, setChatMe, useChatList, useListTyping, type Conv } from "../lib/chat";
 
 function shortWhen(ms: number) {
   const d = new Date(ms), now = new Date();
@@ -42,6 +43,7 @@ export default function Chats() {
   const me = useMe();
   setChatMe(me?.id);
   const { convs, loaded, error } = useChatList();
+  const typingBy = useListTyping();
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const meId = me?.id ?? "";
@@ -55,6 +57,7 @@ export default function Chats() {
     <div>
       <PageHead icon={MessagesSquare} title="Chats" sub="Talk training with your friends"
         right={<button type="button" onClick={() => setOpen(true)} aria-label="New chat" className="flex h-11 w-11 items-center justify-center rounded-full bg-acc text-acc-ink hover:brightness-105"><SquarePen size={20} aria-hidden /></button>} />
+      <PushNudge reason="Get pinged when friends message you." className="mb-3" />
       {convs.length > 3 && (
         <label className="relative mb-3 block">
           <Search size={17} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-faint" aria-hidden />
@@ -82,19 +85,34 @@ export default function Chats() {
         {shown.map((c) => {
           const unread = c.unread > 0;
           const title = convTitle(c, meId);
+          const muted = !!c.muted;
+          const typers = Object.entries(typingBy[c.id] ?? {}).filter(([u, at]) => u !== meId && at > Date.now()).map(([u]) => u);
+          const typingText = typers.length ? (c.kind === "group" ? `${typers.map((u) => displayName(c.members.find((x) => x.id === u)).split(" ")[0]).join(", ")} ${typers.length > 1 ? "are" : "is"} typing…` : "typing…") : null;
+          // my last message: ✓ sent · ✓✓ delivered (they were online after it) · ✓✓ in colour = read by everyone
+          const mineLast = c.last && c.last.senderId === meId && !c.last.deleted && c.last.kind !== "system";
+          const others = c.members.filter((u) => u.id !== meId);
+          const tick = !mineLast ? null : others.length && others.every((u) => (u.lastReadAt ?? 0) >= c.last!.createdAt) ? "read"
+            : others.length && others.every((u) => (u.lastSeenAt ?? 0) >= c.last!.createdAt) ? "delivered" : "sent";
           return (
             <li key={c.id}>
               <a href={`#/chat/${c.id}`} className="flex min-h-[72px] items-center gap-3 rounded-2xl px-2 py-2 hover:bg-card active:bg-card2"
-                aria-label={`${title}${unread ? `, ${c.unread} unread` : ""}. ${previewText(c.last, meId, c.members, c.kind === "group")}`}>
+                aria-label={`${title}${muted ? ", muted" : ""}${unread ? `, ${c.unread} unread` : ""}. ${typingText ?? `${tick ? `${tick === "read" ? "Read" : tick === "delivered" ? "Delivered" : "Sent"}: ` : ""}${previewText(c.last, meId, c.members, c.kind === "group")}`}. ${shortWhen(c.last?.createdAt ?? c.lastMessageAt)}`}>
                 <ConvAvatar c={c} me={meId} />
                 <span className="min-w-0 flex-1">
                   <span className="flex items-baseline gap-2">
-                    <span className={cx("min-w-0 flex-1 truncate", unread ? "font-bold" : "font-semibold")} dir="auto">{title}</span>
-                    <span className={cx("shrink-0 text-xs tabular-nums", unread ? "font-semibold text-acc" : "text-mute")}>{shortWhen(c.last?.createdAt ?? c.lastMessageAt)}</span>
+                    <span className={cx("min-w-0 flex-1 truncate", unread ? "font-bold" : "font-semibold", muted && "text-mute")} dir="auto">{title}</span>
+                    <span className={cx("shrink-0 text-xs tabular-nums", unread && !muted ? "font-semibold text-acc" : "text-mute")}>{shortWhen(c.last?.createdAt ?? c.lastMessageAt)}</span>
                   </span>
                   <span className="mt-0.5 flex items-center gap-2">
-                    <span className={cx("min-w-0 flex-1 truncate text-sm", unread ? "text-ink" : "text-mute")} dir="auto">{previewText(c.last, meId, c.members, c.kind === "group")}</span>
-                    {c.muted ? <BellOff size={14} className="shrink-0 text-faint" aria-label="Muted" /> : null}
+                    {typingText ? (
+                      <span className="min-w-0 flex-1 truncate text-sm font-semibold text-acc">{typingText}</span>
+                    ) : (
+                      <span className={cx("flex min-w-0 flex-1 items-center gap-1 text-sm", unread && !muted ? "text-ink" : "text-mute")}>
+                        {tick === "read" ? <CheckCheck size={15} className="shrink-0 text-info" aria-hidden /> : tick === "delivered" ? <CheckCheck size={15} className="shrink-0" aria-hidden /> : tick === "sent" ? <Check size={15} className="shrink-0" aria-hidden /> : null}
+                        <span className="min-w-0 truncate" dir="auto">{previewText(c.last, meId, c.members, c.kind === "group")}</span>
+                      </span>
+                    )}
+                    {muted ? <BellOff size={15} className="shrink-0 text-faint" aria-hidden /> : null}
                     {unread && <span className={cx("flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-bold tabular-nums", c.muted ? "bg-card3 text-ink" : "bg-acc text-acc-ink")}>{c.unread > 99 ? "99+" : c.unread}</span>}
                   </span>
                 </span>

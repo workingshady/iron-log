@@ -511,3 +511,39 @@ export const pushSubs = sqliteTable(
   },
   (t) => [index("push_user").on(t.userId)],
 );
+
+// ================================================================== AI connector / MCP (migration 0015)
+
+/** OAuth clients registered by AI apps (Claude, ChatGPT…) via Dynamic Client Registration (RFC 7591). */
+export const oauthClients = sqliteTable("oauth_clients", {
+  id: text("id").primaryKey(), // client_id
+  name: text("name"),
+  redirectUris: text("redirect_uris").notNull(), // JSON array
+  createdAt: integer("created_at").notNull(),
+  lastUsedAt: integer("last_used_at"),
+});
+
+/**
+ * Every short- or long-lived credential of the AI connector, stored only as a SHA-256 hash.
+ * kind: connect (one-time code the user makes in Account & security, 10 min) · code (OAuth authorization code, 2 min)
+ *       · access (bearer token, 1 h) · refresh (30 days, rotated on use).
+ */
+export const oauthTokens = sqliteTable(
+  "oauth_tokens",
+  {
+    id: text("id").primaryKey(), // sha-256(token)
+    kind: text("kind").notNull(),
+    userId: text("user_id").notNull(),
+    clientId: text("client_id"),
+    grantId: text("grant_id"), // one connection = one grant (revoke all its tokens at once)
+    scope: text("scope"),
+    codeChallenge: text("code_challenge"),
+    redirectUri: text("redirect_uri"),
+    label: text("label"), // "Claude" — shown in Connected AI
+    expiresAt: integer("expires_at").notNull(),
+    createdAt: integer("created_at").notNull(),
+    usedAt: integer("used_at"),
+    revokedAt: integer("revoked_at"),
+  },
+  (t) => [index("oauth_user").on(t.userId, t.kind), index("oauth_grant").on(t.grantId)],
+);

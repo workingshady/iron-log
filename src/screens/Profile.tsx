@@ -1,158 +1,178 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  AtSign, Move, CalendarRange, Camera, Check, Columns2, Dumbbell, Grid3x3, ImagePlus, KeyRound, Loader2, Menu, NotebookPen, PersonStanding, Settings, Trash2, TrendingUp, Trophy, UserRound, Wrench,
+  AtSign, Move, Camera, Check, Columns2, Flame, Grid3x3, ImagePlus, Images, KeyRound, Loader2, Menu, PersonStanding, Plus, Settings, Trash2, Trophy, UserRound,
 } from "lucide-react";
 import { get, isDev, send, track } from "../lib/api";
 import { useLoad } from "../lib/useLoad";
 import { refreshMe } from "../lib/me";
 import { cx, niceDate } from "../lib/util";
-import { Btn, Chips, Empty, NumInput, Sheet } from "../components/ui";
+import { Btn, Chips, NumInput, Sheet } from "../components/ui";
 import type { AppState } from "../../shared/api";
+import type { Post } from "../../shared/social";
 import { Avatar } from "../components/Avatar";
-import { FriendsCount } from "../components/social/Badges";
+import { useUnread } from "../components/social/Badges";
+import { BadgeRow, WeekStrip } from "../components/social/Achievements";
+import { Composer } from "../components/social/Composer";
+import { PostGrid } from "../components/social/PostGrid";
+import { localToday, sx, useFocusRefresh } from "../components/social/lib";
 import { Lightbox, NewPhotoSheet, PhotoGrid, PhotoImg, photoUrl, uploadPhoto, type PhotoMeta } from "../components/Photos";
 import { PhotoEditor, type Edited } from "../components/PhotoEditor";
+import { Training, type ProfileData } from "./UserProfile";
 
 interface Profile { id: string; username: string; name: string | null; bio: string | null; avatarId: string | null; createdAt: number; stats: { workouts: number; photos: number; prs: number; since: string | null } }
 
-const TABS = [
-  { id: "all", label: "All photos", icon: Grid3x3, kinds: null },
-  { id: "progress", label: "Progress", icon: TrendingUp, kinds: ["progress"] },
-  { id: "form", label: "Form", icon: Dumbbell, kinds: ["set", "session"] },
-  { id: "machine", label: "Machines", icon: Wrench, kinds: ["exercise"] },
-  { id: "journal", label: "Journal", icon: NotebookPen, kinds: ["journal", "other"] },
+/** Photo library filters (your own photos: progress, form, machines, journal). */
+const KINDS = [
+  { id: "all", label: "All", kinds: null },
+  { id: "progress", label: "Progress", kinds: ["progress"] },
+  { id: "form", label: "Form", kinds: ["set", "session"] },
+  { id: "machine", label: "Machines", kinds: ["exercise"] },
+  { id: "journal", label: "Journal", kinds: ["journal", "other"] },
 ] as const;
-type Tab = (typeof TABS)[number]["id"];
-
-/** Story-highlight style shortcuts (the pages you open most from here). */
-const HIGHLIGHTS = [
-  { href: "#/months", label: "Months", icon: CalendarRange },
-  { href: "#/stats", label: "PRs", icon: Trophy },
-  { href: "#/body", label: "Body", icon: PersonStanding },
-  { href: "#/journal", label: "Journal", icon: NotebookPen },
-];
+type Kind = (typeof KINDS)[number]["id"];
+type Tab = "posts" | "photos" | "prs";
 
 const since = (d: string | null) => (d ? new Date(`${d}T12:00:00`).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : null);
 
 export default function Profile() {
   const { data: me, reload: reloadMe } = useLoad<Profile>("/profile");
   const { data: photos, reload } = useLoad<PhotoMeta[]>("/photos");
-  const [tab, setTab] = useState<Tab>(() => (sessionStorage.getItem("il:ptab") as Tab) || "all");
+  const [tab, setTab] = useState<Tab>(() => (sessionStorage.getItem("il:ptab2") as Tab) || "posts");
+  const [kind, setKind] = useState<Kind>("all");
   const [open, setOpen] = useState<number | null>(null);
-  const [newFile, setNewFile] = useState<File | null>(null); // picked → editor
-  const [edited, setEdited] = useState<Edited | null>(null); // editor → caption sheet
+  const [newFile, setNewFile] = useState<File | null>(null);
+  const [edited, setEdited] = useState<Edited | null>(null);
   const [editing, setEditing] = useState(false);
   const [avatarSheet, setAvatarSheet] = useState(false);
   const [compare, setCompare] = useState(false);
+  const [compose, setCompose] = useState(false);
+  const [social, setSocial] = useState<ProfileData | null>(null);
+  const [posts, setPosts] = useState<Post[] | null>(null);
+  const { requests } = useUnread();
   const pick = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { try { sessionStorage.setItem("il:ptab", tab); } catch { /* ignore */ } }, [tab]);
+  useEffect(() => { try { sessionStorage.setItem("il:ptab2", tab); } catch { /* ignore */ } }, [tab]);
+  const loadSocial = useCallback(() => {
+    if (!me?.username) return;
+    sx<ProfileData>("GET", `/social/profile/${encodeURIComponent(me.username)}?today=${localToday()}`).then(setSocial).catch(() => {});
+    sx<{ posts: Post[] }>("GET", `/feed?limit=30&user=${encodeURIComponent(me.username)}`).then((r) => setPosts(r.posts)).catch(() => setPosts([]));
+  }, [me?.username]);
+  useEffect(loadSocial, [loadSocial]);
+  useFocusRefresh(loadSocial);
+  useEffect(() => { const on = () => loadSocial(); window.addEventListener("il:posted", on); return () => window.removeEventListener("il:posted", on); }, [loadSocial]);
+
   const all = useMemo(() => (photos ?? []).filter((p) => p.refKind !== "avatar"), [photos]);
-  const kinds = TABS.find((x) => x.id === tab)!.kinds as readonly string[] | null;
+  const kinds = KINDS.find((x) => x.id === kind)!.kinds as readonly string[] | null;
   const shown = useMemo(() => (kinds ? all.filter((p) => kinds.includes(p.refKind)) : all), [all, kinds]);
   const progress = useMemo(() => all.filter((p) => p.refKind === "progress"), [all]);
-  const refresh = () => { reload(); reloadMe(); refreshMe(); };
+  const refresh = () => { reload(); reloadMe(); refreshMe(); loadSocial(); };
 
   if (!me) return <div className="py-20 text-center text-mute" role="status">Loading profile…</div>;
+  const today = localToday();
+  const trainedToday = social?.week?.some((d) => d.date === today && (d.lift || d.cardio));
 
   return (
-    <div className="-mx-4 md:mx-auto md:max-w-2xl">
-      {/* top bar: @username · new photo · all pages · settings (Instagram order) */}
-      <header className="-mr-2 flex items-center gap-0.5 pb-3 pl-4 pr-4">
-        <h1 className="flex min-w-0 flex-1 items-center gap-1 text-xl font-bold">
+    <div className="-mx-4 overflow-x-clip md:mx-auto md:max-w-2xl">
+      <header className="flex items-center gap-0.5 pb-3 pl-4 pr-2">
+        <h1 className="flex min-w-0 flex-1 items-center gap-1.5 text-xl font-bold">
           <span className="truncate">{me.username}</span>
           {isDev() && <span className="rounded bg-warn px-1.5 text-[10px] font-bold text-black">DEV</span>}
         </h1>
-        <button type="button" onClick={() => pick.current?.click()} className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-card2" aria-label="New photo"><ImagePlus size={24} aria-hidden /></button>
+        <button type="button" onClick={() => setCompose(true)} className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-card2" aria-label="New post"><Plus size={26} aria-hidden /></button>
         <a href="#/more" className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-card2" aria-label="All pages"><Menu size={24} aria-hidden /></a>
         <a href="#/settings" className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-card2" aria-label="Settings"><Settings size={24} aria-hidden /></a>
       </header>
       <input ref={pick} type="file" accept="image/*" className="hidden" onChange={(e) => { setNewFile(e.target.files?.[0] ?? null); e.target.value = ""; }} />
 
-      {/* avatar + stats */}
-      <section className="flex items-center gap-6 px-4 md:gap-10" aria-label="Profile">
-        <button type="button" onClick={() => setAvatarSheet(true)} className="relative rounded-full focus-visible:ring-2 focus-visible:ring-acc" aria-label={me.avatarId ? "Change profile photo" : "Add profile photo"}>
-          <Avatar id={me.avatarId} name={me.name ?? me.username} size={86} ring={!!me.avatarId} />
-          <span className="absolute -bottom-0.5 -right-0.5 flex h-7 w-7 items-center justify-center rounded-full border-2 border-bg bg-acc text-acc-ink" aria-hidden><Camera size={14} /></span>
+      <section className="flex items-center gap-5 px-4 md:gap-10" aria-label="Profile">
+        <button type="button" onClick={() => setAvatarSheet(true)} className="relative shrink-0 rounded-full p-[3px] focus-visible:ring-2 focus-visible:ring-acc" style={trainedToday ? { background: "conic-gradient(var(--color-acc), var(--color-info), var(--color-acc))" } : undefined} aria-label={me.avatarId ? "Change profile photo" : "Add profile photo"}>
+          <span className="block rounded-full bg-bg p-[2px]"><Avatar id={me.avatarId} name={me.name ?? me.username} size={82} /></span>
+          <span className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-bg bg-acc text-acc-ink" aria-hidden><Camera size={14} /></span>
         </button>
-        <dl className="grid flex-1 grid-cols-3 text-center">
-          {[["Workouts", me.stats.workouts], ["PRs", me.stats.prs], ["Photos", me.stats.photos]].map(([l, v]) => (
-            <div key={l} className="flex flex-col-reverse items-center gap-0.5">
-              <dt className="text-xs text-mute">{l}</dt>
-              <dd className="text-lg font-bold leading-none num">{v}</dd>
-            </div>
-          ))}
-        </dl>
+        <div className="grid min-w-0 flex-1 grid-cols-3 text-center">
+          <Count label="posts" value={posts?.length ?? social?.counts?.posts ?? null} onClick={() => setTab("posts")} />
+          <Count label="friends" value={social?.counts?.friends ?? null} href="#/friends" dot={requests > 0} />
+          <Count label="workouts" value={me.stats.workouts} />
+        </div>
       </section>
 
-      {/* name · bio · since */}
       <div className="mt-3 px-4">
         <div className="text-[15px] font-semibold leading-tight">{me.name || me.username}</div>
         {me.bio && <p dir="auto" className="bidi mt-0.5 whitespace-pre-wrap text-sm leading-snug">{me.bio}</p>}
-        {me.stats.since && <p className="mt-0.5 text-xs text-mute">Training since {since(me.stats.since)}</p>}
-        <FriendsCount className="mt-1.5" />
+        <p className="mt-1 flex flex-wrap items-center gap-x-2.5 text-xs text-mute">
+          {!!social?.stats?.streak && <span className="inline-flex items-center gap-0.5 font-semibold text-warn"><Flame size={13} className="fill-warn" aria-hidden />{social.stats.streak}-week streak</span>}
+          {me.stats.since && <span>Since {since(me.stats.since)}</span>}
+          {requests > 0 && <a href="#/friends" className="font-semibold text-bad">{requests} friend request{requests === 1 ? "" : "s"}</a>}
+        </p>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-2 px-4">
-        <button type="button" onClick={() => setEditing(true)} className="flex h-10 items-center justify-center rounded-lg bg-card2 text-sm font-semibold hover:bg-card3 active:bg-card3">Edit profile</button>
-        <button type="button" onClick={() => pick.current?.click()} className="flex h-10 items-center justify-center gap-1.5 rounded-lg bg-card2 text-sm font-semibold hover:bg-card3 active:bg-card3"><ImagePlus size={16} aria-hidden />Add photo</button>
+      <div className="mt-3 grid grid-cols-2 gap-2 px-4">
+        <button type="button" onClick={() => setEditing(true)} className="flex h-10 items-center justify-center rounded-lg bg-card2 text-sm font-semibold hover:bg-card3">Edit profile</button>
+        <button type="button" onClick={() => setCompose(true)} className="flex h-10 items-center justify-center gap-1.5 rounded-lg bg-card2 text-sm font-semibold hover:bg-card3"><Plus size={16} aria-hidden />New post</button>
       </div>
 
-      {/* highlights */}
-      <nav aria-label="Shortcuts" className="mt-5 px-4">
-        <ul className="grid grid-cols-4 gap-2 md:flex md:gap-8">
-          {HIGHLIGHTS.map((h) => (
-            <li key={h.href} className="flex justify-center">
-              <a href={h.href} className="group flex flex-col items-center gap-1.5 rounded-xl text-xs text-ink focus-visible:ring-2 focus-visible:ring-acc">
-                <span className="rounded-full border border-line p-[3px] transition-colors group-hover:border-mute" aria-hidden>
-                  <span className="flex h-14 w-14 items-center justify-center rounded-full bg-card2"><h.icon size={22} strokeWidth={1.8} /></span>
-                </span>
-                {h.label}
-              </a>
-            </li>
+      {!!social?.badges?.length && <div className="mt-4 px-4"><BadgeRow badges={social.badges} mine /></div>}
+      {social?.week && <div className="mt-3 px-4"><WeekStrip days={social.week} today={today} /></div>}
+
+      <div role="tablist" aria-label="Profile sections" className="sticky top-0 z-10 mt-4 flex border-b border-line bg-bg">
+        {([["posts", "Posts", Grid3x3], ["photos", "Photos", Images], ["prs", "PRs", Trophy]] as const).map(([id, label, Icon]) => (
+          <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)}
+            className={cx("-mb-px flex h-12 flex-1 items-center justify-center gap-1.5 border-b-2 text-xs font-semibold", tab === id ? "border-ink text-ink" : "border-transparent text-faint hover:text-mute")}>
+            <Icon size={19} strokeWidth={tab === id ? 2.4 : 1.8} aria-hidden />{label}
+          </button>
+        ))}
+      </div>
+
+      <div role="tabpanel" className="pb-4">
+        {tab === "posts" && (posts == null ? <div aria-busy className="grid grid-cols-3 gap-0.5">{Array.from({ length: 6 }, (_, k) => <div key={k} className="aspect-[4/5] animate-pulse bg-card" />)}</div>
+          : posts.length ? <PostGrid posts={posts} onChange={setPosts} /> : (
+            <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
+              <span className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-line" aria-hidden><Camera size={28} /></span>
+              <p className="font-semibold">Share your first post</p>
+              <Btn kind="primary" icon={Plus} onClick={() => setCompose(true)}>New post</Btn>
+            </div>
           ))}
-        </ul>
-      </nav>
-
-      {/* tabs (icons, like Instagram) */}
-      <div role="tablist" aria-label="Photo types" className="sticky top-0 z-10 mt-5 flex border-b border-line bg-bg">
-        {TABS.map((x) => {
-          const on = tab === x.id;
-          const count = x.kinds ? all.filter((p) => (x.kinds as readonly string[]).includes(p.refKind)).length : all.length;
-          return (
-            <button key={x.id} role="tab" aria-selected={on} aria-controls="ptab" id={`ptab-${x.id}`} onClick={() => setTab(x.id)} title={x.label}
-              className={cx("-mb-px flex h-12 flex-1 items-center justify-center border-b-2 transition-colors", on ? "border-ink text-ink" : "border-transparent text-faint hover:text-mute")}>
-              <x.icon size={22} strokeWidth={on ? 2.4 : 1.8} aria-hidden />
-              <span className="sr-only">{x.label} ({count})</span>
-            </button>
-          );
-        })}
-      </div>
-
-      <div id="ptab" role="tabpanel" aria-labelledby={`ptab-${tab}`} className="pb-4">
-        {tab === "progress" && progress.length >= 2 && (
-          <div className="flex justify-end px-4 py-2"><Btn kind="ghost" icon={Columns2} onClick={() => setCompare(true)}>Compare first vs latest</Btn></div>
+        {tab === "photos" && (
+          <>
+            <div className="flex items-center gap-2 px-4 py-2">
+              <div className="-mx-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-1 [scrollbar-width:none]" role="radiogroup" aria-label="Photo type">
+                {KINDS.map((k) => <button key={k.id} type="button" role="radio" aria-checked={kind === k.id} onClick={() => setKind(k.id)} className={cx("min-h-9 shrink-0 rounded-full px-3 text-xs", kind === k.id ? "bg-ink font-semibold text-bg" : "bg-card text-mute")}>{k.label}</button>)}
+              </div>
+              <button type="button" onClick={() => pick.current?.click()} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-card hover:bg-card2" aria-label="Add photo"><ImagePlus size={19} aria-hidden /></button>
+            </div>
+            {kind === "progress" && progress.length >= 2 && <div className="px-4 pb-2"><Btn kind="soft" icon={Columns2} className="w-full" onClick={() => setCompare(true)}>Before / after</Btn></div>}
+            {shown.length ? <PhotoGrid photos={shown} onOpen={setOpen} /> : (
+              <div className="flex flex-col items-center gap-3 px-4 py-10 text-center text-sm text-mute">
+                <span className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-line" aria-hidden><Camera size={28} /></span>
+                {kind === "progress" ? "Same light, same pose, every 2-4 weeks." : kind === "machine" ? "Add seat / pin photos from an exercise." : kind === "form" ? "Add form photos from a set." : "No photos yet."}
+                {(kind === "all" || kind === "progress") && <Btn kind="primary" icon={ImagePlus} onClick={() => pick.current?.click()}>Add a photo</Btn>}
+              </div>
+            )}
+          </>
         )}
-        {shown.length ? (
-          <PhotoGrid photos={shown} onOpen={setOpen} />
-        ) : (
-          <div className="px-4 pt-6">
-            <Empty icon={Camera}>
-              {tab === "progress" ? "No progress photos yet. One every 2-4 weeks, same light and pose, shows change the scale misses." : tab === "machine" ? "Machine photos come from an exercise's sheet (seat / pin settings)." : tab === "form" ? "Form photos come from a set's edit sheet during a workout." : "No photos yet."}
-            </Empty>
-            {(tab === "all" || tab === "progress") && <Btn kind="primary" icon={ImagePlus} className="mx-auto mt-3 flex" onClick={() => pick.current?.click()}>Add a photo</Btn>}
-          </div>
-        )}
+        {tab === "prs" && (social ? <><Training p={social} /><div className="px-4 pt-3"><a href="#/stats" className="flex min-h-12 items-center justify-center rounded-xl bg-card text-sm font-semibold text-info">All records & stats</a></div></> : <div className="mx-4 mt-4 h-40 animate-pulse rounded-2xl bg-card" />)}
       </div>
 
       {open != null && <Lightbox items={shown} start={open} onClose={() => setOpen(null)} onChanged={refresh} />}
       {newFile && !edited && <PhotoEditor src={newFile} defaultAspect="4:5" onCancel={() => setNewFile(null)} onDone={setEdited} />}
-      <NewPhotoSheet file={edited} onBack={() => setEdited(null)} onClose={() => { setEdited(null); setNewFile(null); }} onDone={() => { setEdited(null); setNewFile(null); setTab((t) => (t === "all" ? t : "progress")); refresh(); }} />
+      <NewPhotoSheet file={edited} onBack={() => setEdited(null)} onClose={() => { setEdited(null); setNewFile(null); }} onDone={() => { setEdited(null); setNewFile(null); refresh(); }} />
       {editing && <EditProfile me={me} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); refresh(); }} onPhoto={() => setAvatarSheet(true)} />}
       {avatarSheet && <AvatarSheet me={me} photos={all} onClose={() => setAvatarSheet(false)} onDone={() => { setAvatarSheet(false); refresh(); }} />}
       {compare && <CompareSheet photos={progress} onClose={() => setCompare(false)} />}
+      <Composer open={compose} onClose={() => setCompose(false)} onPosted={() => { setCompose(false); setTab("posts"); }} />
     </div>
   );
+}
+
+function Count({ label, value, href, onClick, dot }: { label: string; value: number | null; href?: string; onClick?: () => void; dot?: boolean }) {
+  const inner = (
+    <>
+      <span className="relative text-lg font-bold leading-none num">{value ?? "–"}{dot && <span className="absolute -right-2 top-0 h-2 w-2 rounded-full bg-bad" aria-label="new requests" />}</span>
+      <span className="text-xs text-mute">{label}</span>
+    </>
+  );
+  const cls = "flex min-h-11 flex-col items-center justify-center gap-1 rounded-xl hover:bg-card";
+  return <div>{href ? <a href={href} className={cls}>{inner}</a> : onClick ? <button type="button" onClick={onClick} className={cx(cls, "w-full")}>{inner}</button> : <div className={cls}>{inner}</div>}</div>;
 }
 
 // ---------------------------------------------------------------- edit profile

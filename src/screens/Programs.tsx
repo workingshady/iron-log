@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Check, ChevronRight, Copy, Dumbbell, Home as HomeIcon, ListChecks, Pencil, Play, RotateCcw, ShieldCheck, Sparkles, Trash2, User } from "lucide-react";
+import { Check, ChevronRight, Copy, Dumbbell, History, Home as HomeIcon, ListChecks, Pencil, Play, RotateCcw, ShieldCheck, Sparkles, Trash2, User } from "lucide-react";
 import { CURRENT } from "../../program";
 import type { Group } from "../../program/groups";
 import { rankTemplates, templateById, type Answers, type EquipLevel, type Goal, type Level, type Scored } from "../../program/templates";
@@ -10,6 +10,7 @@ import { go } from "../nav";
 import { cx } from "../lib/util";
 import { Badge, Btn, Card, Chips, Label, PageHead, SectionHead, Sheet } from "../components/ui";
 import { DesignPreview, VolumeBars } from "../components/program/PlanBits";
+import VersionHistory from "../components/connect/VersionHistory";
 
 interface PlanRow { id: string; name: string; template: string | null; active: boolean; days: number; version: string; minutes: number | null; dayNames: string[]; updatedAt: number }
 interface Mine { activeId: string | null; default: { id: string; name: string; version: string; days: number }; plans: PlanRow[] }
@@ -31,6 +32,7 @@ export default function Programs() {
   const [use, setUse] = useState<string | null>(null);
   const [done, setDone] = useState<{ id: string; name: string; active: boolean } | null>(null);
   const [manage, setManage] = useState<PlanRow | "default" | null>(null);
+  const [history, setHistory] = useState<string | null>(null);
   const setAns = (a: Partial<Answers>) => {
     const n = { ...ans, ...a };
     setAnsState(n);
@@ -52,6 +54,7 @@ export default function Programs() {
           <span className="block truncate font-semibold">{program.name}</span>
           <span className="block text-xs text-mute num">{program.order.length} days/week · v{program.version}{onDefault ? " · default plan" : ""}</span>
         </span>
+        {activeRow && <Btn kind="ghost" icon={History} onClick={() => setHistory(activeRow.id)} label="Version history" />}
         {activeRow && <Btn kind="soft" icon={Pencil} onClick={() => go(`/program/${activeRow.id}`)}>Edit</Btn>}
       </Card>
 
@@ -118,7 +121,8 @@ export default function Programs() {
       <PreviewSheet id={preview} onClose={() => setPreview(null)} onUse={(id) => { setPreview(null); setUse(id); }} />
       <UseSheet id={use} onDefault={onDefault} currentName={program.name} onClose={() => setUse(null)} onDone={(d) => { setUse(null); setDone(d); reload(); }} />
       <DoneSheet done={done} onClose={() => setDone(null)} />
-      <ManageSheet row={manage} onDefault={onDefault} onClose={() => setManage(null)} onChanged={() => { setManage(null); reload(); }} />
+      <ManageSheet row={manage} onDefault={onDefault} onClose={() => setManage(null)} onChanged={() => { setManage(null); reload(); }} onHistory={(id) => { setManage(null); setHistory(id); }} />
+      <VersionHistory programId={history} open={!!history} onClose={() => setHistory(null)} onRestored={reload} />
     </div>
   );
 }
@@ -230,7 +234,7 @@ function DoneSheet({ done, onClose }: { done: { id: string; name: string; active
   );
 }
 
-function ManageSheet({ row, onDefault, onClose, onChanged }: { row: PlanRow | "default" | null; onDefault: boolean; onClose: () => void; onChanged: () => void }) {
+function ManageSheet({ row, onDefault, onClose, onChanged, onHistory }: { row: PlanRow | "default" | null; onDefault: boolean; onClose: () => void; onChanged: () => void; onHistory: (id: string) => void }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [sure, setSure] = useState(false);
@@ -274,6 +278,7 @@ function ManageSheet({ row, onDefault, onClose, onChanged }: { row: PlanRow | "d
               <Btn kind="danger" stack icon={Trash2} disabled={busy} onClick={() => setSure(true)}>Delete</Btn>
             </div>
           )}
+          {r && <Btn kind="ghost" icon={History} className="mt-2 w-full" onClick={() => onHistory(r.id)}>Version history</Btn>}
           {r && sure && (
             <div role="alert" className="mt-3 rounded-xl border border-bad/40 bg-bad/10 p-3">
               <p className="text-sm">Delete <b>{r.name}</b>? Your logged workouts stay.{r.active ? " You'll go back to the default plan." : ""}</p>

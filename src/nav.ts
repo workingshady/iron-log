@@ -1,5 +1,5 @@
 import {
-  BarChart3, Bell, CalendarRange, BookOpen, CalendarDays, FlaskConical, Footprints, HandFist, History, House, LayoutGrid, Library, ListChecks, LockKeyhole, MessagesSquare, NotebookPen, PersonStanding, Settings, Shield, Target, Trophy, UserRound, Users, Newspaper,
+  BarChart3, Bell, Gauge, CalendarRange, BookOpen, CalendarDays, FlaskConical, Footprints, HandFist, History, House, LayoutGrid, Library, ListChecks, LockKeyhole, MessagesSquare, NotebookPen, PersonStanding, Settings, Shield, Target, Trophy, UserRound, Users, Newspaper,
   type LucideIcon,
 } from "lucide-react";
 
@@ -15,6 +15,8 @@ export interface NavItem {
   group?: NavGroup;
   /** Icon colour, only when the page owns a meaning colour (vio = creatine, info = cardio/learn). */
   tone?: "info" | "vio" | "warn";
+  /** Only shown to the owner (role "owner"). */
+  ownerOnly?: boolean;
 }
 
 /**
@@ -61,6 +63,7 @@ export const MORE: NavItem[] = [
   { path: "/learn", label: "Learn", icon: BookOpen, tone: "info", group: "learn", sub: "Terms, warm-up, levels, what-if, nutrition" },
   { path: "/settings", label: "Settings", icon: Settings, group: "app", sub: "Schedule, targets, export, reset" },
   { path: "/privacy", label: "Privacy", icon: Shield, group: "app", sub: "What friends can see" },
+  { path: "/admin", label: "Admin", icon: Gauge, group: "app", ownerOnly: true, sub: "Users, activity, usage, insights (owner only)" },
   { path: "/security", label: "Account & security", icon: LockKeyhole, group: "app", sub: "Passcode, Google sign-in, invites" },
 ];
 
@@ -69,4 +72,4 @@ export const MORE_TAB: NavItem = { path: "/more", label: "More", icon: LayoutGri
 export const YOU_TAB: NavItem = { path: "/profile", label: "You", icon: UserRound, sub: "" };
 
 /** MORE split into labelled sections (empty sections dropped). */
-export const moreGroups = () => GROUPS.map((g) => ({ ...g, items: MORE.filter((m) => m.group === g.id) })).filter((g) => g.items.length);
+export const moreGroups = (role?: string) => GROUPS.map((g) => ({ ...g, items: MORE.filter((m) => m.group === g.id && (!m.ownerOnly || role === "owner")) })).filter((g) => g.items.length);

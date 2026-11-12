@@ -142,7 +142,7 @@ async function loadAudio(src: string): Promise<{ url: string; peaks: number[] }>
   return { url, peaks };
 }
 
-export function VoicePlayer({ src, durationMs, peaks: given, mine }: { src: string; durationMs: number; peaks?: number[]; mine?: boolean }) {
+export function VoicePlayer({ src, durationMs, peaks: given, mine, label = "voice message" }: { src: string; durationMs: number; peaks?: number[]; mine?: boolean; label?: string }) {
   const [peaks, setPeaks] = useState<number[] | null>(given ?? peakCache.get(src) ?? null);
   const [st, setSt] = useState<"idle" | "loading" | "playing" | "paused" | "error">("idle");
   const [pos, setPos] = useState(0);
@@ -206,16 +206,20 @@ export function VoicePlayer({ src, durationMs, peaks: given, mine }: { src: stri
 
   return (
     <span ref={box} className="flex w-[min(15rem,62vw)] items-center gap-2 py-0.5">
-      <button type="button" onClick={toggle} aria-label={playing ? "Pause voice message" : "Play voice message"}
+      <button type="button" onClick={toggle} aria-label={`${playing ? "Pause" : "Play"} ${label}, ${fmt(dur)}`}
         className={cx("flex h-11 w-11 shrink-0 items-center justify-center rounded-full", mine ? "bg-black/15" : "bg-white/10")}>
         {st === "loading" ? <Loader2 size={20} className="animate-spin" aria-hidden /> : playing ? <Pause size={20} fill="currentColor" aria-hidden /> : <Play size={20} fill="currentColor" className="translate-x-px" aria-hidden />}
       </button>
       <span className="min-w-0 flex-1">
         <span
-          role="slider" tabIndex={0} aria-label="Voice message position" aria-valuemin={0} aria-valuemax={Math.round(dur / 1000)} aria-valuenow={Math.round(pos / 1000)} aria-valuetext={`${fmt(pos)} of ${fmt(dur)}`}
+          role="slider" tabIndex={0} aria-label={`Position in ${label}`} aria-valuemin={0} aria-valuemax={Math.round(dur / 1000)} aria-valuenow={Math.round(pos / 1000)} aria-valuetext={`${fmt(pos)} of ${fmt(dur)}`}
           className="block cursor-pointer touch-none"
           onPointerDown={(e) => { const r = e.currentTarget.getBoundingClientRect(); void seek((e.clientX - r.left) / r.width); }}
-          onKeyDown={(e) => { if (e.key === "ArrowRight" || e.key === "ArrowLeft") { e.preventDefault(); void seek((pos + (e.key === "ArrowRight" ? 5000 : -5000)) / dur); } }}
+          onKeyDown={(e) => {
+            const to = e.key === "ArrowRight" || e.key === "ArrowUp" ? pos + 5000 : e.key === "ArrowLeft" || e.key === "ArrowDown" ? pos - 5000 : e.key === "Home" ? 0 : e.key === "End" ? dur - 100 : null;
+            if (to !== null) { e.preventDefault(); e.stopPropagation(); void seek(to / dur); }
+            if (e.key === " " || e.key === "Enter") { e.preventDefault(); e.stopPropagation(); void toggle(); }
+          }}
         >
           <Bars bars={peaks ?? Array(BARS).fill(0.12)} progress={progress} />
         </span>
@@ -223,7 +227,7 @@ export function VoicePlayer({ src, durationMs, peaks: given, mine }: { src: stri
           <span>{st === "error" ? "Can't play" : fmt(playing || pos ? pos : dur)}</span>
         </span>
       </span>
-      <button type="button" onClick={cycle} aria-label={`Playback speed ${rate}×`}
+      <button type="button" onClick={cycle} aria-label={`Playback speed ${rate} times. Change speed`}
         className={cx("flex h-11 min-w-11 shrink-0 items-center justify-center rounded-full text-xs font-bold tabular-nums", mine ? "bg-black/10" : "bg-white/10")}>
         {rate}×
       </button>

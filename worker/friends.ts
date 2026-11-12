@@ -4,6 +4,9 @@ import { and, eq, inArray, or, sql } from "drizzle-orm";
 import * as t from "./db/schema";
 import type { RawDB } from "./db";
 import { mergePrivacy, type Privacy, type Relation, type UserLite } from "../shared/social";
+import { env as cfEnv, waitUntil } from "cloudflare:workers";
+import { later, pushForNotification } from "./push";
+import type { Env } from "./env";
 
 export const ID_RE = /^[\w.-]{2,64}$/;
 
@@ -73,7 +76,9 @@ export async function lite(raw: RawDB, ids: string[]): Promise<Map<string, UserL
 /** In-app notification. Pass a deterministic `id` to make it idempotent (e.g. one "like" per post per person). */
 export async function notify(raw: RawDB, n: { userId: string; kind: string; actorId?: string | null; refId?: string | null; id?: string }) {
   if (n.actorId && n.actorId === n.userId) return; // never notify yourself
-  await raw.insert(t.notifications).values({
+  const fresh = await raw.insert(t.notifications).values({
     id: n.id ?? `n-${crypto.randomUUID()}`, userId: n.userId, kind: n.kind, actorId: n.actorId ?? null, refId: n.refId ?? null, createdAt: Date.now(), readAt: null,
-  }).onConflictDoNothing();
+  }).onConflictDoNothing().returning({ id: t.notifications.id });
+  // phone push (prefs + quiet hours checked inside), only for a NEW row (re-like spam stays silent), after the response
+  if (fresh.length) later(pushForNotification(raw, cfEnv as unknown as Env["Bindings"], n), waitUntil);
 }

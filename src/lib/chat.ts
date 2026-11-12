@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { cache, isDev, Unauthorized, uid } from "./api";
+import { refreshBadges } from "./badges";
 
 // Chat client: one store per conversation + the chat list + the unread badge.
 //
@@ -10,7 +11,8 @@ import { cache, isDev, Unauthorized, uid } from "./api";
 //     polls every 5 s, so chat keeps working even where WebSockets are blocked.
 //   • Sends are optimistic: the bubble appears at once (clock icon), an outbox retries until the server stores it
 //     (client-generated id → retries never duplicate), and a send the server refuses is marked failed with Retry.
-//     Text + sticker sends survive an app restart (localStorage); photo / voice uploads are kept in memory only.
+//     Text + sticker sends survive an app restart (localStorage); photo / voice uploads are kept in memory only, so they
+//     keep going while you move around the app (the outbox is module-level), with per-message upload progress (XHR).
 //   • Every incoming message is de-duplicated by id.
 
 // ---------------------------------------------------------------- types (mirror worker/routes/chat.ts)
@@ -60,6 +62,40 @@ async function call<T>(method: string, url: string, body?: unknown): Promise<T> 
   return r.json() as Promise<T>;
 }
 export const chatApi = call;
+
+/** POST JSON with upload progress (fetch can't report it). Throws like call(): Unauthorized / HttpError / TypeError (network). */
+function postWithProgress<T>(url: string, body: unknown, onProgress: (f: number) => void): Promise<T> {
+  return new Promise((res, rej) => {
+    const x = new XMLHttpRequest();
+    x.open("POST", `/api${url}`);
+    x.withCredentials = true;
+    x.timeout = 120_000;
+    x.setRequestHeader("content-type", "application/json");
+    x.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(e.loaded / e.total); };
+    x.onload = () => {
+      if (x.status === 401) return rej(new Unauthorized());
+      let j: unknown = null;
+      try { j = JSON.parse(x.responseText); } catch { /* not json */ }
+      if (x.status < 200 || x.status >= 300) return rej(new HttpError((j as { error?: string } | null)?.error ?? x.statusText, x.status));
+      res(j as T);
+    };
+    x.onerror = () => rej(new TypeError("network"));
+    x.ontimeout = () => rej(new TypeError("timeout"));
+    x.send(JSON.stringify(body));
+  });
+}
+
+// ---------------------------------------------------------------- upload progress per message id (0..1). Kept outside the room
+// store so a progress tick re-renders only the bubble that shows it.
+const progress = new Map<string, number>();
+const progressSubs = new Set<() => void>();
+function setProgress(id: string, f: number | null) {
+  if (f === null) progress.delete(id); else progress.set(id, f);
+  progressSubs.forEach((s) => s());
+}
+export function useUploadProgress(id: string): number | null {
+  return useSyncExternalStore((f) => { progressSubs.add(f); return () => void progressSubs.delete(f); }, () => progress.get(id) ?? null);
+}
 
 // ---------------------------------------------------------------- live socket with reconnect + heartbeat
 
@@ -167,9 +203,9 @@ function setRoom(id: string, f: (r: Room) => Partial<Room>) {
   }, 600));
 }
 
-const ord = (m: Msg) => (m.status ? Number.MAX_SAFE_INTEGER - 1e9 + m.createdAt / 1e4 : m.createdAt);
+// unsent (pending / failed) messages stay after everything the server has, in the order they were written
 function sortMsgs(a: Msg[]) {
-  return a.sort((x, y) => ord(x) - ord(y) || (x.id < y.id ? -1 : x.id > y.id ? 1 : 0));
+  return a.sort((x, y) => (x.status ? 1 : 0) - (y.status ? 1 : 0) || x.createdAt - y.createdAt || (x.id < y.id ? -1 : x.id > y.id ? 1 : 0));
 }
 /** Merge server messages into the list (dedupe by id; server wins, local previews are kept). */
 function merge(list: Msg[], incoming: Msg[]): Msg[] {
@@ -214,15 +250,21 @@ export async function flushOutbox() {
       try {
         if (j.upload && !j.upload.done) {
           const u = j.upload;
-          await call("POST", `/chat/${j.convId}/media`, { id: j.body.mediaId, kind: u.kind, dataUrl: u.dataUrl, thumbUrl: u.thumbUrl, w: u.w, h: u.h, durationMs: u.durationMs });
+          setProgress(j.id, 0);
+          let last = 0;
+          await postWithProgress(`/chat/${j.convId}/media`, { id: j.body.mediaId, kind: u.kind, dataUrl: u.dataUrl, thumbUrl: u.thumbUrl, w: u.w, h: u.h, durationMs: u.durationMs },
+            (f) => { if (f - last > 0.04) { last = f; setProgress(j.id, Math.min(0.95, f)); } });
           u.done = true;
+          setProgress(j.id, 1);
         }
         const saved = await call<Msg>("POST", `/chat/${j.convId}/messages`, j.body);
         jobs = jobs.filter((x) => x !== j);
         saveJobs();
+        setProgress(j.id, null);
         setRoom(j.convId, (r) => ({ msgs: merge(r.msgs.filter((m) => m.id !== j.id), [{ ...saved, local: j.optimistic.local }]) }));
         bumpList(saved);
       } catch (e) {
+        if (j.upload && !j.upload.done) setProgress(j.id, null);
         if (e instanceof Unauthorized || e instanceof TypeError) break; // offline / logged out → later
         const status = e instanceof HttpError ? e.status : 0;
         j.tries++;
@@ -298,11 +340,17 @@ async function bubbleThumb(dataUrl: string, max = 480): Promise<string> {
   return out;
 }
 
-export async function sendImage(convId: string, ed: { dataUrl: string; w: number; h: number }, caption: string, replyTo?: Msg | null) {
+export async function sendImage(convId: string, ed: { dataUrl: string; w: number; h: number }, caption: string, replyTo?: Msg | null, at?: number) {
   const thumbUrl = await bubbleThumb(ed.dataUrl);
   const mediaId = uid();
-  const m = optimistic(convId, { kind: "image", text: caption.trim() || null, mediaId, media: { w: ed.w, h: ed.h, mime: "image/jpeg", durationMs: null }, local: { previewUrl: thumbUrl } }, replyTo);
+  const m = optimistic(convId, { kind: "image", text: caption.trim() || null, mediaId, media: { w: ed.w, h: ed.h, mime: "image/jpeg", durationMs: null }, local: { previewUrl: thumbUrl }, ...(at ? { createdAt: at } : {}) }, replyTo);
   enqueue(convId, { id: m.id, kind: "image", mediaId, text: m.text, replyToId: m.replyToId }, m, { kind: "image", dataUrl: ed.dataUrl, thumbUrl, w: ed.w, h: ed.h });
+}
+
+/** Several photos at once (max 10): one message each, in order (only the first quotes the reply). The room shows a run of them as an album. */
+export async function sendImages(convId: string, items: { dataUrl: string; w: number; h: number; caption: string }[], replyTo?: Msg | null) {
+  const t0 = Date.now();
+  for (let i = 0; i < items.length && i < 10; i++) await sendImage(convId, items[i], items[i].caption, i === 0 ? replyTo : null, t0 + i);
 }
 
 const blobToDataUrl = (b: Blob) => new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(r.error); r.readAsDataURL(b); });
@@ -362,6 +410,7 @@ export function markRead(convId: string) {
     setList((l) => ({ convs: l.convs.map((c) => (c.id === convId ? { ...c, unread: 0, myLastReadAt: at } : c)) }));
     try { await call("POST", `/chat/${convId}/read`, { at }); } catch { /* next time */ }
     void refreshUnread();
+    refreshBadges(); // the bottom-nav badge updates now, not at its next 60 s poll
   }, 400);
 }
 
@@ -569,8 +618,25 @@ let inbox: Live | null = null;
 let inboxRefs = 0;
 let inboxTimer: ReturnType<typeof setTimeout> | undefined;
 let inboxPoll: ReturnType<typeof setInterval> | undefined;
+// "typing…" per conversation for the chat list (the room object relays typing to every member's inbox)
+let listTyping: Record<string, Record<string, number>> = {};
+const listTypingSubs = new Set<() => void>();
+function setListTyping(convId: string, by: string, on: boolean) {
+  const cur = { ...(listTyping[convId] ?? {}) };
+  if (on) cur[by] = Date.now() + 6000; else delete cur[by];
+  listTyping = { ...listTyping, [convId]: cur };
+  listTypingSubs.forEach((s) => s());
+  if (on) setTimeout(() => { if ((listTyping[convId]?.[by] ?? Infinity) <= Date.now()) setListTyping(convId, by, false); }, 6100);
+}
+/** convId → { userId: expires at } of people typing right now (chat list). */
+export function useListTyping() {
+  return useSyncExternalStore((f) => { listTypingSubs.add(f); return () => void listTypingSubs.delete(f); }, () => listTyping);
+}
+
 function inboxEvent(e: Record<string, unknown>) {
   if (e.t !== "conv") return;
+  if (e.ev === "typing") { if (e.by !== myId) setListTyping(e.convId as string, e.by as string, !!e.on); return; }
+  if (e.ev === "msg" && e.msg) { const m = e.msg as Msg; if (listTyping[m.convId]?.[m.senderId]) setListTyping(m.convId, m.senderId, false); }
   if (e.msg) bumpList(e.msg as Msg);
   clearTimeout(inboxTimer);
   inboxTimer = setTimeout(() => { if (listSubs.size) void refreshList(); void refreshUnread(); }, 250);

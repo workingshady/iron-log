@@ -11,6 +11,10 @@ import { chatRoutes, seedChat } from "./routes/chat";
 import { programRoutes, seedPrograms } from "./routes/programs";
 import { seedRich } from "./devseed-rich";
 import { pushRoutes } from "./routes/push";
+import { adminRoutes } from "./routes/admin";
+import { mcpRoutes } from "./routes/mcp";
+import { connectRoutes } from "./routes/connect";
+import { takeOverride } from "./mcp/override";
 import { PASS_RE, USERNAME_RE, checkPass, hashPass, login, reissue, requireAuth, setup } from "./auth";
 import { CURRENT, EXERCISES, programVersionId } from "../program";
 import { buildPlan } from "../shared/plan";
@@ -166,6 +170,8 @@ app.route("/", socialRoutes);
 app.route("/", chatRoutes);
 app.route("/", programRoutes);
 app.route("/", pushRoutes);
+app.route("/", adminRoutes);
+app.route("/", connectRoutes);
 
 /** DEV mode only: fill the test database with ~3 weeks of realistic dummy training. */
 app.post("/dev/seed", async (c) => {
@@ -239,7 +245,7 @@ app.post("/sessions", async (c) => {
   const b = await c.req.json<{ id: string; week: number; dayKey: string; kind: Session["kind"]; date: string; tz: string; readiness?: object; startedAt: number }>();
   const d = db(c);
   const pv = await ensureVersion(d);
-  const plan = buildPlan(d.prog, b.week, b.dayKey);
+  const plan = (await takeOverride(d, b.week, b.dayKey, b.kind)) ?? buildPlan(d.prog, b.week, b.dayKey); // one-time AI override (worker/mcp/override.ts)
   const blk = await activeBlock(d, b.date);
   await d.insert(t.sessions).values({
     id: b.id, programVersionId: pv, blockId: blk.id, week: b.week, dayKey: b.dayKey, dayName: plan.name, status: "active", kind: b.kind,
@@ -426,7 +432,11 @@ app.get("/last/:exKey", async (c) => {
   return c.json({ date: rows[0].date, sets: rows.filter((r) => r.s.sessionId === sid).map((r) => r.s).reverse() });
 });
 
-app.get("/exercises", (c) => c.json(Object.values(EXERCISES).map((e) => ({ key: e.key, name: e.name, metric: e.metric }))));
+app.get("/exercises", (c) => {
+  // custom exercises ("c-…") are registered isolate-wide; list only the caller's own
+  const mine = new Set(((c.var.prog as { custom?: { key: string }[] } | undefined)?.custom ?? []).map((x) => x.key));
+  return c.json(Object.values(EXERCISES).filter((e) => !e.key.startsWith("c-") || mine.has(e.key)).map((e) => ({ key: e.key, name: e.name, metric: e.metric })));
+});
 
 // ---------------------------------------------------------------- sets & events
 
@@ -1057,5 +1067,9 @@ app.onError((err, c) => {
   return c.json({ error: err.message }, 500);
 });
 
-export default app;
+/** /api/* → the app API (cookie auth). Everything else the Worker sees (/mcp, /oauth/*, /.well-known/oauth-*) → AI connector (bearer tokens). */
+export default {
+  fetch: (req: Request, env: Env["Bindings"], ctx: ExecutionContext) =>
+    (new URL(req.url).pathname.startsWith("/api/") ? app : mcpRoutes).fetch(req, env, ctx),
+} satisfies ExportedHandler<Env["Bindings"]>;
 export { ChatRoom } from "./chat";

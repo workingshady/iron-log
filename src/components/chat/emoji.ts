@@ -47,32 +47,93 @@ export const EMOJI_CATS: EmojiCat[] = RAW.map((c) => ({
   items: c.list.split("|").map((s) => { const i = s.indexOf(" "); return { e: s.slice(0, i), n: s.slice(i + 1) }; }),
 }));
 
+// A few Egyptian / MSA Arabic keywords so search works in both languages (normalised: no diacritics, أ/إ/آ → ا, ة → ه, ى → ي).
+const AR: Record<string, string> = {
+  "❤️": "قلب حب", "😍": "حب حلو جميل", "🥰": "حب", "😂": "ضحك هههه", "🤣": "ضحك هههه", "😊": "ابتسامه مبسوط", "😀": "ابتسامه فرحان",
+  "😢": "حزين بكاء زعلان", "😭": "بكاء عياط", "😡": "غضب زعلان", "😮": "واو", "😱": "خوف", "🤔": "تفكير", "😴": "نوم نايم", "🥱": "تعبان نوم",
+  "🔥": "نار جامد", "💪": "عضلات قوه بطل", "👍": "تمام موافق لايك", "👎": "مش عاجبني", "👏": "تصفيق برافو", "🙏": "شكرا لو سمحت دعاء",
+  "🤲": "دعاء", "👋": "سلام اهلا", "🤝": "اتفاق", "✌️": "سلام", "💯": "مية بالمية", "🎉": "مبروك احتفال", "🥳": "مبروك احتفال",
+  "🏋️": "جيم حديد تمرين", "🏋️‍♂️": "جيم حديد تمرين", "🦵": "رجل رجلين ليج", "🏃": "جري كارديو", "⚽": "كوره", "🏆": "كاس فوز بطوله",
+  "🥇": "دهب ذهب الاول", "🍗": "فراخ بروتين", "🥚": "بيض", "🍚": "رز", "🍌": "موز", "🥤": "شيك بروتين", "💧": "مايه مياه", "☕": "قهوه",
+  "🍵": "شاي", "🍕": "بيتزا", "🌙": "قمر ليل رمضان", "🕌": "مسجد جامع", "🇪🇬": "مصر", "✅": "تم خلاص", "❌": "لا غلط", "⏱️": "وقت راحه",
+  "😎": "روش", "🐐": "معلم اسطوره", "🦍": "وحش", "🚀": "صاروخ", "💤": "نوم", "🤕": "اصابه وجع", "🩹": "اصابه", "🧊": "تلج",
+};
+export const normAr = (s: string) => s.toLowerCase().replace(/[ً-ْـ]/g, "").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي");
+
 const ALL: Emoji[] = (() => {
   const seen = new Set<string>();
   const out: Emoji[] = [];
-  for (const c of EMOJI_CATS) for (const x of c.items) if (!seen.has(x.e)) { seen.add(x.e); out.push(x); }
+  for (const c of EMOJI_CATS) for (const x of c.items) if (!seen.has(x.e)) { seen.add(x.e); out.push(AR[x.e] ? { e: x.e, n: `${x.n} ${normAr(AR[x.e])}` } : x); }
   return out;
 })();
 export const emojiCount = ALL.length;
 
-export function searchEmoji(q: string): Emoji[] {
-  const s = q.trim().toLowerCase();
+/** Name / keyword search (English + Arabic). Word-start matches rank first. */
+export function searchEmoji(q: string, limit = 80): Emoji[] {
+  const s = normAr(q.trim());
   if (!s) return [];
   const words = s.split(/\s+/);
-  return ALL.filter((x) => words.every((w) => x.n.split(" ").some((n) => n.startsWith(w)) || x.n.includes(w))).slice(0, 80);
+  const scored: [Emoji, number][] = [];
+  for (const x of ALL) {
+    const names = x.n.split(" ");
+    let score = 0;
+    for (const w of words) {
+      if (names[0] === w) score += 3;
+      else if (names.some((n) => n.startsWith(w))) score += 2;
+      else if (x.n.includes(w)) score += 1;
+      else { score = -1; break; }
+    }
+    if (score > 0) scored.push([x, score]);
+  }
+  return scored.sort((a, b) => b[1] - a[1]).slice(0, limit).map(([x]) => x);
+}
+const TWO = new Set(["red", "orange", "yellow", "green", "blue", "purple", "black", "white", "brown", "broken", "heart", "thumbs", "raised", "smiling", "face", "flexed", "party", "sweat", "slightly", "upside", "star", "hand", "folded", "crossed", "point", "check", "cross", "lightning", "weight", "leg", "gold", "silver", "bronze", "mind", "open", "sad", "rolling", "sparkling", "two", "growing", "beating", "revolving", "high", "fist", "ok", "victory", "call", "love", "heart", "rock", "clapping", "rising", "see", "hear", "speak", "eye"]);
+/** Readable name for screen readers ("red heart"). */
+export function emojiName(e: string): string {
+  const x = ALL.find((a) => a.e === e || a.e === stripTone(e));
+  if (!x) return e;
+  const w = x.n.split(" ").filter((s) => /^[a-z]/.test(s));
+  return TWO.has(w[0]) ? w.slice(0, 2).join(" ") : w[0];
 }
 
 const RKEY = "il_chat_emoji_recent";
 export function recentEmoji(): string[] {
-  try { return (JSON.parse(localStorage.getItem(RKEY) ?? "[]") as string[]).slice(0, 24); } catch { return []; }
+  try { return (JSON.parse(localStorage.getItem(RKEY) ?? "[]") as string[]).slice(0, 32); } catch { return []; }
 }
 export function pushRecent(e: string) {
-  const next = [e, ...recentEmoji().filter((x) => x !== e)].slice(0, 24);
+  const next = [e, ...recentEmoji().filter((x) => x !== e)].slice(0, 32);
   try { localStorage.setItem(RKEY, JSON.stringify(next)); } catch { /* ignore */ }
 }
 
-/** Quick reactions (long-press bar). */
-export const QUICK = ["❤️", "😂", "🔥", "💪", "😮", "😢", "👍"];
+// ---------------------------------------------------------------- skin tones (Fitzpatrick modifiers, one choice remembered)
+
+export const TONES: { id: number; mod: string; label: string; swatch: string }[] = [
+  { id: 0, mod: "", label: "Default", swatch: "#ffcc4d" },
+  { id: 1, mod: "\u{1F3FB}", label: "Light", swatch: "#f7dece" },
+  { id: 2, mod: "\u{1F3FC}", label: "Medium-light", swatch: "#f3d2a2" },
+  { id: 3, mod: "\u{1F3FD}", label: "Medium", swatch: "#d5ab88" },
+  { id: 4, mod: "\u{1F3FE}", label: "Medium-dark", swatch: "#af7e57" },
+  { id: 5, mod: "\u{1F3FF}", label: "Dark", swatch: "#7c533e" },
+];
+// base characters that take a skin tone (hands, people, sports in this set)
+const TONEABLE = new Set([..."💪🦵🦶🏋🤸🧘🏃🚴🏊⛹👋🤚✋🖐👌🤌🤏✌🤞🫰🤟🤘🤙👈👉👆👇☝👍👎✊👊🤛🤜👏🙌🫶👐🤲🙏✍💅🤳👶🧒👦👧🧑👨👩🧔👴👵🙋🙆🙅🤷🤦🙇💁🧏🕺💃🚶🧍🧎"].map((c) => c.codePointAt(0)!));
+const TKEY = "il_chat_skin_tone";
+export const getTone = () => { try { return Math.max(0, Math.min(5, Number(localStorage.getItem(TKEY)) || 0)); } catch { return 0; } };
+export const saveTone = (t: number) => { try { localStorage.setItem(TKEY, String(t)); } catch { /* ignore */ } };
+export const stripTone = (e: string) => e.replace(/[\u{1F3FB}-\u{1F3FF}]/gu, "");
+/** "👍" + tone 3 → "👍🏽"; "🏋️‍♀️" → "🏋🏽‍♀️" (the variation selector after the base is dropped, per Unicode). */
+export function withTone(e: string, tone: number): string {
+  if (!tone) return e;
+  const cp = e.codePointAt(0)!;
+  if (!TONEABLE.has(cp)) return e;
+  const base = String.fromCodePoint(cp);
+  const rest = e.slice(base.length).replace(/^️/, "");
+  return base + TONES[tone].mod + rest;
+}
+export const toneable = (e: string) => TONEABLE.has(e.codePointAt(0)!);
+
+/** Quick reactions: the bar on hover / long-press / the React button (6 + "more"). */
+export const QUICK = ["❤️", "😂", "🔥", "💪", "😮", "👍"];
 
 /** True when a text is only 1-3 emoji (shown big, like WhatsApp / iMessage). */
 export function bigEmoji(text: string | null | undefined): number {

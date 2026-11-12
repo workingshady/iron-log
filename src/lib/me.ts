@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { get } from "./api";
 
 /** The logged-in person (from /api/me), shared by the avatar buttons, Home greeting and Profile. */
-export interface Me { id: string; username: string; name: string | null; avatarId: string | null }
+export interface Me { id: string; username: string; name: string | null; avatarId: string | null; role?: string }
 
 let me: Me | null = (() => { try { return JSON.parse(localStorage.getItem("il:me") ?? "null") as Me | null; } catch { return null; } })();
 const subs = new Set<(m: Me | null) => void>();

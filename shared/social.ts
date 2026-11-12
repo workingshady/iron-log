@@ -58,7 +58,7 @@ export interface UserLite { id: string; username: string; name: string | null; a
 
 export type PostKind = "text" | "photo" | "workout" | "pr" | "progress";
 export const POST_KINDS: PostKind[] = ["text", "photo", "workout", "pr", "progress"];
-export const LIMITS = { postText: 2000, comment: 500, photosPerPost: 6, challengeTitle: 60 };
+export const LIMITS = { postText: 2000, comment: 500, photosPerPost: 10, challengeTitle: 60 };
 
 /** Snapshot of a finished workout, built on the server from the author's own logs. Never contains notes or pain. */
 export interface WorkoutSummary {
@@ -70,6 +70,8 @@ export interface WorkoutSummary {
   volume: number; // kg × reps
   exercises: { name: string; sets: number; best: string | null }[];
   prs: { name: string; kg: number | null; reps: number | null }[];
+  /** Hard sets per muscle group (posts made after Nov 2026; older posts don't have it). */
+  muscles?: { group: string; sets: number }[];
 }
 export interface PrSummary { name: string; kg: number | null; reps: number | null; e1rm: number | null; date: string }
 
@@ -88,6 +90,8 @@ export interface Post {
   comments: number;
   preview: { username: string; text: string } | null;
   mine: boolean;
+  /** Up to 2 people who liked it (friends first, never blocked) for "Liked by omar and 2 others". */
+  likedBy?: UserLite[];
 }
 
 export interface Comment { id: string; text: string; createdAt: number; author: UserLite; canDelete: boolean }
@@ -95,7 +99,13 @@ export interface Comment { id: string; text: string; createdAt: number; author: 
 // ---------------------------------------------------------------- notifications
 
 export type NotifKind = "friend_request" | "friend_accept" | "like" | "comment" | "cheer" | "challenge_invite" | "challenge_join" | "challenge_won" | "challenge_done";
-export interface Notif { id: string; kind: NotifKind | string; actor: UserLite | null; refId: string | null; snippet: string | null; createdAt: number; read: boolean }
+export interface Notif {
+  id: string; kind: NotifKind | string; actor: UserLite | null; refId: string | null; snippet: string | null; createdAt: number; read: boolean;
+  /** First photo of the post (likes / comments), for the thumbnail on the right. */
+  thumb?: string | null;
+  /** My relation to the actor now (friend requests / accepts / cheers), for inline actions. */
+  relation?: Relation;
+}
 
 // ---------------------------------------------------------------- leaderboard + challenges
 
@@ -103,7 +113,7 @@ export interface Notif { id: string; kind: NotifKind | string; actor: UserLite |
  * Plan-independent metrics: they only use what every plan logs (sessions, sets, cardio), so a 3-day full-body plan and a
  * 6-day PPL compare fairly. "consistency" (done ÷ scheduled) and per-muscle sets are the fairest across plans.
  */
-export type MetricId = "workouts" | "consistency" | "hard_sets" | "volume" | "minutes" | "streak" | "prs" | "cardio_minutes" | "muscle_sets";
+export type MetricId = "workouts" | "consistency" | "hard_sets" | "volume" | "minutes" | "streak" | "prs" | "cardio_minutes" | "cardio_sessions" | "muscle_sets" | "muscle_volume";
 export interface MetricDef { id: MetricId; label: string; unit: string; short: string; help: string; challenge: boolean; higher: true }
 export const METRICS: MetricDef[] = [
   { id: "workouts", label: "Workouts", short: "Workouts", unit: "", help: "Finished workouts (any plan, extras count).", challenge: true, higher: true },
@@ -115,13 +125,23 @@ export const METRICS: MetricDef[] = [
   { id: "prs", label: "PRs", short: "PRs", unit: "", help: "Personal records set.", challenge: true, higher: true },
   { id: "cardio_minutes", label: "Cardio", short: "Cardio", unit: "min", help: "Cardio minutes (treadmill, football…).", challenge: true, higher: true },
   { id: "muscle_sets", label: "Sets per muscle", short: "Muscle sets", unit: "", help: "Hard sets for one muscle group, whatever exercise you used.", challenge: true, higher: true },
+  { id: "cardio_sessions", label: "Cardio sessions", short: "Cardio days", unit: "", help: "Cardio sessions done (treadmill, football…).", challenge: true, higher: true },
+  { id: "muscle_volume", label: "Muscle volume", short: "Muscle kg", unit: "kg", help: "kg × reps for one muscle group (both dumbbells counted).", challenge: true, higher: true },
 ];
+/** Metrics that need a muscle group. */
+export const needsMuscle = (m: MetricId | string) => m === "muscle_sets" || m === "muscle_volume";
 export const METRIC = Object.fromEntries(METRICS.map((m) => [m.id, m])) as Record<MetricId, MetricDef>;
 export type Period = "week" | "month" | "all";
 /** Weeks start on Saturday (Cairo, Fri-Sat weekend). */
 export const WEEK_START = 6;
 
-export interface BoardRow { user: UserLite; value: number; rank: number; prevRank: number | null; me: boolean }
+export interface BoardRow {
+  user: UserLite; value: number; rank: number; prevRank: number | null; me: boolean;
+  /** Same metric for the last 8 calendar weeks, oldest first (sparkline). Missing for streak. */
+  trend?: number[];
+  /** Current weekly streak (flame). */
+  streak?: number;
+}
 export interface Board { joined: boolean; metric: MetricId; period: Period; muscle: string | null; from: string; to: string; rows: BoardRow[]; hidden: number }
 
 export interface ChallengeMember { user: UserLite; value: number; rank: number; done: boolean; me: boolean }
@@ -131,6 +151,44 @@ export interface Challenge {
   status: "upcoming" | "running" | "finished"; joined: boolean; canJoin: boolean; mine: boolean;
   members: ChallengeMember[]; winners: string[];
 }
+
+// ---------------------------------------------------------------- stories, achievements, lift comparison
+
+/** Story bubble at the top of the feed: ring = trained today (only when their workouts are visible to you). */
+export interface Story { user: UserLite; me: boolean; trainedToday: boolean; lastPostId: string | null; lastPostAt: number | null }
+
+export type BadgeIcon = "dumbbell" | "trophy" | "flame" | "weight" | "heart" | "star";
+export interface BadgeDef { id: string; label: string; icon: BadgeIcon; tier: 1 | 2 | 3; stat: "workouts" | "prs" | "bestStreak" | "tonnes" | "cardio"; target: number }
+/** Achievements: computed from what everyone logs (no schema). Tier 1 bronze · 2 silver · 3 gold. */
+export const BADGES: BadgeDef[] = [
+  { id: "w1", label: "First workout", icon: "dumbbell", tier: 1, stat: "workouts", target: 1 },
+  { id: "w10", label: "10 workouts", icon: "dumbbell", tier: 1, stat: "workouts", target: 10 },
+  { id: "w50", label: "50 workouts", icon: "dumbbell", tier: 2, stat: "workouts", target: 50 },
+  { id: "w100", label: "100 club", icon: "dumbbell", tier: 3, stat: "workouts", target: 100 },
+  { id: "pr1", label: "First PR", icon: "trophy", tier: 1, stat: "prs", target: 1 },
+  { id: "pr10", label: "10 PRs", icon: "trophy", tier: 2, stat: "prs", target: 10 },
+  { id: "pr50", label: "50 PRs", icon: "trophy", tier: 3, stat: "prs", target: 50 },
+  { id: "s4", label: "4-week streak", icon: "flame", tier: 1, stat: "bestStreak", target: 4 },
+  { id: "s12", label: "12-week streak", icon: "flame", tier: 2, stat: "bestStreak", target: 12 },
+  { id: "s26", label: "Half-year streak", icon: "flame", tier: 3, stat: "bestStreak", target: 26 },
+  { id: "t10", label: "10 t lifted", icon: "weight", tier: 1, stat: "tonnes", target: 10 },
+  { id: "t100", label: "100 t lifted", icon: "weight", tier: 2, stat: "tonnes", target: 100 },
+  { id: "t1000", label: "1,000 t lifted", icon: "weight", tier: 3, stat: "tonnes", target: 1000 },
+  { id: "c10", label: "10 cardio", icon: "heart", tier: 1, stat: "cardio", target: 10 },
+];
+export interface Badge { id: string; label: string; icon: BadgeIcon; tier: 1 | 2 | 3; earned: boolean; value: number; target: number }
+/** One day of the "this week" strip (Sat → Fri). */
+export interface WeekDay { date: string; lift: boolean; cardio: boolean }
+
+/** Lift comparison ("who lifts more"). e1RM = Epley, strict sets only (normal + failure, 1-12 reps, weight > 0). */
+export interface LiftBest { e1rm: number; kg: number; reps: number; date: string }
+export interface LiftRow { key: string; name: string; group: string | null; perHand: boolean; best: Record<string, LiftBest> }
+export interface LiftsBoard { joined: boolean; people: UserLite[]; bodyweight: Record<string, number>; lifts: LiftRow[]; hidden: number }
+export interface LiftDetail { key: string; name: string; perHand: boolean; people: UserLite[]; bodyweight: Record<string, number>; best: Record<string, LiftBest>; series: Record<string, { date: string; e1rm: number }[]> }
+export interface MuscleBoard { joined: boolean; people: UserLite[]; period: Period; groups: { group: string; sets: Record<string, number> }[] }
+
+/** Epley estimated 1-rep max (kg), rounded to 0.5. Only meaningful for 1-12 reps. */
+export const epley = (kg: number, reps: number) => Math.round(kg * (1 + reps / 30) * 2) / 2;
 
 // ---------------------------------------------------------------- dates
 

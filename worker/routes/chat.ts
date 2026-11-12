@@ -5,6 +5,7 @@ import type { Env } from "../env";
 import { db, rawDb, type RawDB } from "../db";
 import { mergePrivacy } from "../../shared/social";
 import { areFriends, friendIds as friendList, isBlocked } from "../friends";
+import { later, pushChatMessage } from "../push";
 
 const friendIds = async (raw: RawDB, me: string) => new Set(await friendList(raw, me));
 
@@ -471,6 +472,8 @@ chatRoutes.post("/chat/:id/messages", async (c) => {
   const [saved] = await raw.select().from(t.messages).where(eq(t.messages.id, b.id));
   const [msg] = await hydrate(raw, [saved]);
   notify(c, convId, { t: "msg", msg }, await memberIds(raw, convId));
+  // phone push to the other members (after the response; prefs, mute, quiet hours checked inside)
+  later(pushChatMessage(raw, c.env, saved), (p) => c.executionCtx.waitUntil(p));
   touch(c);
   return c.json(msg);
 });
@@ -566,7 +569,7 @@ function sameOrigin(c: C) {
   try { return new URL(o).host === new URL(c.req.url).host; } catch { return false; }
 }
 
-async function upgrade(c: C, name: string, room: boolean) {
+async function upgrade(c: C, name: string, room: boolean, conv?: { id: string; members: string[] }) {
   if (c.req.header("upgrade")?.toLowerCase() !== "websocket") return err(c, "Expected a WebSocket", 426);
   if (!sameOrigin(c)) return err(c, "bad origin", 403);
   const raw = rawDb(c);
@@ -579,6 +582,8 @@ async function upgrade(c: C, name: string, room: boolean) {
   headers.set("x-chat-dev", c.var.dev ? "1" : "0");
   headers.set("x-chat-room", room ? "1" : "0");
   headers.set("x-chat-hidden", hidden ? "1" : "0");
+  // room sockets: the conversation + its members, so typing can also reach each member's inbox (chat list "typing…")
+  if (conv) { headers.set("x-chat-conv", conv.id); headers.set("x-chat-members", conv.members.join(",")); }
   return ns.get(ns.idFromName(name)).fetch(new Request("https://chat/ws", { headers }));
 }
 
@@ -586,7 +591,7 @@ async function upgrade(c: C, name: string, room: boolean) {
 chatRoutes.get("/chat/:id/ws", async (c) => {
   const convId = c.req.param("id");
   if (!(await membership(rawDb(c), convId, uid(c)))) return err(c, "not found", 404);
-  return upgrade(c, `${c.var.dev ? "dev" : "real"}:c:${convId}`, true);
+  return upgrade(c, `${c.var.dev ? "dev" : "real"}:c:${convId}`, true, { id: convId, members: await memberIds(rawDb(c), convId) });
 });
 
 /** Live events for my chat list + unread badge (one per user). */

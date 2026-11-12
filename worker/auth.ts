@@ -109,7 +109,8 @@ export async function login(c: Context<Env>) {
   const dev = c.env.DEV_PASSCODE;
   if (dev && (!username || username === "dev" || username.startsWith("dev_")) && safeEqual(passcode, dev)) {
     const dd = drizzle(c.env.DB_DEV, { schema: t });
-    const [du] = await dd.select({ id: t.users.id }).from(t.users).where(eq(t.users.username, username || "dev"));
+    const [du] = await dd.select({ id: t.users.id, role: t.users.role }).from(t.users).where(eq(t.users.username, username || "dev"));
+    if (du?.role === SUSPENDED) return suspendedRes(c, 403);
     await clear(d, keys);
     setAuth(c, du ? await devUserToken(c.env, du.id) : await devToken(c.env));
     return c.json({ ok: true, dev: true });
@@ -132,6 +133,7 @@ export async function login(c: Context<Env>) {
     return c.json({ error: "Wrong username or passcode" }, 401);
   }
   await clear(d, keys);
+  if (u.role === SUSPENDED) return suspendedRes(c, 403);
   setAuth(c, await userToken(c.env, u.id, u.passHash));
   await noteLogin(d, u.id);
   return c.json({ ok: true, dev: false });
@@ -196,6 +198,10 @@ export async function setup(c: Context<Env>) {
   return c.json({ ok: true });
 }
 
+/** Role set by the owner (Admin → user → Suspend): can't log in or use the API until unsuspended. No schema change. */
+export const SUSPENDED = "suspended";
+const suspendedRes = (c: Context<Env>, status: 401 | 403 = 401) => c.json({ error: "This account is suspended. Contact the app owner.", suspended: true }, status);
+
 export async function requireAuth(c: Context<Env>, next: Next) {
   const got = getCookie(c, COOKIE);
   if (!got) return c.json({ error: "unauthorized" }, 401);
@@ -209,6 +215,7 @@ export async function requireAuth(c: Context<Env>, next: Next) {
       id = parts[1];
     } else if (!safeEqual(got, await devToken(c.env))) return c.json({ error: "unauthorized" }, 401);
     const [u] = await drizzle(c.env.DB_DEV, { schema: t }).select(who).from(t.users).where(eq(t.users.id, id));
+    if (u?.role === SUSPENDED) return suspendedRes(c);
     c.set("dev", true);
     c.set("userId", id);
     c.set("role", u?.role ?? "owner");
@@ -220,6 +227,7 @@ export async function requireAuth(c: Context<Env>, next: Next) {
     const id = got.split(".")[1] ?? "";
     const [u] = await d.select(who).from(t.users).where(eq(t.users.id, id));
     if (!u || !safeEqual(got, await userToken(c.env, u.id, u.passHash))) return c.json({ error: "unauthorized" }, 401);
+    if (u.role === SUSPENDED) return suspendedRes(c);
     c.set("dev", false);
     c.set("userId", u.id);
     c.set("role", u.role);

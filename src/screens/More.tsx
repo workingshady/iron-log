@@ -20,7 +20,7 @@ export default function More() {
         </span>
         <ChevronRight size={18} className="shrink-0 text-faint" aria-hidden />
       </a>
-      {moreGroups().map((g, gi) => (
+      {moreGroups(me?.role).map((g, gi) => (
         <section key={g.id} aria-labelledby={`more-${g.id}`}>
           <SectionHead className={gi === 0 ? "mt-2" : undefined}><span id={`more-${g.id}`}>{g.label}</span></SectionHead>
           <ul className="divide-y divide-line overflow-hidden rounded-2xl bg-card">

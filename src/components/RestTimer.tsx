@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { track } from "../lib/api";
 import { beep, clock, cx, vibrate } from "../lib/util";
 import { VOL, type RestPrefs } from "../lib/restPrefs";
+import { closeLocal, localNotify } from "../lib/push";
 
 // Rest timer that survives refresh/lock-screen: stores the end time, not a countdown.
 export interface Rest {
@@ -36,6 +37,13 @@ export function RestTimer({ rest, setRest, prefs }: { rest: Rest | null; setRest
   const fired = useRef(false);
   const ticked = useRef<number | null>(null);
 
+  // back in the app → the "Rest over" notification has done its job
+  useEffect(() => {
+    const vis = () => document.visibilityState === "visible" && void closeLocal("rest");
+    document.addEventListener("visibilitychange", vis);
+    return () => document.removeEventListener("visibilitychange", vis);
+  }, []);
+
   useEffect(() => {
     fired.current = false;
     ticked.current = null;
@@ -53,6 +61,8 @@ export function RestTimer({ rest, setRest, prefs }: { rest: Rest | null; setRest
       fired.current = true;
       if (prefs.vibrate) vibrate([300, 150, 300]);
       if (prefs.sound) beep(VOL[prefs.volume]);
+      // app hidden / phone locked: a real notification ("Rest over · Bench press · set 3"), if allowed
+      if (document.visibilityState === "hidden") void localNotify({ title: "Rest over", body: `Next: ${rest.next}`, tag: "rest", url: location.hash || "#/" });
       track("rest_done", { planned: rest.planned }, rest.sessionId);
     }
   }, [t, rest, prefs]);

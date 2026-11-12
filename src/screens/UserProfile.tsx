@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { Activity, Ban, ChevronLeft, ChevronRight, Dumbbell, Grid3x3, Lock, MessageCircle, MoreHorizontal, Newspaper, Scale, Trophy, UserMinus, X } from "lucide-react";
-import type { Post, Relation, UserLite } from "../../shared/social";
-import { Empty, Sheet } from "../components/ui";
+import { Ban, ChevronLeft, ChevronRight, Dumbbell, Flame, Grid3x3, Images, Lock, MessageCircle, MoreHorizontal, Trophy, UserMinus, X } from "lucide-react";
+import type { Badge, Post, Relation, UserLite, WeekDay } from "../../shared/social";
+import { Sheet } from "../components/ui";
 import { UserAvatar } from "../components/social/UserAvatar";
 import { FriendButton } from "../components/social/FriendButton";
-import { PostCard } from "../components/social/PostCard";
-import { fmtNum, kgShort, lastSeen, socialPhotoUrl, sx, useFocusRefresh } from "../components/social/lib";
+import { PostGrid } from "../components/social/PostGrid";
+import { BadgeRow, WeekStrip } from "../components/social/Achievements";
+import { fmtNum, kgShort, lastSeen, localToday, socialPhotoUrl, sx, useFocusRefresh } from "../components/social/lib";
 import { cx, niceDate } from "../lib/util";
 
 export interface ProfileData {
@@ -16,40 +17,43 @@ export interface ProfileData {
   prs?: { count: number; recent: { name: string; kg: number | null; reps: number | null; date: string }[] };
   workouts?: { date: string; dayName: string; minutes: number | null; sets: number; volume: number; prs: number }[];
   body?: { kg: number | null; date: string } | null;
+  badges?: Badge[]; week?: WeekDay[];
 }
 interface Ph { id: string; date: string; caption: string | null }
-
-const since = (d: string | null | undefined) => (d ? new Date(`${d}T12:00:00`).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : null);
+type Tab = "posts" | "photos" | "prs";
 
 /** Someone else's profile (#/u/<username>), Instagram layout, showing only what their privacy settings allow. */
 export default function UserProfile({ username, asFriend }: { username: string; asFriend?: boolean }) {
   const q = asFriend ? "?as=friend" : "";
   const [p, setP] = useState<ProfileData | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [tab, setTab] = useState<"grid" | "posts" | "training">("grid");
+  const [tab, setTab] = useState<Tab>("posts");
   const [photos, setPhotos] = useState<Ph[] | null>(null);
   const [posts, setPosts] = useState<Post[] | null>(null);
   const [open, setOpen] = useState<number | null>(null);
   const [menu, setMenu] = useState(false);
 
   const load = useCallback(() => {
-    sx<ProfileData>("GET", `/social/profile/${encodeURIComponent(username)}${q}`).then((d) => { setP(d); setErr(null); }).catch((e) => setErr((e as Error).message));
+    const t = `${q ? "&" : "?"}today=${localToday()}`;
+    sx<ProfileData>("GET", `/social/profile/${encodeURIComponent(username)}${q}${t}`).then((d) => { setP(d); setErr(null); }).catch((e) => setErr((e as Error).message));
     sx<Ph[]>("GET", `/social/users/${encodeURIComponent(username)}/photos${q}`).then(setPhotos).catch(() => setPhotos([]));
-    sx<{ posts: Post[] }>("GET", `/feed?limit=20&user=${encodeURIComponent(username)}${asFriend ? "&as=friend" : ""}`).then((r) => setPosts(r.posts)).catch(() => setPosts([]));
+    sx<{ posts: Post[] }>("GET", `/feed?limit=30&user=${encodeURIComponent(username)}${asFriend ? "&as=friend" : ""}`).then((r) => setPosts(r.posts)).catch(() => setPosts([]));
   }, [username, q, asFriend]);
   useEffect(load, [load]);
   useFocusRefresh(load);
 
   if (err) return <div className="py-16 text-center"><p className="text-mute">{err === "User not found" ? "This account isn't available." : err}</p><button type="button" onClick={() => history.back()} className="mt-4 min-h-11 rounded-xl bg-card2 px-4 text-sm font-semibold">Go back</button></div>;
-  if (!p) return <div className="py-20 text-center text-mute" role="status">Loading profile…</div>;
+  if (!p) return <ProfileSkeleton />;
   if (!asFriend && p.relation === "self") { location.hash = "#/profile"; return null; }
 
-  const see = p.see;
-  const locked = !see?.photos && p.relation !== "blocked";
+  const locked = !p.see?.photos && p.relation !== "blocked";
   const display = p.user.name || p.user.username;
+  const today = localToday();
+  const trainedToday = p.week?.some((d) => d.date === today && (d.lift || d.cardio));
+  const online = lastSeen(p.lastSeenAt);
 
   return (
-    <div className={cx(!asFriend && "-mx-4 md:mx-auto md:max-w-2xl")}>
+    <div className={cx(!asFriend && "-mx-4 overflow-x-clip md:mx-auto md:max-w-2xl")}>
       {!asFriend && (
         <header className="flex items-center gap-0.5 pb-3 pl-1 pr-2">
           <button type="button" onClick={() => history.back()} className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-card2" aria-label="Back"><ChevronLeft size={26} aria-hidden /></button>
@@ -58,13 +62,15 @@ export default function UserProfile({ username, asFriend }: { username: string; 
         </header>
       )}
 
-      <section className="flex items-center gap-6 px-4 md:gap-10" aria-label="Profile">
-        <UserAvatar id={p.user.avatarId} name={display} size={86} ring={!!p.user.avatarId && p.relation === "friends"} />
+      <section className="flex items-center gap-5 px-4 md:gap-10" aria-label="Profile">
+        <span className="relative shrink-0 rounded-full p-[3px]" style={trainedToday ? { background: "conic-gradient(var(--color-acc), var(--color-info), var(--color-acc))" } : undefined} title={trainedToday ? "Trained today" : undefined}>
+          <span className="block rounded-full bg-bg p-[2px]"><UserAvatar id={p.user.avatarId} name={display} size={82} /></span>
+        </span>
         <dl className="grid flex-1 grid-cols-3 text-center">
-          {[["Posts", p.counts?.posts], ["Friends", p.counts?.friends], ["Workouts", p.stats?.workouts]].map(([l, v]) => (
-            <div key={l as string} className="flex flex-col-reverse items-center gap-0.5">
+          {([["posts", p.counts?.posts], ["friends", p.counts?.friends], ["workouts", p.stats?.workouts]] as const).map(([l, v]) => (
+            <div key={l} className="flex flex-col-reverse items-center gap-0.5">
               <dt className="text-xs text-mute">{l}</dt>
-              <dd className="text-lg font-bold leading-none num">{v == null ? <Lock size={14} className="inline text-faint" aria-label="hidden" /> : fmtNum(v as number)}</dd>
+              <dd className="text-lg font-bold leading-none num">{v == null ? <Lock size={14} className="inline text-faint" aria-label="hidden" /> : fmtNum(v)}</dd>
             </div>
           ))}
         </dl>
@@ -73,15 +79,16 @@ export default function UserProfile({ username, asFriend }: { username: string; 
       <div className="mt-3 px-4">
         <div className="text-[15px] font-semibold leading-tight">{display}</div>
         {p.bio && <p dir="auto" className="bidi mt-0.5 whitespace-pre-wrap text-sm leading-snug">{p.bio}</p>}
-        <p className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-mute">
-          {p.stats?.since && <span>Training since {since(p.stats.since)}</span>}
-          {lastSeen(p.lastSeenAt) && <span className={(Date.now() - (p.lastSeenAt ?? 0)) < 180e3 ? "text-acc" : ""}>{lastSeen(p.lastSeenAt)}</span>}
-          {!!p.mutual && p.relation !== "friends" && <span>{p.mutual} mutual friend{p.mutual === 1 ? "" : "s"}</span>}
+        <p className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-mute">
+          {!!p.stats?.streak && <span className="inline-flex items-center gap-0.5 font-semibold text-warn"><Flame size={13} className="fill-warn" aria-hidden />{p.stats.streak}-week streak</span>}
+          {p.body?.kg && <span className="num">{p.body.kg} kg</span>}
+          {online && <span className={(Date.now() - (p.lastSeenAt ?? 0)) < 180e3 ? "font-semibold text-acc" : ""}>{online}</span>}
+          {!!p.mutual && p.relation !== "friends" && <span>{p.mutual} mutual</span>}
         </p>
       </div>
 
       {!asFriend && (
-        <div className="mt-4 grid grid-cols-2 gap-2 px-4">
+        <div className="mt-3 grid grid-cols-2 gap-2 px-4">
           {p.relation === "blocked" ? (
             <button type="button" className="col-span-2 flex h-11 items-center justify-center rounded-lg bg-card2 text-sm font-semibold" onClick={async () => { await sx("DELETE", `/friends/${p.user.id}/block`); load(); }}>Unblock</button>
           ) : (
@@ -95,41 +102,37 @@ export default function UserProfile({ username, asFriend }: { username: string; 
         </div>
       )}
 
-      {/* quick stats strip */}
-      {(p.stats || p.prs || p.body) && (
-        <ul className="mt-4 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none]" aria-label="Highlights">
-          {p.stats && <Chip icon={Activity} label="Weekly streak" value={`${p.stats.streak} wk`} />}
-          {p.prs && <Chip icon={Trophy} label="PRs" value={fmtNum(p.prs.count)} tone="text-warn" />}
-          {p.body?.kg && <Chip icon={Scale} label="Bodyweight" value={`${p.body.kg} kg`} />}
-        </ul>
-      )}
+      {!!p.badges?.length && <div className="mt-4 px-4"><BadgeRow badges={p.badges} /></div>}
+      {p.week && <div className="mt-3 px-4"><WeekStrip days={p.week} today={today} /></div>}
 
       {locked ? (
-        <div className="mx-4 mt-6"><Empty icon={Lock}>{p.relation === "outgoing" ? `Request sent. Once ${display} accepts, you'll see what they share with friends.` : `Add ${display} as a friend to see their posts and training.`}</Empty></div>
+        <div className="mx-4 mt-6 rounded-3xl bg-card p-6 text-center">
+          <Lock size={26} className="mx-auto text-faint" aria-hidden />
+          <p className="mt-2 font-semibold">{p.relation === "outgoing" ? "Request sent" : "Friends only"}</p>
+          <p className="mt-0.5 text-sm text-mute">{p.relation === "outgoing" ? `You'll see ${display}'s posts once they accept.` : `Add ${display} to see posts and training.`}</p>
+        </div>
       ) : (
         <>
-          <div role="tablist" aria-label="Profile sections" className="sticky top-0 z-10 mt-5 flex border-b border-line bg-bg">
-            {([["grid", "Photos", Grid3x3], ["posts", "Posts", Newspaper], ["training", "Training", Dumbbell]] as const).map(([id, label, Icon]) => (
-              <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)} title={label}
-                className={cx("-mb-px flex h-12 flex-1 items-center justify-center border-b-2", tab === id ? "border-ink text-ink" : "border-transparent text-faint hover:text-mute")}>
-                <Icon size={22} strokeWidth={tab === id ? 2.4 : 1.8} aria-hidden /><span className="sr-only">{label}</span>
+          <div role="tablist" aria-label="Profile sections" className="sticky top-0 z-10 mt-4 flex border-b border-line bg-bg">
+            {([["posts", "Posts", Grid3x3], ["photos", "Photos", Images], ["prs", "PRs", Trophy]] as const).map(([id, label, Icon]) => (
+              <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)}
+                className={cx("-mb-px flex h-12 flex-1 items-center justify-center gap-1.5 border-b-2 text-xs font-semibold", tab === id ? "border-ink text-ink" : "border-transparent text-faint hover:text-mute")}>
+                <Icon size={19} strokeWidth={tab === id ? 2.4 : 1.8} aria-hidden />{label}
               </button>
             ))}
           </div>
           <div role="tabpanel" className="pb-6">
-            {tab === "grid" && (photos == null ? <GridSkeleton /> : photos.length === 0 ? <div className="px-4 pt-6"><Empty icon={Grid3x3}>No shared photos yet.</Empty></div> : (
+            {tab === "posts" && (posts == null ? <GridSkeleton /> : posts.length === 0 ? <Nothing icon={Grid3x3} text="No posts yet" /> : <PostGrid posts={posts} onChange={setPosts} />)}
+            {tab === "photos" && (photos == null ? <GridSkeleton /> : photos.length === 0 ? <Nothing icon={Images} text="No shared photos yet" /> : (
               <ul className="grid grid-cols-3 gap-0.5" aria-label="Photos">
                 {photos.map((ph, i) => (
-                  <li key={ph.id}><button type="button" onClick={() => setOpen(i)} className="block aspect-[3/4] w-full overflow-hidden bg-card3" aria-label={`Photo from ${niceDate(ph.date)}${ph.caption ? `: ${ph.caption}` : ""}`}>
+                  <li key={ph.id}><button type="button" onClick={() => setOpen(i)} className="block aspect-[4/5] w-full overflow-hidden bg-card3" aria-label={`Photo from ${niceDate(ph.date)}${ph.caption ? `: ${ph.caption}` : ""}`}>
                     <img src={socialPhotoUrl(ph.id, true)} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
                   </button></li>
                 ))}
               </ul>
             ))}
-            {tab === "posts" && (posts == null ? <GridSkeleton /> : posts.length === 0 ? <div className="px-4 pt-6"><Empty icon={Newspaper}>No posts yet.</Empty></div> : (
-              <div className="space-y-3 pt-2">{posts.map((x) => <PostCard key={x.id} post={x} />)}</div>
-            ))}
-            {tab === "training" && <Training p={p} />}
+            {tab === "prs" && <Training p={p} />}
           </div>
         </>
       )}
@@ -147,47 +150,44 @@ export default function UserProfile({ username, asFriend }: { username: string; 
   );
 }
 
-function Chip({ icon: Icon, label, value, tone }: { icon: typeof Trophy; label: string; value: string; tone?: string }) {
-  return (
-    <li className="flex shrink-0 items-center gap-2 rounded-2xl bg-card px-3 py-2">
-      <Icon size={16} className={tone ?? "text-acc"} aria-hidden />
-      <span><span className="block text-sm font-bold leading-tight num">{value}</span><span className="block text-[11px] text-mute">{label}</span></span>
-    </li>
-  );
+function Nothing({ icon: Icon, text }: { icon: typeof Lock; text: string }) {
+  return <div className="flex flex-col items-center gap-2 py-12 text-sm text-mute"><span className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-line"><Icon size={24} aria-hidden /></span>{text}</div>;
 }
 
-function Training({ p }: { p: ProfileData }) {
-  const none = !p.workouts && !p.prs;
-  if (none) return <div className="px-4 pt-6"><Empty icon={Lock}>{p.user.name || p.user.username} keeps their training private.</Empty></div>;
+/** PRs as trophy cards + recent workouts. */
+export function Training({ p }: { p: ProfileData }) {
+  if (!p.workouts && !p.prs) return <Nothing icon={Lock} text="Training is private" />;
   return (
-    <div className="space-y-4 px-4 pt-4">
-      {p.workouts && (
-        <section aria-labelledby="rw">
-          <h2 id="rw" className="mb-2 text-xs font-semibold uppercase tracking-wide text-mute">Recent workouts</h2>
-          {p.workouts.length === 0 ? <p className="text-sm text-mute">No finished workouts yet.</p> : (
-            <ul className="divide-y divide-line overflow-hidden rounded-2xl bg-card">
-              {p.workouts.map((w, i) => (
-                <li key={i} className="flex items-center gap-3 px-4 py-3">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-acc/15 text-acc" aria-hidden><Dumbbell size={17} /></span>
-                  <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{w.dayName}</span><span className="block text-xs text-mute">{niceDate(w.date)}{w.minutes ? ` · ${w.minutes} min` : ""}</span></span>
-                  <span className="text-right text-xs text-mute num"><span className="block text-sm font-semibold text-ink">{w.sets} sets</span>{kgShort(w.volume)}{w.prs ? ` · ${w.prs} PR` : ""}</span>
+    <div className="space-y-5 px-4 pt-4">
+      {p.prs && (
+        <section aria-labelledby="rp">
+          <h2 id="rp" className="mb-2 flex items-baseline gap-2 text-xs font-semibold uppercase tracking-wide text-mute">PRs <span className="text-warn num">{fmtNum(p.prs.count)}</span></h2>
+          {p.prs.recent.length === 0 ? <p className="text-sm text-mute">No PRs yet.</p> : (
+            <ul className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+              {p.prs.recent.map((r, i) => (
+                <li key={i} className="flex w-36 shrink-0 flex-col justify-between gap-3 rounded-2xl p-3" style={{ background: "linear-gradient(160deg, color-mix(in srgb, var(--color-warn) 22%, var(--color-card)), var(--color-card) 70%)" }}>
+                  <Trophy size={18} className="text-warn" aria-hidden />
+                  <span>
+                    <span className="block truncate text-xs text-mute">{r.name}</span>
+                    <span className="block text-xl font-extrabold leading-tight num">{r.kg ? r.kg : ""}{r.kg ? <span className="text-xs font-semibold text-mute"> kg</span> : null}{r.reps ? <span className="text-base"> ×{r.reps}</span> : null}</span>
+                    <span className="block text-[11px] text-faint">{new Date(`${r.date}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                  </span>
                 </li>
               ))}
             </ul>
           )}
         </section>
       )}
-      {p.prs && (
-        <section aria-labelledby="rp">
-          <h2 id="rp" className="mb-2 text-xs font-semibold uppercase tracking-wide text-mute">Recent PRs</h2>
-          {p.prs.recent.length === 0 ? <p className="text-sm text-mute">No PRs yet.</p> : (
-            <ul className="divide-y divide-line overflow-hidden rounded-2xl bg-card">
-              {p.prs.recent.map((r, i) => (
-                <li key={i} className="flex items-center gap-3 px-4 py-3">
-                  <Trophy size={16} className="shrink-0 text-warn" aria-hidden />
-                  <span className="min-w-0 flex-1 truncate text-sm">{r.name}</span>
-                  <span className="text-sm font-semibold num">{r.kg ? `${r.kg} kg` : ""}{r.reps ? ` × ${r.reps}` : ""}</span>
-                  <span className="w-14 text-right text-xs text-faint">{new Date(`${r.date}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+      {p.workouts && (
+        <section aria-labelledby="rw">
+          <h2 id="rw" className="mb-2 text-xs font-semibold uppercase tracking-wide text-mute">Recent workouts</h2>
+          {p.workouts.length === 0 ? <p className="text-sm text-mute">No finished workouts yet.</p> : (
+            <ul className="space-y-1.5">
+              {p.workouts.map((w, i) => (
+                <li key={i} className="flex items-center gap-3 rounded-2xl bg-card px-3 py-2.5">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-acc/15 text-acc" aria-hidden><Dumbbell size={18} /></span>
+                  <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{w.dayName}</span><span className="block text-xs text-mute">{niceDate(w.date)}{w.minutes ? ` · ${w.minutes} min` : ""}</span></span>
+                  <span className="text-right text-xs text-mute num"><span className="block text-sm font-bold text-ink">{kgShort(w.volume)}</span>{w.sets} sets{w.prs ? <span className="text-warn"> · 🏆{w.prs}</span> : ""}</span>
                 </li>
               ))}
             </ul>
@@ -199,7 +199,16 @@ function Training({ p }: { p: ProfileData }) {
 }
 
 function GridSkeleton() {
-  return <div aria-busy className="grid grid-cols-3 gap-0.5">{Array.from({ length: 6 }, (_, k) => <div key={k} className="aspect-[3/4] animate-pulse bg-card" />)}</div>;
+  return <div aria-busy className="grid grid-cols-3 gap-0.5">{Array.from({ length: 6 }, (_, k) => <div key={k} className="aspect-[4/5] animate-pulse bg-card" />)}</div>;
+}
+function ProfileSkeleton() {
+  return (
+    <div aria-busy aria-label="Loading profile" className="pt-14">
+      <div className="flex items-center gap-5"><span className="h-[88px] w-[88px] animate-pulse rounded-full bg-card2" /><span className="h-10 flex-1 animate-pulse rounded-xl bg-card" /></div>
+      <div className="mt-4 h-4 w-40 animate-pulse rounded bg-card2" /><div className="mt-2 h-3 w-56 animate-pulse rounded bg-card2" />
+      <div className="mt-4 grid grid-cols-2 gap-2"><span className="h-11 animate-pulse rounded-lg bg-card" /><span className="h-11 animate-pulse rounded-lg bg-card" /></div>
+    </div>
+  );
 }
 
 /** Minimal full-screen viewer for friends' photos (← → keys, swipe via buttons, Esc closes). */

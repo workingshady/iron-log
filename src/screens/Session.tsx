@@ -30,6 +30,7 @@ import { totalKg } from "../../shared/load";
 import { Copy, Link2, ListOrdered, Trash2 } from "lucide-react";
 import { RestTimer, loadRest, saveRest, type Rest } from "../components/RestTimer";
 import { go } from "../nav";
+import { withTarget } from "../components/connect/target";
 
 type Draft = { weight: string; reps: string; seconds: string; meters: string; assist: string; rir: string; strict: string; note: string };
 /** Sets that count toward the plan: drops and rest-pause minis belong to their parent set; warm-ups don't count. */
@@ -134,7 +135,7 @@ export default function SessionScreen({ id }: { id: string }) {
   const sets = b.sets;
   const hist: Record<string, ExHistory | undefined> = b.last;
   const deload = /deload/i.test(program.weeks.find((w) => w.n === s.week)?.name ?? "");
-  const recs = plan.map((it) => recommend(it.ex, it, hist, { deload, step: it.step }));
+  const recs = plan.map((it) => withTarget(recommend(it.ex, it, hist, { deload, step: it.step }), it.ex, appState?.settings)); // AI target (connect/target.ts)
   const total = plan.filter((p) => !p.skipped).reduce((a, p) => a + p.sets, 0);
   const done = plan.reduce((a, p, i) => a + (p.skipped ? 0 : Math.min(p.sets, workSets(sets, i).length)), 0);
 

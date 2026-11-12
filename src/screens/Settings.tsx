@@ -13,6 +13,7 @@ import { EXERCISES } from "../../program/exercises";
 import { beep, clock, unlockAudio, vibrate } from "../lib/util";
 import { Timer } from "lucide-react";
 import { VOICE_LANGS, getVoiceLang, setVoiceLang, type VoiceLang } from "../components/Voice";
+import { NotificationsCard } from "../components/push/NotificationsCard";
 
 export default function Settings() {
   const { data: s, setData } = useLoad<AppState>("/state");
@@ -92,6 +93,8 @@ export default function Settings() {
           </div>
           <p className="mt-2 text-xs text-mute">3-5 g is the researched range.</p>
         </Card>
+
+        <NotificationsCard />
 
         <Card title="Rest timer" icon={Timer}>
           {(() => {

@@ -10,9 +10,9 @@ import type { Env } from "./env";
  * "pong" by the runtime itself (setWebSocketAutoResponse) without waking the object → cheap client heartbeats.
  *
  * D1 stays the source of truth: the Worker writes, then POSTs the event JSON to /broadcast here. Clients send only
- * {t:"typing", on} through the socket. Presence = which members currently have a socket open to this room.
+ * {t:"typing", on} through the socket (relayed to the room and to the other members' inboxes for the list). Presence = which members currently have a socket open to this room.
  */
-type Att = { uid: string; dev: boolean; room: boolean; hidden: boolean };
+type Att = { uid: string; dev: boolean; room: boolean; hidden: boolean; conv?: string; members?: string[] };
 
 export class ChatRoom extends DurableObject<Env["Bindings"]> {
   constructor(ctx: DurableObjectState, env: Env["Bindings"]) {
@@ -33,6 +33,8 @@ export class ChatRoom extends DurableObject<Env["Bindings"]> {
         dev: req.headers.get("x-chat-dev") === "1",
         room: req.headers.get("x-chat-room") === "1",
         hidden: req.headers.get("x-chat-hidden") === "1",
+        conv: req.headers.get("x-chat-conv") ?? undefined,
+        members: (req.headers.get("x-chat-members") ?? "").split(",").filter(Boolean).slice(0, 40),
       };
       if (!att.uid) return new Response("no user", { status: 400 });
       const { 0: client, 1: server } = new WebSocketPair();
@@ -52,7 +54,16 @@ export class ChatRoom extends DurableObject<Env["Bindings"]> {
     if (!att?.room) return;
     let m: { t?: string; on?: boolean };
     try { m = JSON.parse(message); } catch { return; }
-    if (m.t === "typing") this.send(JSON.stringify({ t: "typing", uid: att.uid, on: !!m.on }), ws);
+    if (m.t !== "typing") return;
+    this.send(JSON.stringify({ t: "typing", uid: att.uid, on: !!m.on }), ws);
+    // also to the other members' inboxes → "typing…" in their chat list (clients send at most one "on" per 2.5 s)
+    if (att.conv && att.members?.length) {
+      const ns = this.env.CHAT;
+      const ev = JSON.stringify({ t: "conv", convId: att.conv, ev: "typing", by: att.uid, on: !!m.on });
+      const mode = att.dev ? "dev" : "real";
+      await Promise.all(att.members.filter((u) => u !== att.uid).map((u) =>
+        ns.get(ns.idFromName(`${mode}:u:${u}`)).fetch("https://chat/broadcast", { method: "POST", body: ev }).then((r) => r.body?.cancel()).catch(() => {})));
+    }
   }
 
   async webSocketClose(ws: WebSocket, code: number, reason: string) {

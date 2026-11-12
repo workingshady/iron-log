@@ -14,9 +14,33 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="icon" href="/icon-192.png" type="image/png" sizes="192x192" />
     <title>Iron Log</title>
+    <!-- Instant splash (first paint, before any JS). Same markup + CSS as src/screens/Splash.tsx, keep in sync. -->
+    <style>
+      html,body{background:#111113;margin:0}
+      .ils .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+      .ils{position:fixed;inset:0;z-index:60;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:#111113;color:#9b9ba6}
+      .ils svg{width:112px;height:108px;overflow:visible}
+      .ils *{transform-box:view-box}
+      .ils .b{transform-origin:50px 66.5px;animation:ils-x .34s cubic-bezier(.2,.8,.2,1);--d:0ms}
+      .ils .p1{transform-origin:50px 66.5px;animation:ils-y .32s cubic-bezier(.3,1.5,.55,1);--d:180ms}
+      .ils .p2{transform-origin:50px 66.5px;animation:ils-y .3s cubic-bezier(.3,1.5,.55,1);--d:280ms}
+      .ils .lift{animation:ils-lift .42s cubic-bezier(.3,1.25,.5,1);--d:480ms}
+      .ils .chev{stroke-dasharray:50;animation:ils-draw .38s cubic-bezier(.4,0,.2,1) both,ils-breathe 1.6s ease-in-out 1.5s infinite;animation-delay:calc(560ms - var(--il-t,0ms)),calc(1500ms - var(--il-t,0ms))}
+      .ils .glow{animation:ils-fade .6s ease-out;--d:650ms}
+      .ils .word{font:600 12px/1 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;letter-spacing:.42em;padding-left:.42em;animation:ils-fade .5s ease-out;--d:720ms}
+      .ils .b,.ils .p1,.ils .p2,.ils .lift,.ils .glow,.ils .word{animation-fill-mode:both;animation-delay:calc(var(--d,0ms) - var(--il-t,0ms))}
+      @keyframes ils-x{from{transform:scaleX(0)}to{transform:none}}
+      @keyframes ils-y{from{transform:scaleY(0)}to{transform:none}}
+      @keyframes ils-lift{from{transform:translateY(9px)}to{transform:none}}
+      @keyframes ils-draw{from{stroke-dashoffset:50;transform:translateY(6px)}to{stroke-dashoffset:0;transform:none}}
+      @keyframes ils-breathe{0%,100%{opacity:1}50%{opacity:.55}}
+      @keyframes ils-fade{from{opacity:0}to{opacity:1}}
+      @media (prefers-reduced-motion:reduce){.ils *{animation:none!important}}
+    </style>
   </head>
   <body>
-    <div id="root"><p id="boot" style="font:16px system-ui;color:#9b9ba6;text-align:center;padding-top:40vh;background:#111113;margin:0;min-height:100vh">Loading Iron Log…</p></div>
+    <div id="root"><div id="boot" class="ils" role="status"><svg viewBox="0 2 100 96" aria-hidden="true" focusable="false"><defs><radialGradient id="ils-g0" cx=".5" cy=".55" r=".5"><stop offset="0" stop-color="#c8f560" stop-opacity=".22"/><stop offset="1" stop-color="#c8f560" stop-opacity="0"/></radialGradient></defs><circle class="glow" cx="50" cy="52" r="62" fill="url(#ils-g0)"/><g class="lift" fill="#c8f560"><path class="b" d="M5 61h90a3 3 0 0 1 3 3v5a3 3 0 0 1 -3 3h-90a3 3 0 0 1 -3 -3v-5a3 3 0 0 1 3 -3z"/><path class="p1" d="M19.5 37h7a4.5 4.5 0 0 1 4.5 4.5v50a4.5 4.5 0 0 1 -4.5 4.5h-7a4.5 4.5 0 0 1 -4.5 -4.5v-50a4.5 4.5 0 0 1 4.5 -4.5zM73.5 37h7a4.5 4.5 0 0 1 4.5 4.5v50a4.5 4.5 0 0 1 -4.5 4.5h-7a4.5 4.5 0 0 1 -4.5 -4.5v-50a4.5 4.5 0 0 1 4.5 -4.5z"/><path class="p2" d="M9 48h5a4 4 0 0 1 4 4v29a4 4 0 0 1 -4 4h-5a4 4 0 0 1 -4 -4v-29a4 4 0 0 1 4 -4zM86 48h5a4 4 0 0 1 4 4v29a4 4 0 0 1 -4 4h-5a4 4 0 0 1 -4 -4v-29a4 4 0 0 1 4 -4z"/></g><path class="chev" d="M33 28 50 11 67 28" fill="none" stroke="#c8f560" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="word" aria-hidden="true">IRON LOG</span><span class="sr">Loading Iron Log…</span></div></div>
+    <script>window.__ilT0 = performance.now();</script>
     <script>
       // Safety net: if the app can't start (script error before React mounts), show the error and a
       // one-tap fix instead of a white page. The fix clears cached screens + the offline shell, not unsynced logs.

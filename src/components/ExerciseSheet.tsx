@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ArrowLeftRight, CalendarRange, MapPin, PlayCircle, Target, Trophy } from "lucide-react";
 import type { AppState, Lifts, PlanItem } from "../../shared/api";
-import { CURRENT } from "../../program";
+import { useProgram } from "../lib/program";
 import { EXERCISES } from "../../program/exercises";
 import { targetLabel } from "../../shared/plan";
 import { recommend } from "../../shared/recommend";
@@ -77,13 +77,14 @@ export function RestSetting({ item }: { item: PlanItem }) {
 export function ExerciseSheet({ item, onClose, onSwap }: { item: PlanItem; onClose: () => void; onSwap?: () => void }) {
   const { data: lifts } = useLoad<Lifts>("/lifts");
   const [play, setPlay] = useState(false);
+  const program = useProgram(); // the plan this user trains (default = CURRENT)
   const e = EXERCISES[item.ex];
   const yt = item.yt[0];
   const hist = lifts?.hist[item.ex];
   const best = lifts?.best[item.ex];
   const unit = loadOf(item.ex) === "pair" ? "/hand" : "";
   // where this exercise appears in the program, week by week
-  const uses = CURRENT.weeks.map((w) => ({ w, rows: w.days.flatMap((d) => d.items.filter((x) => x.ex === item.ex).map((x) => ({ d, x }))) })).filter((u) => u.rows.length);
+  const uses = program.weeks.map((w) => ({ w, rows: w.days.flatMap((d) => d.items.filter((x) => x.ex === item.ex).map((x) => ({ d, x }))) })).filter((u) => u.rows.length);
   const rec = recommend(item.ex, item, lifts?.hist ?? {}, {});
   const q = encodeURIComponent(`${item.name} proper form tutorial`);
 

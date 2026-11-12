@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, ChevronDown, Equal, Sparkles, Target, Trophy, TriangleAlert } from "lucide-react";
 import type { Best, Lifts, PlanItem } from "../../shared/api";
-import { CURRENT } from "../../program";
+import { useProgram } from "../lib/program";
 import { EXERCISES } from "../../program/exercises";
 import { EX_GROUP, GROUPS } from "../../program/groups";
 import { recommend, type RecKind } from "../../shared/recommend";
@@ -48,7 +48,8 @@ export function NextSession() {
   const { data: lifts } = useLoad<Lifts>("/lifts");
   const [how, setHow] = useState<PlanItem | null>(null);
   const nx = useNextSession(); // same "next" as Home and Plan (follows football / busy / pins)
-  const wk = nx.next ? CURRENT.weeks.find((w) => w.n === nx.next!.week) : null;
+  const program = useProgram(); // the plan this user trains (default = CURRENT)
+  const wk = nx.next ? program.weeks.find((w) => w.n === nx.next!.week) : null;
   const next = wk?.days.find((d) => d.key === nx.next!.dayKey);
   if (!next || !lifts) return null;
   const deload = /deload/i.test(wk!.name);

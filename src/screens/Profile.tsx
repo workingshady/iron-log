@@ -9,6 +9,7 @@ import { cx, niceDate } from "../lib/util";
 import { Btn, Chips, Empty, NumInput, Sheet } from "../components/ui";
 import type { AppState } from "../../shared/api";
 import { Avatar } from "../components/Avatar";
+import { FriendsCount } from "../components/social/Badges";
 import { Lightbox, NewPhotoSheet, PhotoGrid, PhotoImg, photoUrl, uploadPhoto, type PhotoMeta } from "../components/Photos";
 import { PhotoEditor, type Edited } from "../components/PhotoEditor";
 
@@ -89,6 +90,7 @@ export default function Profile() {
         <div className="text-[15px] font-semibold leading-tight">{me.name || me.username}</div>
         {me.bio && <p dir="auto" className="bidi mt-0.5 whitespace-pre-wrap text-sm leading-snug">{me.bio}</p>}
         {me.stats.since && <p className="mt-0.5 text-xs text-mute">Training since {since(me.stats.since)}</p>}
+        <FriendsCount className="mt-1.5" />
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-2 px-4">
@@ -240,7 +242,9 @@ function EditProfile({ me, onClose, onSaved, onPhoto }: { me: Profile; onClose: 
       {err && <p role="alert" className="mt-2 text-sm text-bad">{err}</p>}
       <Btn kind="primary" icon={busy ? Loader2 : Check} className="mt-4 w-full" disabled={!changed || busy || (check != null && !check.available)} onClick={save}>Save</Btn>
 
-      {!isDev() && <Passcode />}
+      <a href="#/security" onClick={onClose} className="mt-5 flex min-h-12 items-center gap-3 border-t border-line pt-3 text-sm font-semibold">
+        <KeyRound size={16} className="text-mute" aria-hidden /><span className="flex-1">Passcode, Google sign-in, invites</span><span className="text-faint" aria-hidden>›</span>
+      </a>
     </Sheet>
   );
 }
@@ -252,44 +256,6 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
       <span className="mb-1 flex justify-between text-[11px] text-mute"><span>{label}</span>{hint && <span className="text-faint num">{hint}</span>}</span>
       {children}
     </label>
-  );
-}
-
-function Passcode() {
-  const [open, setOpen] = useState(false);
-  const [cur, setCur] = useState("");
-  const [next, setNext] = useState("");
-  const [again, setAgain] = useState("");
-  const [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null);
-  const ok = /^\d{6,12}$/.test(next) && next === again && cur.length >= 4;
-  async function save() {
-    setMsg(null);
-    try {
-      await send("POST", "/profile/passcode", { current: cur, next });
-      track("passcode_change", {});
-      setCur(""); setNext(""); setAgain("");
-      setMsg({ ok: true, t: "Passcode changed. Other devices need to log in again." });
-    } catch (e) {
-      setMsg({ ok: false, t: (e as Error).message });
-    }
-  }
-  const pin = { type: "password", inputMode: "numeric" as const, maxLength: 12, className: cx(INPUT, "tracking-widest") };
-  return (
-    <div className="mt-5 border-t border-line pt-3">
-      <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex min-h-11 w-full items-center gap-2 text-sm font-semibold">
-        <KeyRound size={16} className="text-mute" aria-hidden /> Change passcode
-      </button>
-      {open && (
-        <div>
-          <Field label="Current passcode"><input {...pin} autoComplete="current-password" value={cur} onChange={(e) => setCur(e.target.value.replace(/\D/g, ""))} /></Field>
-          <Field label="New passcode" hint="6-12 digits"><input {...pin} autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value.replace(/\D/g, ""))} /></Field>
-          <Field label="New passcode again"><input {...pin} autoComplete="new-password" value={again} onChange={(e) => setAgain(e.target.value.replace(/\D/g, ""))} aria-invalid={!!again && again !== next} /></Field>
-          {again && again !== next && <p className="mt-1 text-[11px] text-bad">Doesn't match</p>}
-          {msg && <p role={msg.ok ? "status" : "alert"} className={cx("mt-2 text-sm", msg.ok ? "text-acc" : "text-bad")}>{msg.t}</p>}
-          <Btn kind="soft" className="mt-3 w-full" disabled={!ok} onClick={save}>Update passcode</Btn>
-        </div>
-      )}
-    </div>
   );
 }
 

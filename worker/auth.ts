@@ -10,10 +10,15 @@ import type { Env } from "./env";
 // free plan has ~10 ms CPU, so we use 20k + a secret pepper (a leaked database alone can't be brute-forced) + lockouts.
 // Cookie "u.<userId>.<hmac>" — the HMAC covers the stored hash, so changing the passcode logs every device out.
 
-const COOKIE = "il_auth";
+export const COOKIE = "il_auth";
 const ITER = 20_000;
 export const USERNAME_RE = /^[a-z0-9._]{3,30}$/;
 export const PASS_RE = /^\d{6,12}$/;
+/** Username rules: USERNAME_RE + no leading/trailing dot and no "..". Input is lower-cased and a leading @ removed first. */
+export const normUsername = (s: unknown) => String(s ?? "").trim().toLowerCase().replace(/^@/, "");
+export const validUsername = (u: string) => USERNAME_RE.test(u) && !/^[.]|[.]$|\.\./.test(u);
+/** Accounts created with Google have no passcode yet: pass_hash starts with "!" (checkPass is always false for it). */
+export const hasPasscode = (passHash: string) => passHash.startsWith("pbkdf2$");
 
 const enc = new TextEncoder();
 const hex = (b: ArrayBuffer) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
@@ -43,6 +48,9 @@ export async function checkPass(pass: string, stored: string, env: Env["Bindings
   return safeEqual(got, want);
 }
 
+/** HMAC-SHA256 with the server pepper (signs short-lived cookies such as the Google sign-in state). */
+export const sign = (env: Env["Bindings"], msg: string) => hmac(pepper(env), msg);
+
 export function safeEqual(a: string, b: string) {
   if (a.length !== b.length) return false;
   let r = 0;
@@ -54,7 +62,7 @@ export const userToken = async (env: Env["Bindings"], id: string, passHash: stri
 /** Old single DEV cookie (= user "dev"). */
 const devToken = async (env: Env["Bindings"]) => `dev.${await hmac(env.DEV_PASSCODE!, "iron-log:dev:v1")}`;
 /** DEV cookie for one test user in the DEV database (dev, dev_omar, dev_sara …). */
-const devUserToken = async (env: Env["Bindings"], id: string) => `dev.${id}.${await hmac(env.DEV_PASSCODE!, `iron-log:dev:v2:${id}`)}`;
+export const devUserToken = async (env: Env["Bindings"], id: string) => `dev.${id}.${await hmac(env.DEV_PASSCODE!, `iron-log:dev:v2:${id}`)}`;
 /** Pre-username cookie (passcode only). Still accepted once, then swapped for a user cookie. */
 const legacyToken = async (env: Env["Bindings"]) => hmac(env.APP_PASSCODE, "iron-log:v1");
 
@@ -64,7 +72,9 @@ export function setAuth(c: Context<Env>, value: string) {
 
 // ---- lockout: 5 free tries, then 1 min, 2, 4 … up to 24 h, per username and per IP
 const FREE = 5;
-async function lockedFor(d: ReturnType<typeof drizzle<typeof t>>, keys: string[]) {
+export type AuthDB = ReturnType<typeof drizzle<typeof t>>;
+/** ms until these keys are unlocked (0 = free). Keys: "ip:<addr>", "u:<username>", or your own prefix. */
+export async function lockedFor(d: ReturnType<typeof drizzle<typeof t>>, keys: string[]) {
   const now = Date.now();
   let wait = 0;
   for (const k of keys) {
@@ -73,7 +83,7 @@ async function lockedFor(d: ReturnType<typeof drizzle<typeof t>>, keys: string[]
   }
   return wait;
 }
-async function fail(d: ReturnType<typeof drizzle<typeof t>>, keys: string[]) {
+export async function fail(d: ReturnType<typeof drizzle<typeof t>>, keys: string[]) {
   const now = Date.now();
   for (const k of keys) {
     const [r] = await d.select().from(t.loginAttempts).where(eq(t.loginAttempts.key, k));
@@ -82,7 +92,7 @@ async function fail(d: ReturnType<typeof drizzle<typeof t>>, keys: string[]) {
     await d.insert(t.loginAttempts).values({ key: k, fails, until, at: now }).onConflictDoUpdate({ target: t.loginAttempts.key, set: { fails, until, at: now } });
   }
 }
-const clear = (d: ReturnType<typeof drizzle<typeof t>>, keys: string[]) => Promise.all(keys.map((k) => d.delete(t.loginAttempts).where(eq(t.loginAttempts.key, k))));
+export const clear = (d: ReturnType<typeof drizzle<typeof t>>, keys: string[]) => Promise.all(keys.map((k) => d.delete(t.loginAttempts).where(eq(t.loginAttempts.key, k))));
 
 export async function login(c: Context<Env>) {
   const body = await c.req.json<{ username?: string; passcode?: string }>().catch(() => ({}) as { username?: string; passcode?: string });
@@ -93,7 +103,7 @@ export async function login(c: Context<Env>) {
   const keys = [`ip:${ip}`, ...(username ? [`u:${username}`] : [])];
 
   const wait = await lockedFor(d, keys);
-  if (wait) return c.json({ error: `Too many tries. Wait ${Math.ceil(wait / 60_000)} min.` }, 429);
+  if (wait) return tooMany(c, wait);
 
   // DEV / test mode
   const dev = c.env.DEV_PASSCODE;
@@ -114,7 +124,8 @@ export async function login(c: Context<Env>) {
   }
   if (!username || !passcode) return c.json({ error: "Enter your username and passcode" }, 400);
   const [u] = await d.select().from(t.users).where(eq(t.users.username, username));
-  const ok = u ? await checkPass(passcode, u.passHash, c.env) : (await hashPass(passcode, c.env), false); // same work either way
+  // same work either way (unknown user / Google-only account without a passcode)
+  const ok = u && hasPasscode(u.passHash) ? await checkPass(passcode, u.passHash, c.env) : (await hashPass(passcode, c.env), false);
   if (!u || !ok) {
     await fail(d, keys);
     await new Promise((r) => setTimeout(r, 400));
@@ -122,7 +133,44 @@ export async function login(c: Context<Env>) {
   }
   await clear(d, keys);
   setAuth(c, await userToken(c.env, u.id, u.passHash));
+  await noteLogin(d, u.id);
   return c.json({ ok: true, dev: false });
+}
+
+/** 429 with the wait in seconds (body + Retry-After header) so the login screen can show a countdown. */
+export function tooMany(c: Context<Env>, waitMs: number) {
+  const s = Math.ceil(waitMs / 1000);
+  c.header("Retry-After", String(s));
+  return c.json({ error: `Too many tries. Wait ${s < 120 ? `${s} s` : `${Math.ceil(s / 60)} min`}.`, retryAfter: s }, 429);
+}
+
+export const clientIp = (c: Context<Env>) => c.req.header("cf-connecting-ip") ?? "local";
+
+/** Remember the last two sign-ins per user (shown on the Security page). Stored in login_attempts under "last:<id>" / "prev:<id>"
+ *  (no schema change; fails = 0 and until = null, so these rows never lock anything). */
+export async function noteLogin(d: AuthDB, userId: string) {
+  const [last] = await d.select().from(t.loginAttempts).where(eq(t.loginAttempts.key, `last:${userId}`));
+  const now = Date.now();
+  const up = (key: string, at: number) => d.insert(t.loginAttempts).values({ key, fails: 0, until: null, at }).onConflictDoUpdate({ target: t.loginAttempts.key, set: { at, fails: 0, until: null } });
+  if (last) await up(`prev:${userId}`, last.at);
+  await up(`last:${userId}`, now);
+}
+
+/** Who is logged in (real database only), for public routes that need it (Google "link"). Null for DEV / legacy / no cookie. */
+export async function realUser(c: Context<Env>) {
+  const got = getCookie(c, COOKIE);
+  if (!got?.startsWith("u.")) return null;
+  const id = got.split(".")[1] ?? "";
+  const [u] = await drizzle(c.env.DB, { schema: t }).select().from(t.users).where(eq(t.users.id, id));
+  return u && safeEqual(got, await userToken(c.env, u.id, u.passHash)) ? u : null;
+}
+
+/** True when the request carries a valid DEV cookie (any DEV user). */
+export async function isDevCookie(c: Context<Env>) {
+  const got = getCookie(c, COOKIE);
+  if (!got?.startsWith("dev.") || !c.env.DEV_PASSCODE) return false;
+  const parts = got.split(".");
+  return parts.length === 3 ? safeEqual(got, await devUserToken(c.env, parts[1])) : safeEqual(got, await devToken(c.env));
 }
 
 /** Re-issue the cookie after a passcode change (the old one stops working everywhere else). */
@@ -138,7 +186,7 @@ export async function setup(c: Context<Env>) {
   if (any) return c.json({ error: "Already set up" }, 409);
   const b = await c.req.json<{ username?: string; passcode?: string; name?: string }>();
   const username = String(b.username ?? "").trim().toLowerCase().replace(/^@/, "");
-  if (!USERNAME_RE.test(username) || /^[.]|[.]$|\.\./.test(username)) return c.json({ error: "Username: 3-30 letters, numbers, . or _" }, 400);
+  if (!validUsername(username)) return c.json({ error: "Username: 3-30 letters, numbers, . or _" }, 400);
   if (!PASS_RE.test(String(b.passcode ?? ""))) return c.json({ error: "Passcode: 6-12 digits" }, 400);
   const id = `usr-${crypto.randomUUID()}`;
   const passHash = await hashPass(String(b.passcode), c.env);

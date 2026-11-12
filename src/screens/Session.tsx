@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ShareWorkoutButton } from "../components/social/Composer";
 import type { PlanItem, Session, SessionBundle, SetLog } from "../../shared/api";
 import { EQUIP_USED, NOTE_TAGS, PAIN_AREAS, SET_KINDS, type SetKind } from "../../shared/lists";
 import { suggestSetTags } from "../../shared/notes";
@@ -16,7 +17,7 @@ import { TechNote, InfoDot } from "../components/Terms";
 import { TERMS } from "../../program/learn";
 import { ArrowDown, ArrowLeftRight, ArrowUp, Check, Hash, ChevronLeft, Clock, Dumbbell, Equal, Flame, Layers, MessageSquare, MoreHorizontal, NotebookPen, PlayCircle, Plus, Repeat, Ruler, SkipForward, Sparkles, Timer, TrendingDown, TrendingUp, TriangleAlert, Trophy } from "lucide-react";
 import { e1rm, isBarbell, plates, recommend, type ExHistory, type Rec, type RecKind } from "../../shared/recommend";
-import { CURRENT } from "../../program";
+import { useProgram } from "../lib/program";
 import { barOf, barsFrom, basisFor, kgHelp, kgLabel, loadOf, shownKg, type Bars } from "../../shared/load";
 import type { AppState } from "../../shared/api";
 import { useLoad } from "../lib/useLoad";
@@ -66,6 +67,7 @@ export default function SessionScreen({ id }: { id: string }) {
   const lastTap = useRef(0);
   const [sheet, setSheet] = useState<null | { k: "how" | "menu" | "swap"; i: number } | { k: "set"; s: SetLog } | { k: "finish" } | { k: "log" }>(null);
   const [autoDrop, setAutoDrop] = useState<number | null>(null);
+  const program = useProgram(); // the plan this user trains (default = CURRENT)
 
   const setRest = (r: Rest | null) => { saveRest(r); setRestState(r); };
 
@@ -131,7 +133,7 @@ export default function SessionScreen({ id }: { id: string }) {
   const plan = s.plan;
   const sets = b.sets;
   const hist: Record<string, ExHistory | undefined> = b.last;
-  const deload = /deload/i.test(CURRENT.weeks.find((w) => w.n === s.week)?.name ?? "");
+  const deload = /deload/i.test(program.weeks.find((w) => w.n === s.week)?.name ?? "");
   const recs = plan.map((it) => recommend(it.ex, it, hist, { deload, step: it.step }));
   const total = plan.filter((p) => !p.skipped).reduce((a, p) => a + p.sets, 0);
   const done = plan.reduce((a, p, i) => a + (p.skipped ? 0 : Math.min(p.sets, workSets(sets, i).length)), 0);
@@ -312,6 +314,7 @@ export default function SessionScreen({ id }: { id: string }) {
         <Btn kind="soft" icon={Plus} onClick={() => setSheet({ k: "swap", i: -1 })}>Add exercise</Btn>
         <Btn kind={live ? "primary" : "soft"} onClick={() => setSheet({ k: "finish" })}>{live ? "Finish workout" : "Edit session"}</Btn>
       </div>
+      {s.status === "done" && <ShareWorkoutButton sessionId={id} className="mt-2 w-full" />}
 
       {undo && (
         <div className={cx("fixed inset-x-0 z-40 mx-auto flex max-w-lg justify-center px-4", rest && live ? "bottom-24" : "bottom-6")}>

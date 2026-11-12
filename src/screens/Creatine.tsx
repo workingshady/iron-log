@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { CalendarRange, Check, Clock, Flame, FlaskConical, Pencil, Plus, Trash2 } from "lucide-react";
 import type { AppState, DashboardData } from "../../shared/api";
-import { CURRENT } from "../../program";
+import { useProgram } from "../lib/program";
 import { weekConfig } from "../../shared/week";
 import { queue, send, track, uid } from "../lib/api";
 import { useLoad } from "../lib/useLoad";
@@ -15,7 +15,8 @@ export default function Creatine() {
   const { data: d, reload: reloadD } = useLoad<DashboardData>(`/dashboard?today=${today()}`);
   const { data: rows, reload, setData } = useLoad<Row[]>("/intake?item=creatine");
   const { data: st } = useLoad<AppState>("/state");
-  const weekStart = weekConfig(st?.settings, CURRENT.schedules).weekStart;
+  const program = useProgram(); // the plan this user trains (default = CURRENT)
+  const weekStart = weekConfig(st?.settings, program.schedules).weekStart;
   const [custom, setCustom] = useState("");
   const [editing, setEditing] = useState<Row | null>(null);
   const target = d?.creatine?.target ?? 5;

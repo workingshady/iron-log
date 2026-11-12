@@ -5,7 +5,7 @@ import { InsightList } from "../components/Insights";
 import { NextSession, PersonalRecords, RecVsActual } from "../components/Targets";
 import { BodyMap } from "../components/BodyMap";
 import { EffortMix, LiftTrends, LiftTrendsHelp, Links, MuscleHelp, MuscleWeeks, RecentPRs, WeeklyTrend, useAnalytics } from "../components/Analytics";
-import { CURRENT } from "../../program";
+import { useProgram } from "../lib/program";
 import { today } from "../lib/util";
 import { EXCUSES } from "../../shared/lists";
 import { EXERCISES } from "../../program/exercises";
@@ -53,6 +53,7 @@ export default function Stats() {
   const [all, setAll] = useState(false);
   const [mapMode, setMapMode] = useState<"done" | "plan">("done");
   const [mapWeek, setMapWeek] = useState<number | null>(null);
+  const program = useProgram(); // the plan this user trains (default = CURRENT)
   if (!data) return <p className="py-20 text-center text-mute">{error ?? "Loading…"}</p>;
 
   const head = <PageHead icon={BarChart3} title="Stats" sub="Stronger? Enough volume? What helps?" />;
@@ -165,9 +166,9 @@ export default function Stats() {
           {ins && (
             <Card title="Muscle map" icon={Activity}>
               {(() => {
-                const weeks = CURRENT.weeks.map((w) => w.n);
+                const weeks = program.weeks.map((w) => w.n);
                 const wk = mapWeek ?? ins.muscles.weeks[ins.muscles.weeks.length - 1]?.week ?? 1;
-                const planned = (CURRENT.weeks.find((w) => w.n === wk)?.days ?? []).flatMap((d) => d.items).reduce<Record<string, number>>((a, x) => ({ ...a, [x.ex]: (a[x.ex] ?? 0) + x.sets }), {});
+                const planned = (program.weeks.find((w) => w.n === wk)?.days ?? []).flatMap((d) => d.items).reduce<Record<string, number>>((a, x) => ({ ...a, [x.ex]: (a[x.ex] ?? 0) + x.sets }), {});
                 const done = ins.muscles.weeks.find((w) => w.week === wk)?.ex ?? {};
                 return (
                   <>

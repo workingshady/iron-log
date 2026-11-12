@@ -4,7 +4,7 @@ import type { AppState, DashboardData, InsightsData, Lifts, ProgressData, SlotIn
 import { recommend } from "../../shared/recommend";
 import { kg } from "../lib/util";
 import { InsightList } from "../components/Insights";
-import { CURRENT } from "../../program";
+import { useProgram } from "../lib/program";
 import { EXERCISES } from "../../program/exercises";
 import { queue, track, uid } from "../lib/api";
 import { useLoad } from "../lib/useLoad";
@@ -32,6 +32,7 @@ export default function Home() {
   const { plan: wp } = useWeekPlan();
   const adapted = useNextSession();
   const { data: an } = useAnalytics(s ? weekConfig(s.settings, s.schedules).weekStart : 1);
+  const program = useProgram(); // the plan this user trains (default = CURRENT)
 
   if (!s) return <p className="py-20 text-center text-mute">{error ?? "Loading…"}</p>;
   // TODAY follows the adapted week (football, moved sessions, rest), never a fixed weekday
@@ -43,7 +44,7 @@ export default function Home() {
   const moved = state === "train" && next && s.next && next.dayKey !== s.next.dayKey;
   const week = next ? s.weeks.find((w) => w.n === next.week) : null;
   const weekStart = weekConfig(s.settings, s.schedules).weekStart;
-  const dayPlan = next ? CURRENT.weeks.find((w) => w.n === next.week)?.days.find((x) => x.key === next.dayKey) : null;
+  const dayPlan = next ? program.weeks.find((w) => w.n === next.week)?.days.find((x) => x.key === next.dayKey) : null;
   const weekdayOf = (iso?: string) => (iso ? new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" }) : "");
   const name = (me?.name || s.settings.profileName || "").split(" ")[0];
   const hello = new Date().getHours() < 12 ? "Good morning" : new Date().getHours() < 18 ? "Good afternoon" : "Good evening";

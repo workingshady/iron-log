@@ -8,6 +8,7 @@ import { forgetPhotos, refreshMe } from "../lib/me";
 import { cx, niceDate, today } from "../lib/util";
 import { Btn, Chips, Sheet } from "./ui";
 import { PhotoEditor, type Edited } from "./PhotoEditor";
+import { PhotoVisibilityToggle } from "./social/PhotoVisibility";
 
 // One photo system for the whole app:
 //   PhotoTiles  → the same 64 px rounded squares everywhere a note has photos (sets, machines, journal)
@@ -17,7 +18,7 @@ import { PhotoEditor, type Edited } from "./PhotoEditor";
 // browser + service worker cache them forever — grids load the thumbnail, the viewer loads the full photo once.
 
 export type RefKind = "set" | "exercise" | "journal" | "session" | "progress" | "avatar" | "other";
-export interface PhotoMeta { id: string; refKind: string; refId: string | null; exKey: string | null; sessionId: string | null; date: string; caption: string | null; w: number | null; h: number | null; bytes: number | null; createdAt: number }
+export interface PhotoMeta { visibility?: "private" | "friends"; id: string; refKind: string; refId: string | null; exKey: string | null; sessionId: string | null; date: string; caption: string | null; w: number | null; h: number | null; bytes: number | null; createdAt: number }
 export const photoUrl = (id: string, thumb = false) => `/api/photos/${id}/img${thumb ? "?s=t" : ""}`;
 
 export const KIND: Record<string, { label: string; icon: typeof Camera }> = {
@@ -332,6 +333,7 @@ export function Lightbox({ items, start, onClose, onChanged }: { items: PhotoMet
               {link && <a href={link} onClick={onClose} className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-white/10 px-4 text-sm hover:bg-white/20"><ExternalLink size={16} aria-hidden />Open {p.sessionId ? "workout" : K.label.toLowerCase()}</a>}
               <ActionBtn icon={Trash2} onClick={del} danger>Delete</ActionBtn>
             </div>
+            {p.refKind !== "avatar" && <PhotoVisibilityToggle key={p.id} photoId={p.id} visibility={p.visibility ?? "private"} onChange={() => onChanged?.()} className="mt-3" />}
             <p className="mt-2 text-[11px] text-white/45 num">{p.w && p.h ? `${p.w}×${p.h} · ` : ""}{p.bytes ? `${Math.round(p.bytes / 1024)} KB · ` : ""}private — only visible after login</p>
           </div>
         )}

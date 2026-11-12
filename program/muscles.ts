@@ -155,6 +155,24 @@ export const EX_MUSCLES: Record<string, M> = {
   reverse_crunch: { p: ["abs"] },
   smith_shrug: { p: ["trapezius"], s: ["forearm"] },
   hand_gripper: { p: ["forearm"] },
+  // v3 bank (templates)
+  incline_pushup: { p: ["chest"], s: ["triceps", "front-deltoids"] },
+  pike_pushup: { p: ["front-deltoids"], s: ["triceps", "trapezius"] },
+  bw_squat: { p: ["quadriceps", "gluteal"], s: ["adductor"] },
+  bw_split_squat: { p: ["quadriceps", "gluteal"], s: ["adductor", "hamstring"] },
+  glute_bridge: { p: ["gluteal"], s: ["hamstring"] },
+  single_leg_glute_bridge: { p: ["gluteal"], s: ["hamstring"] },
+  slider_leg_curl: { p: ["hamstring"], s: ["gluteal"] },
+  calf_raise_bw: { p: ["calves"] },
+  crunch: { p: ["abs"] },
+  prone_y_raise: { p: ["back-deltoids"], s: ["trapezius"] },
+  db_floor_press: { p: ["chest"], s: ["triceps", "front-deltoids"] },
+  db_bent_row: { p: ["upper-back"], s: ["back-deltoids", "biceps", "lower-back"] },
+  machine_incline_press: { p: ["chest", "front-deltoids"], s: ["triceps"] },
+  machine_preacher_curl: { p: ["biceps"] },
+  dip_machine: { p: ["triceps"], s: ["chest"] },
+  cable_glute_kickback: { p: ["gluteal"], s: ["hamstring"] },
+  rope_hammer_curl: { p: ["biceps", "forearm"] },
 };
 
 /** Fractional weekly sets per muscle from {exercise → sets}. */

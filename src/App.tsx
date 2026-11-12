@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { CloudOff } from "lucide-react";
 import { get, isDev, onPending, setMode, Unauthorized } from "./lib/api";
 import { cx } from "./lib/util";
-import { MAIN, MORE, MORE_TAB, moreGroups, type NavItem } from "./nav";
+import { MAIN, MORE, MORE_TAB, YOU_TAB, isSocialRoute, moreGroups, type NavItem } from "./nav";
+import { useBadges } from "./lib/badges";
 import Login, { Setup } from "./screens/Login";
+import Splash from "./screens/Splash";
 import Home from "./screens/Home";
 import Plan from "./screens/Plan";
 import SessionScreen from "./screens/Session";
@@ -31,6 +33,7 @@ import ChatRoomScreen from "./screens/ChatRoom";
 import Programs from "./screens/Programs";
 import ProgramEditor from "./screens/ProgramEditor";
 import Security from "./screens/Security";
+import Compete from "./screens/Compete";
 import { Avatar } from "./components/Avatar";
 import { setMe, useMe, type Me } from "./lib/me";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -70,13 +73,15 @@ function useRoute() {
 const PAGES: Record<string, () => React.ReactElement | null> = {
   "/": Home, "/plan": Plan, "/history": History, "/stats": Stats, "/body": Body, "/creatine": Creatine,
   "/tests": Tests, "/journal": Journal, "/notes": Journal, "/extra": Extras, "/library": Library, "/months": Months, "/learn": Learn, "/settings": Settings, "/more": More, "/cardio": Cardio, "/profile": Profile,
-  "/feed": Feed, "/friends": Friends, "/privacy": Privacy, "/notifications": Notifications, "/chats": Chats, "/programs": Programs, "/security": Security,
+  "/feed": Feed, "/friends": Friends, "/privacy": Privacy, "/notifications": Notifications, "/chats": Chats, "/programs": Programs, "/security": Security, "/compete": Compete,
 };
 
 export default function App() {
   const route = useRoute();
   const [auth, setAuth] = useState<"checking" | "in" | "out" | "setup">("checking");
   const [pending, setPending] = useState(0);
+  const me = useMe();
+  const badges = useBadges(auth === "in");
 
   useEffect(() => {
     get<{ dev?: boolean; user?: Me | null; setup?: boolean }>("/me")
@@ -95,15 +100,20 @@ export default function App() {
 
   useEffect(() => { document.title = `${route.startsWith("/s/") ? "Workout" : TITLE[route] ?? "Iron Log"} · Iron Log`; }, [route]);
 
-  if (auth === "checking") return null;
+  if (auth === "checking") return <Splash />;
   if (auth === "out") return <Login onIn={() => setAuth("in")} />;
   if (auth === "setup") return <Setup />;
 
   const inSession = route.startsWith("/s/");
   // pages with a parameter: #/u/<username> · #/chat/<id> · #/program/<id>
+  if (route.startsWith("/join/")) { location.replace("#/security"); return null; } // already logged in → invites live in Security
   const param = (p: string) => (route.startsWith(p) ? decodeURIComponent(route.slice(p.length)) : null);
-  const Page = PAGES[route] ?? (param("/u/") != null ? () => <UserProfile username={param("/u/")!} /> : param("/chat/") != null ? () => <ChatRoomScreen id={param("/chat/")!} /> : param("/program/") != null ? () => <ProgramEditor id={param("/program/")!} /> : Home);
-  const isMore = MORE.some((m) => m.path === route) || route === "/more" || route === "/notes" || route === "/profile";
+  const Page = PAGES[route] ?? Home;
+  const pageEl = param("/u/") != null ? <UserProfile key={route} username={param("/u/")!} />
+    : param("/chat/") != null ? <ChatRoomScreen key={route} id={param("/chat/")!} />
+    : param("/program/") != null ? <ProgramEditor key={route} id={param("/program/")!} />
+    : <Page />;
+  const isYou = (MORE.some((m) => m.path === route) && !isSocialRoute(route)) || ["/more", "/notes", "/profile", "/security", "/privacy", "/programs"].includes(route) || route.startsWith("/program/");
 
   return (
     <div className="min-h-dvh md:pl-60">
@@ -145,7 +155,7 @@ export default function App() {
       )}
 
       <main id="main" tabIndex={-1} className={cx("mx-auto px-4 pt-[calc(1.25rem+env(safe-area-inset-top))] outline-none md:px-8 md:pt-8", inSession ? "max-w-2xl pb-40" : "max-w-5xl pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-12")}>
-        <ErrorBoundary resetKey={route}>{inSession ? <SessionScreen key={route} id={route.slice(3)} /> : <Page />}</ErrorBoundary>
+        <ErrorBoundary resetKey={route}>{inSession ? <SessionScreen key={route} id={route.slice(3)} /> : pageEl}</ErrorBoundary>
       </main>
 
       {/* Phone bottom bar: Material 3 navigation bar. 64 px tall, labels always shown, the active
@@ -153,8 +163,9 @@ export default function App() {
       {!inSession && (
         <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg/95 backdrop-blur safe-b md:hidden">
           <ul className="mx-auto flex max-w-lg">
-            {[...MAIN, MORE_TAB].map((t) => {
-              const on = t === MORE_TAB ? isMore : route === t.path;
+            {[...MAIN, YOU_TAB].map((t) => {
+              const on = t === YOU_TAB ? isYou : t.path === "/feed" ? isSocialRoute(route) : route === t.path;
+              const badge = t.path === "/feed" ? badges.total : 0;
               return (
                 <li key={t.path} className="flex-1">
                   <a
@@ -162,10 +173,18 @@ export default function App() {
                     aria-current={on ? "page" : undefined}
                     className={cx("group flex h-16 flex-col items-center justify-center gap-1 text-xs", on ? "font-semibold text-ink" : "text-mute active:text-ink")}
                   >
-                    <span className={cx("flex h-8 w-14 items-center justify-center rounded-full transition-colors", on ? "bg-acc/20 text-acc" : "group-active:bg-card2")}>
-                      <t.icon size={22} strokeWidth={on ? 2.4 : 1.8} aria-hidden />
+                    <span className={cx("relative flex h-8 w-14 items-center justify-center rounded-full transition-colors", on ? "bg-acc/20 text-acc" : "group-active:bg-card2")}>
+                      {t === YOU_TAB ? (
+                        <Avatar id={me?.avatarId} name={me?.name ?? me?.username} size={26} className={on ? "ring-2 ring-acc" : ""} />
+                      ) : (
+                        <t.icon size={22} strokeWidth={on ? 2.4 : 1.8} aria-hidden />
+                      )}
+                      {badge > 0 && (
+                        <span className="absolute -top-0.5 right-2 min-w-[18px] rounded-full bg-bad px-1 text-center text-[10px] font-bold leading-[18px] text-white num" aria-hidden>{badge > 9 ? "9+" : badge}</span>
+                      )}
                     </span>
                     {t.label}
+                    {badge > 0 && <span className="sr-only">, {badge} new</span>}
                   </a>
                 </li>
               );

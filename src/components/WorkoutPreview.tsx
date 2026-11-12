@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ArrowDown, ArrowUp, ChevronRight, Clock, Dumbbell, Equal, Eye, Flame, Link2, Play, Sparkles } from "lucide-react";
 import type { AppState, Lifts, PlanItem } from "../../shared/api";
-import { CURRENT } from "../../program";
+import { useProgram } from "../lib/program";
 import { EX_GROUP } from "../../program/groups";
 import { buildPlan, targetLabel } from "../../shared/plan";
 import { recommend, type RecKind } from "../../shared/recommend";
@@ -37,12 +37,13 @@ export function estimateMinutes(items: PlanItem[], warmSets = 0) {
  * today's recommended weight (↑ heavier / = same / ↓ lighter), warm-ups, time estimate. Nothing is logged.
  */
 export function WorkoutPreview({ week, dayKey, onStart, onClose }: { week: number; dayKey: string; onStart?: () => void; onClose: () => void }) {
+  const program = useProgram(); // the plan this user trains (default = CURRENT)
   const { data: s } = useLoad<AppState>("/state");
   const { data: lifts } = useLoad<Lifts>("/lifts");
   const [how, setHow] = useState<PlanItem | null>(null);
-  const wk = CURRENT.weeks.find((w) => w.n === week);
+  const wk = program.weeks.find((w) => w.n === week);
   let plan: { name: string; items: PlanItem[] } | null = null;
-  try { plan = buildPlan(CURRENT, week, dayKey); } catch { plan = null; }
+  try { plan = buildPlan(program, week, dayKey); } catch { plan = null; }
   if (!plan || !wk) return null;
   const deload = /deload/i.test(wk.name);
   const bars = barsFrom(s?.settings);

@@ -7,7 +7,7 @@ import { track } from "../lib/api";
 import type { AppState, Lifts, PlanItem, SlotInfo } from "../../shared/api";
 import type { DayPlan } from "../../program/types";
 import { recommend } from "../../shared/recommend";
-import { CURRENT } from "../../program";
+import { useProgram } from "../lib/program";
 import { targetLabel, toItem } from "../../shared/plan";
 import { useLoad } from "../lib/useLoad";
 import { cx, kg, restLabel } from "../lib/util";
@@ -38,8 +38,9 @@ export default function Plan() {
   const [showMap, setShowMap] = useState(false);
   const [legend, setLegend] = useState(false);
   const [view, setView] = useState<"days" | "weeks">("days");
+  const program = useProgram(); // the plan this user trains (default = CURRENT)
   const curWeek = wk ?? s?.next?.week ?? 1;
-  const week = CURRENT.weeks.find((w) => w.n === curWeek)!;
+  const week = program.weeks.find((w) => w.n === curWeek)!;
   const slot = (key: string) => s?.slots.find((x) => x.week === curWeek && x.dayKey === key);
   // "Up next" follows the adapted week (football, busy, your pins), same as Home
   const nx = useNextSession();
@@ -50,14 +51,14 @@ export default function Plan() {
   const proj = useMemo(() => {
     if (!lifts || !s) return {};
     const done = new Set(s.slots.filter((x) => x.status === "done").map((x) => `${x.week}:${x.dayKey}`));
-    return projectProgram(CURRENT, lifts.hist, { fromWeek: progWeek, done, bodyKg: Number(s.settings.bodyKg) || null, includeExtras: true });
-  }, [lifts, s, progWeek]);
+    return projectProgram(program, lifts.hist, { fromWeek: progWeek, done, bodyKg: Number(s.settings.bodyKg) || null, includeExtras: true });
+  }, [lifts, s, progWeek, program]);
   const doneSlot = (w: number, key: string) => !!s?.slots.find((x) => x.week === w && x.dayKey === key && x.status === "done");
   const expanded = openDay ?? nextKey ?? week.days.find((d) => slot(d.key)?.status !== "done")?.key ?? week.days[0].key;
 
   return (
     <div className="min-w-0">
-      <PageHead icon={CalendarDays} title="Plan" sub={`${CURRENT.name} · v${CURRENT.version}`} />
+      <PageHead icon={CalendarDays} title="Plan" sub={`${program.name} · v${program.version}`} right={<a href="#/programs" className="flex min-h-11 shrink-0 items-center rounded-full border border-line px-3 text-xs font-semibold text-info hover:bg-card2">Change plan</a>} />
 
       {/* which month you're in + what changed in the plan */}
       <div className="mb-3 grid grid-cols-2 gap-2">
@@ -71,7 +72,7 @@ export default function Plan() {
         <button onClick={() => { setVers(true); track("versions_open", {}); }} className="flex min-h-14 items-center gap-2.5 rounded-2xl bg-card px-3 text-left active:bg-card2">
           <GitBranch size={18} className="shrink-0 text-info" />
           <span className="min-w-0">
-            <span className="block truncate text-sm font-semibold">v{CURRENT.version}</span>
+            <span className="block truncate text-sm font-semibold">v{program.version}</span>
             <span className="block truncate text-[11px] text-mute">{HISTORY[0]?.title ?? "Versions & changes"}</span>
           </span>
         </button>
@@ -94,10 +95,10 @@ export default function Plan() {
 
       {view === "weeks" && (
         <div className="space-y-3">
-          {CURRENT.order.map((key) => {
-            const dayAt = (n: number) => CURRENT.weeks.find((w) => w.n === n)?.days.find((d) => d.key === key);
+          {program.order.map((key) => {
+            const dayAt = (n: number) => program.weeks.find((w) => w.n === n)?.days.find((d) => d.key === key);
             const base = dayAt(1)!;
-            const exs = [...new Set(CURRENT.weeks.flatMap((w) => w.days.find((d) => d.key === key)?.items.map((x) => x.ex) ?? []))];
+            const exs = [...new Set(program.weeks.flatMap((w) => w.days.find((d) => d.key === key)?.items.map((x) => x.ex) ?? []))];
             return (
               <section key={key} className="overflow-hidden rounded-2xl bg-card">
                 <div className="px-4 pt-3 font-bold">{base.name} <span className="text-xs font-normal text-mute">· {base.focus}</span></div>
@@ -106,7 +107,7 @@ export default function Plan() {
                     <thead>
                       <tr className="text-mute">
                         <th className="px-2 py-1 text-left font-normal">Exercise</th>
-                        {CURRENT.weeks.map((w) => <th key={w.n} className={cx("px-1 py-1 font-normal", w.n === curWeek && "text-info")}>W{w.n}</th>)}
+                        {program.weeks.map((w) => <th key={w.n} className={cx("px-1 py-1 font-normal", w.n === curWeek && "text-info")}>W{w.n}</th>)}
                       </tr>
                     </thead>
                     <tbody>
@@ -115,7 +116,7 @@ export default function Plan() {
                           <td className="max-w-[9rem] truncate px-2 py-1.5 text-left">
                             <button onClick={() => { const rx = base.items.find((x) => x.ex === ex) ?? dayAt(curWeek)?.items.find((x) => x.ex === ex); if (rx) setHow(toItem(ex, rx)); }} className="truncate text-left underline decoration-line underline-offset-2">{toItem(ex, { sets: 1, rest: 0 }).name}</button>
                           </td>
-                          {CURRENT.weeks.map((w) => {
+                          {program.weeks.map((w) => {
                             const rx = dayAt(w.n)?.items.find((x) => x.ex === ex);
                             const idx = dayAt(w.n)?.items.findIndex((x) => x.ex === ex) ?? -1;
                             const pj = proj[`${w.n}:${key}:${idx}`];
@@ -142,7 +143,7 @@ export default function Plan() {
       {view === "days" && (<>
       {/* weeks */}
       <div className="mb-3 grid grid-cols-4 gap-1 rounded-xl bg-card p-1">
-        {CURRENT.weeks.map((w) => (
+        {program.weeks.map((w) => (
           <button key={w.n} onClick={() => { setWk(w.n); setOpenDay(null); }} className={cx("min-w-0 rounded-lg px-1 py-2 text-center", curWeek === w.n ? "bg-card3" : "text-mute")}>
             <div className="text-sm font-semibold">W{w.n}</div>
             <div className="truncate text-[11px] text-mute">{w.name}</div>

@@ -21,6 +21,8 @@ const COMPOUND = new Set([
   "db_rdl", "step_up", "reverse_lunge", "single_leg_rdl", "jm_press", "pullup", "chinup", "dip", "pushup", "knuckle_pushup", "deficit_pushup", "diamond_pushup",
   "inverted_row", "neg_pullup", "neg_dip", "assisted_dip", "band_pullup", "assisted_pullup_machine", "bench_dip", "cable_upright_row", "back_extension", "cable_pull_through",
 ]);
+// v3 bank (templates): new compounds
+for (const k of ["incline_pushup", "pike_pushup", "bw_squat", "bw_split_squat", "db_floor_press", "db_bent_row", "machine_incline_press", "dip_machine"]) COMPOUND.add(k);
 /** Your gym HAS a dip station and pull-up bars, but NO assisted machine and NO resistance bands → never auto-suggest those. */
 export const UNAVAILABLE = new Set(["assisted_dip", "band_pullup", "assisted_pullup_machine", "band_pull_apart"]);
 const SMALL_GROUPS: Group[] = ["Calves", "Forearms/Grip", "Neck", "Traps"];

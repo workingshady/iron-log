@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { ChevronRight, Library as LibIcon, Search, SlidersHorizontal, X } from "lucide-react";
 import type { PlanItem } from "../../shared/api";
-import { CURRENT } from "../../program";
+import type { Program } from "../../program";
+import { useProgram } from "../lib/program";
 import { EXERCISES } from "../../program/exercises";
 import { EX_GROUP, GROUPS } from "../../program/groups";
 import { EQUIP_LABEL, UNAVAILABLE, defaultRx, equipOf, kindOf, type Equip, type Kind } from "../../program/bank";
@@ -11,7 +12,8 @@ import { cx } from "../lib/util";
 import { Btn, PageHead, Sheet, Thumb } from "../components/ui";
 import { ExerciseSheet } from "../components/ExerciseSheet";
 
-const inPlan = new Set(CURRENT.weeks.flatMap((w) => [...w.days, ...(w.extras ?? [])].flatMap((d) => d.items.map((x) => x.ex))));
+const planSet = (p: Program) => new Set(p.weeks.flatMap((w) => [...w.days, ...(w.extras ?? [])].flatMap((d) => d.items.map((x) => x.ex))));
+let inPlan = new Set<string>(); // the user's plan, set by Library() on render
 const ALL = Object.values(EXERCISES);
 type Ex = (typeof ALL)[number];
 const KIND_LABEL: Record<Kind, string> = { heavy: "Heavy compound", compound: "Compound", isolation: "Isolation", small: "Small muscle", core: "Core", hold: "Hold / carry" };
@@ -65,9 +67,11 @@ export default function Library() {
   const [f, setF] = useState<F>(EMPTY);
   const [draft, setDraft] = useState<F | null>(null); // filters being edited in the sheet
   const [open, setOpen] = useState<PlanItem | null>(null);
+  const program = useProgram(); // the plan this user trains (default = CURRENT)
+  inPlan = useMemo(() => planSet(program), [program]);
 
-  const list = useMemo(() => ALL.filter((e) => matches(e, f, q)).sort((a, b) => GROUPS.indexOf(EX_GROUP[a.key] as never) - GROUPS.indexOf(EX_GROUP[b.key] as never) || a.name.localeCompare(b.name)), [f, q]);
-  const quick = useMemo(() => GROUPS.map((g) => ({ id: g, label: g, n: ALL.filter((e) => EX_GROUP[e.key] === g && matches(e, f, q, "groups")).length })).filter((x) => x.n > 0), [f, q]);
+  const list = useMemo(() => ALL.filter((e) => matches(e, f, q)).sort((a, b) => GROUPS.indexOf(EX_GROUP[a.key] as never) - GROUPS.indexOf(EX_GROUP[b.key] as never) || a.name.localeCompare(b.name)), [f, q, program]);
+  const quick = useMemo(() => GROUPS.map((g) => ({ id: g, label: g, n: ALL.filter((e) => EX_GROUP[e.key] === g && matches(e, f, q, "groups")).length })).filter((x) => x.n > 0), [f, q, program]);
   const count = (d: F) => ALL.filter((e) => matches(e, d, q)).length;
   const nActive = f.groups.length + f.equip.length + f.kinds.length + (f.show !== "all" ? 1 : 0);
   const applied: { label: string; clear: () => void }[] = [

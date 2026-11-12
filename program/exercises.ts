@@ -294,6 +294,43 @@ const list: Exercise[] = [
     cues: ["Gripper deep in the hand", "Close fully, squeeze 1-2 s", "Open slowly", "Both hands"], alts: ["plate_pinch", "towel_hang"] },
   { key: "machine_shrug", name: "Machine Shrug", metric: "weight_reps", muscles: "Upper traps (enter the number on the stack / pin)", yt: "HdoeBEuuS1c", step: 5,
     cues: ["Handles at your sides, stand or sit tall", "Shrug straight up to the ears — no rolling", "Hold 1-2 s at the top", "Slow down; straps if grip slips before traps"], alts: ["bb_shrug", "db_shrug", "smith_shrug"] },
+
+  // ---------------- v3 bank (multi-user templates): home, bodyweight, dumbbell-only and common machines.
+  // No video ids yet → the app shows a YouTube search link.
+  { key: "incline_pushup", name: "Incline Push-Up", metric: "reps", muscles: "Chest, triceps (easier push-up: hands on a bench or table)",
+    cues: ["Hands on a bench, body one straight line", "Chest to the edge", "Lower the surface as you get stronger"], alts: ["pushup", "machine_press", "db_bench"] },
+  { key: "pike_pushup", name: "Pike Push-Up", metric: "reps", muscles: "Shoulders, triceps (bodyweight overhead press)",
+    cues: ["Hips high, body an upside-down V", "Head down between the hands", "Elbows ~45°", "Feet on a bench to make it harder"], alts: ["db_ohp", "machine_shoulder_press", "pushup"] },
+  { key: "bw_squat", name: "Bodyweight Squat", metric: "reps", muscles: "Quads, glutes",
+    cues: ["Feet shoulder-width", "Sit between the heels, chest up", "Full depth, 2 s down", "Hold a weight once 25+ reps is easy"], alts: ["goblet_squat", "bw_split_squat", "leg_press"] },
+  { key: "bw_split_squat", name: "Split Squat (bodyweight)", metric: "reps", muscles: "Quads, glutes (one leg at a time)", perSide: true,
+    cues: ["Long stance, back heel up", "Drop the back knee straight down", "Front knee over the toes", "Back foot on a bench = Bulgarian"], alts: ["bss", "reverse_lunge", "bw_squat"] },
+  { key: "glute_bridge", name: "Glute Bridge", metric: "reps", muscles: "Glutes, hamstrings (weight on the hips to load it)",
+    cues: ["Lie down, heels close to the hips", "Drive through the heels", "Squeeze glutes 1 s at the top", "Ribs down, don't arch"], alts: ["hip_thrust", "single_leg_glute_bridge", "cable_pull_through"] },
+  { key: "single_leg_glute_bridge", name: "Single-Leg Glute Bridge", metric: "reps", muscles: "Glutes, hamstrings (one side)", perSide: true,
+    cues: ["One foot planted, other knee to the chest", "Push through the heel", "Hips level", "Pause at the top"], alts: ["glute_bridge", "hip_thrust"] },
+  { key: "slider_leg_curl", name: "Slider Leg Curl", metric: "reps", muscles: "Hamstrings, glutes (towel on a smooth floor or sliders)",
+    cues: ["Bridge up first", "Slide the heels out slowly", "Pull them back in, hips high", "Too hard → only the slow way out"], alts: ["nordic_curl", "leg_curl", "seated_leg_curl"] },
+  { key: "calf_raise_bw", name: "Calf Raise (bodyweight, on a step)", metric: "reps", muscles: "Calves",
+    cues: ["Balls of the feet on a step", "Heels all the way down", "Rise high, pause 1 s", "One leg at a time when easy"], alts: ["single_leg_calf", "standing_calf", "leg_press_calf"] },
+  { key: "crunch", name: "Crunch", metric: "reps", muscles: "Abs",
+    cues: ["Knees bent, hands by the head", "Curl the ribs toward the hips", "Don't pull the neck", "Slow down"], alts: ["reverse_crunch", "cable_crunch", "decline_crunch"] },
+  { key: "prone_y_raise", name: "Prone Y-Raise", metric: "reps", muscles: "Rear delts, lower traps (face down on a bench or floor)",
+    cues: ["Face down, arms in a Y", "Thumbs up, lift with the shoulder blades", "Hold 1 s", "Light dumbbells when easy"], alts: ["face_pull", "rear_delt_fly", "reverse_pec_deck"] },
+  { key: "db_floor_press", name: "Dumbbell Floor Press", metric: "weight_reps", muscles: "Chest, triceps (no bench needed)", step: 2.5,
+    cues: ["Lie on the floor, knees bent", "Elbows ~45°, upper arms touch the floor softly", "Press up and slightly in", "Pause, no bounce"], alts: ["db_bench", "pushup", "machine_press"] },
+  { key: "db_bent_row", name: "Two-Dumbbell Bent-Over Row", metric: "weight_reps", muscles: "Upper back, lats, rear delts", step: 2.5,
+    cues: ["Hinge ~45°, flat back", "Pull elbows to the hips", "Squeeze 1 s", "Lower to a full stretch"], alts: ["db_row", "cs_row", "bb_row"] },
+  { key: "machine_incline_press", name: "Machine Incline Chest Press", metric: "weight_reps", muscles: "Upper chest, front delts, triceps",
+    cues: ["Seat so handles are at upper chest", "Blades back", "Press without shrugging", "Slow return to a stretch"], alts: ["incline_db", "smith_incline", "machine_press"] },
+  { key: "machine_preacher_curl", name: "Machine Preacher Curl", metric: "weight_reps", muscles: "Biceps",
+    cues: ["Armpits on the pad", "Curl fully", "3 s down to almost straight"], alts: ["preacher_curl", "cable_curl", "db_curl"] },
+  { key: "dip_machine", name: "Seated Dip Machine", metric: "weight_reps", muscles: "Triceps, lower chest",
+    cues: ["Sit tall, shoulders down", "Press to full lockout", "Slow back up to a stretch"], alts: ["pushdown", "close_grip_bench", "dip"] },
+  { key: "cable_glute_kickback", name: "Cable Glute Kickback", metric: "weight_reps", muscles: "Glutes", perSide: true, step: 1,
+    cues: ["Ankle strap on a low pulley", "Hinge slightly, hold the frame", "Kick back and up from the glute", "No low-back arch"], alts: ["hip_thrust", "glute_bridge", "cable_pull_through"] },
+  { key: "rope_hammer_curl", name: "Cable Rope Hammer Curl", metric: "weight_reps", muscles: "Brachialis, biceps, forearms", step: 1,
+    cues: ["Rope on a low pulley, thumbs up", "Elbows pinned", "Squeeze at the top", "Slow down"], alts: ["hammer_curl", "cable_curl", "reverse_curl"] },
 ];
 
 /** Exercises done with two dumbbells (or two handles): the app asks for kg PER HAND. */
@@ -301,6 +338,7 @@ export const PAIRS = new Set([
   "db_bench", "incline_db", "db_ohp", "db_lateral", "db_curl", "incline_curl", "hammer_curl", "db_shrug",
   "rear_delt_fly", "cs_row", "db_rdl", "farmer_carry", "bss", "walking_lunge", "kelso_shrug", "db_hold",
   "db_fly", "arnold_press", "db_front_raise", "spider_curl", "step_up", "reverse_lunge",
+  "db_floor_press", "db_bent_row",
 ]);
 for (const e of list) if (PAIRS.has(e.key)) e.pair = true;
 

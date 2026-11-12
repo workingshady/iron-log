@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Ban, Check, ChevronRight, Dumbbell, Eye, Play, RotateCcw } from "lucide-react";
 import { WorkoutPreview } from "../components/WorkoutPreview";
 import type { AppState, HistoryRow, Lifts, PlanItem } from "../../shared/api";
-import { CURRENT } from "../../program";
+import { useProgram } from "../lib/program";
 import { toItem, targetLabel } from "../../shared/plan";
 import { recommend } from "../../shared/recommend";
 import { loadOf } from "../../shared/load";
@@ -34,10 +34,11 @@ export default function Extras() {
   const [preview, setPreview] = useState(false);
   const [skip, setSkip] = useState(false);
   const [how, setHow] = useState<PlanItem | null>(null);
+  const program = useProgram(); // the plan this user trains (default = CURRENT)
   const curWeek = s?.next?.week ?? s?.active?.week ?? 1;
-  const week = CURRENT.weeks.find((w) => w.n === curWeek) ?? CURRENT.weeks[0];
+  const week = program.weeks.find((w) => w.n === curWeek) ?? program.weeks[0];
   const extra = week.extras?.[0];
-  const ws = weekConfig(s?.settings, CURRENT.schedules).weekStart;
+  const ws = weekConfig(s?.settings, program.schedules).weekStart;
 
   const rows = useMemo(() => (hist ?? []).filter((h) => h.dayKey.startsWith("X")), [hist]);
   const thisWeek = weekStartOf(today(), ws);

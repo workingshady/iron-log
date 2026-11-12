@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy · Iron Log</title>
+<meta name="description" content="How Iron Log collects, uses, shares and protects your data.">
+<link rel="icon" href="/favicon.svg">
+<style>
+  :root { --bg:#0b0b0d; --card:#151518; --line:#2a2a31; --ink:#f2f2f4; --mute:#a3a3ad; --acc:#c8f560; }
+  @media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --bg:#f7f7f8; --card:#fff; --line:#e3e3e8; --ink:#141417; --mute:#5c5c66; --acc:#4d7a00; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.65 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+  header { display:flex; align-items:center; gap:12px; margin-bottom:8px; }
+  header img { width:40px; height:40px; }
+  h1 { font-size: 1.9rem; line-height:1.2; margin: 0; }
+  h2 { font-size: 1.15rem; margin: 2rem 0 .5rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+  p, li { color: var(--ink); }
+  .muted { color: var(--mute); font-size: .92rem; }
+  table { width:100%; border-collapse: collapse; margin: .75rem 0; font-size: .95rem; }
+  th, td { text-align:left; vertical-align: top; padding: .55rem .6rem; border-bottom: 1px solid var(--line); }
+  th { color: var(--mute); font-weight: 600; }
+  a { color: var(--acc); }
+  .card { background: var(--card); border:1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin: 1rem 0; }
+  nav { margin-top: 2.5rem; display:flex; gap:16px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<main>
+  <header><img src="/icon.svg" alt=""><h1>Privacy Policy</h1></header>
+  <p class="muted">Iron Log · last updated 12 November 2026</p>
+
+  <div class="card">
+    <strong>Short version.</strong> Iron Log is a private, invite-only workout tracker for a small group of friends. Your data is
+    used only to run the app for you. It is never sold, never used for ads, and never shared outside the app. Your journal, set
+    notes and pain logs are visible only to you. You decide what your friends can see, and you can delete everything.
+  </div>
+
+  <h2>1. Who runs Iron Log</h2>
+  <p>Iron Log is a personal, non-commercial project run by its owner for themselves and invited friends at
+    <a href="https://iron-log.workingshady.workers.dev">iron-log.workingshady.workers.dev</a>. Contact: message the owner in the app,
+    or use the support email shown on the Google sign-in screen.</p>
+
+  <h2>2. What we collect</h2>
+  <table>
+    <tr><th>Data</th><th>Why</th></tr>
+    <tr><td>Account: username, display name, bio, profile photo, a <em>hashed</em> passcode (never stored in plain text)</td><td>To sign you in and show your profile to friends</td></tr>
+    <tr><td>If you use <strong>Sign in with Google</strong>: your Google account id, email address and basic profile (name). Scopes: <code>openid email profile</code> only</td><td>To let you sign in with Google instead of a passcode</td></tr>
+    <tr><td>Training logs: workouts, sets, weights, reps, effort (RIR), rest times, cardio, tests, body measurements, creatine</td><td>The core of the app: tracking, recommendations, stats</td></tr>
+    <tr><td>Notes, journal, mood, pain areas, voice notes (converted to text)</td><td>Your own diary and recommendations. Always private</td></tr>
+    <tr><td>Photos you add (progress, form, machine settings, chat images)</td><td>Shown where you put them, with the visibility you choose</td></tr>
+    <tr><td>Social: friends, posts, likes, comments, challenges, chat messages</td><td>To let you interact with the friends you choose</td></tr>
+    <tr><td>App usage events (e.g. "set logged", "rest skipped") and basic security logs (failed sign-ins, IP address for lockout)</td><td>To improve the app and protect accounts</td></tr>
+  </table>
+  <p>We do not collect location, contacts, advertising ids or payment data.</p>
+
+  <h2>3. Google user data</h2>
+  <p>Iron Log's use of information received from Google APIs adheres to the
+    <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the
+    Limited Use requirements. We only read your Google account id, email and name to sign you in. We do not access Gmail,
+    Drive, Contacts or any other Google data, we do not transfer Google data to third parties, and we do not use it for
+    advertising or to train AI models. You can unlink Google at any time in <em>Account &amp; security</em>.</p>
+
+  <h2>4. Who can see what</h2>
+  <table>
+    <tr><th>Data</th><th>Visible to</th></tr>
+    <tr><td>Journal, set notes, pain, readiness, voice notes</td><td>Only you, always</td></tr>
+    <tr><td>Body weight and measurements</td><td>Only you, unless you turn sharing on</td></tr>
+    <tr><td>Photos</td><td>Only you, unless you mark a photo "friends"</td></tr>
+    <tr><td>Profile, workouts done, PRs, stats, leaderboard</td><td>Friends you accepted, according to your Privacy settings</td></tr>
+    <tr><td>Chat messages</td><td>Members of that conversation</td></tr>
+    <tr><td>Username, name, profile photo</td><td>Other members, so friends can find you</td></tr>
+  </table>
+  <p>If you connect an AI assistant (for example Claude or ChatGPT) to your account, that assistant can read and change only your
+    own data while the connection is active, and you can revoke it at any time.</p>
+
+  <h2>5. Where data is stored and how it is protected</h2>
+  <ul>
+    <li>Data is stored with <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare</a> (Workers, D1 database, Durable Objects),
+      encrypted in transit (HTTPS) and at rest by Cloudflare.</li>
+    <li>Voice notes are transcribed with Cloudflare Workers AI. The audio isn't kept after transcription unless you send it as a chat voice note.</li>
+    <li>Passcodes are hashed with PBKDF2-SHA256 plus a per-user salt and a server secret. Sign-in has a growing lockout after failed attempts.</li>
+    <li>Every request is limited to your own data on the server. Friends' data is only returned when your friendship and their privacy settings allow it.</li>
+  </ul>
+
+  <h2>6. How long we keep data</h2>
+  <p>Your data is kept while your account exists. Deleted posts, comments and messages are removed from view right away. Backups
+    of the database, kept by the owner to prevent data loss, may hold copies for up to 90 days.</p>
+
+  <h2>7. Your choices and rights</h2>
+  <ul>
+    <li><strong>See and download</strong> your data: <em>Settings → Download everything (JSON)</em>.</li>
+    <li><strong>Change</strong> what friends see: <em>You → ≡ → Privacy</em>. Mark photos private or friends one by one.</li>
+    <li><strong>Delete</strong> logs, posts, photos and messages yourself, or ask the owner to delete your whole account.</li>
+    <li><strong>Unlink Google</strong> or revoke connected AI assistants in <em>Account &amp; security</em>. You can also remove access at
+      <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.</li>
+  </ul>
+
+  <h2>8. Children</h2>
+  <p>Iron Log is not intended for anyone under 16.</p>
+
+  <h2>9. Changes</h2>
+  <p>If this policy changes, the date above changes. Important changes are announced in the app.</p>
+
+  <nav><a href="/">Open Iron Log</a><a href="/terms">Terms of Service</a></nav>
+</main>
+</body>
+</html>

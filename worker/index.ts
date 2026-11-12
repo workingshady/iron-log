@@ -606,7 +606,7 @@ app.get("/notes", async (c) => {
 // Images are immutable per id → cached forever by the browser and the service worker (no re-download).
 
 const photoMeta = { id: t.photos.id, refKind: t.photos.refKind, refId: t.photos.refId, exKey: t.photos.exKey, sessionId: t.photos.sessionId,
-  date: t.photos.date, caption: t.photos.caption, w: t.photos.w, h: t.photos.h, bytes: t.photos.bytes, createdAt: t.photos.createdAt };
+  date: t.photos.date, caption: t.photos.caption, w: t.photos.w, h: t.photos.h, bytes: t.photos.bytes, createdAt: t.photos.createdAt, visibility: t.photos.visibility };
 const REF_KINDS = ["set", "exercise", "journal", "session", "progress", "avatar", "other"];
 const ID_RE = /^[\w-]{6,64}$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -618,8 +618,9 @@ app.get("/photos", async (c) => {
   const { ref, ex, session, kinds } = c.req.query();
   const ks = (kinds ?? "").split(",").filter((k) => REF_KINDS.includes(k));
   const where = ref ? eq(t.photos.refId, ref) : ex ? eq(t.photos.exKey, ex) : session ? eq(t.photos.sessionId, session) : ks.length ? inArray(t.photos.refKind, ks) : undefined;
+  const notChat = sql`coalesce(${t.photos.refId}, '') not like 'chat:%'`; // chat images live in conversations, not your grid
   const q = d.select(photoMeta).from(t.photos);
-  return c.json(await (where ? q.where(where) : q).orderBy(desc(t.photos.date), desc(t.photos.createdAt)).limit(500));
+  return c.json(await q.where(where ? and(where, notChat) : notChat).orderBy(desc(t.photos.date), desc(t.photos.createdAt)).limit(500));
 });
 
 /** The image (?s=t → small thumbnail when there is one). Private (auth cookie) and immutable → cached for a year. */

@@ -4,7 +4,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { CARDIO_GUIDE, GROW_RULES, VERDICTS, KG_ENTRY, REC_RULES, REC_MATH, NUTRITION, PULLUP_ROADMAP, SAFETY, SESSION_FLOW, TERMS, WARMUP, WHAT_IF, WHY_V2 } from "../../program/learn";
-import { CURRENT } from "../../program";
+import { useProgram } from "../lib/program";
 import { cx } from "../lib/util";
 import { PageHead } from "../components/ui";
 
@@ -19,6 +19,7 @@ const TONE: Record<Tone, { bar: string; icon: string; label: string }> = {
 };
 
 export default function Learn() {
+  const program = useProgram(); // the plan this user trains (default = CURRENT)
   const [open, setOpen] = useState<string | null>("flow");
   const [done, setDone] = useState<Record<number, boolean>>({});
 
@@ -99,7 +100,7 @@ export default function Learn() {
                 <div className="mt-1 flex gap-2 text-sm text-mute"><XCircle size={16} className="mt-0.5 shrink-0 text-bad" />{r.bad}</div>
               </div>
             ))}
-            <ul className="space-y-1.5 text-sm">{CURRENT.rules.map((r) => <li key={r} className="flex gap-2"><span className="text-warn">•</span>{r}</li>)}</ul>
+            <ul className="space-y-1.5 text-sm">{program.rules.map((r) => <li key={r} className="flex gap-2"><span className="text-warn">•</span>{r}</li>)}</ul>
           </div>
         </S>
 
@@ -115,7 +116,7 @@ export default function Learn() {
           </dl>
         </S>
 
-        <S id="why" tone="info" icon={Sparkles} title={`Why ${CURRENT.name} is built this way`} sub="What was wrong with v1, what changed, and the evidence">
+        <S id="why" tone="info" icon={Sparkles} title={`Why ${program.name} is built this way`} sub="What was wrong with v1, what changed, and the evidence">
           <div className="space-y-3">
             {WHY_V2.map((w) => (
               <div key={w.point} className="rounded-xl bg-card2 p-3 text-sm">

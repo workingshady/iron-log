@@ -7,7 +7,8 @@ import {
 import type { AppState, Readiness, Session, SessionBundle, SlotInfo } from "../../shared/api";
 import { EXCUSES, READINESS } from "../../shared/lists";
 import { buildPlan } from "../../shared/plan";
-import { CURRENT, programVersionId } from "../../program";
+import { programVersionId } from "../../program";
+import { useProgram } from "../lib/program";
 import { cache, queue, send, track, uid } from "../lib/api";
 import { cx, today, tz } from "../lib/util";
 import { Btn, Chips, Label, Sheet, scale } from "./ui";
@@ -26,6 +27,7 @@ const READY_HINT: Record<string, [string, string]> = {
 export function StartSheet({ open, slot, kind, onClose }: { open: boolean; slot: SlotInfo | null; kind: "planned" | "picked" | "extra"; onClose: () => void }) {
   const [r, setR] = useState<Readiness>({});
   const [busy, setBusy] = useState(false);
+  const program = useProgram(); // the plan this user trains (default = CURRENT)
   if (!slot) return null;
   async function start() {
     setBusy(true);
@@ -38,9 +40,9 @@ export function StartSheet({ open, slot, kind, onClose }: { open: boolean; slot:
       if (!(e instanceof TypeError)) { alert((e as Error).message); setBusy(false); return; }
       // offline: build the session on the phone, sync later
       queue("POST", "/sessions", body, `start ${id}`);
-      const plan = buildPlan(CURRENT, slot!.week, slot!.dayKey);
+      const plan = buildPlan(program, slot!.week, slot!.dayKey);
       const session: Session = {
-        id, programVersionId: programVersionId(CURRENT), week: slot!.week, dayKey: slot!.dayKey, dayName: plan.name, status: "active", kind,
+        id, programVersionId: programVersionId(program), week: slot!.week, dayKey: slot!.dayKey, dayName: plan.name, status: "active", kind,
         date: body.date, startedAt, endedAt: null, plan: plan.items, readiness: body.readiness, rpe: null, bodyweight: null, excuse: null, note: null,
       };
       cache.set(`bundle_${id}`, { session, sets: [], last: {}, best: {}, feedback: {} } satisfies SessionBundle);

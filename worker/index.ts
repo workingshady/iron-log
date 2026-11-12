@@ -9,6 +9,8 @@ import { accountRoutes, seedAccount } from "./routes/account";
 import { socialRoutes, seedSocial } from "./routes/social";
 import { chatRoutes, seedChat } from "./routes/chat";
 import { programRoutes, seedPrograms } from "./routes/programs";
+import { seedRich } from "./devseed-rich";
+import { pushRoutes } from "./routes/push";
 import { PASS_RE, USERNAME_RE, checkPass, hashPass, login, reissue, requireAuth, setup } from "./auth";
 import { CURRENT, EXERCISES, programVersionId } from "../program";
 import { buildPlan } from "../shared/plan";
@@ -163,6 +165,7 @@ app.route("/", accountRoutes);
 app.route("/", socialRoutes);
 app.route("/", chatRoutes);
 app.route("/", programRoutes);
+app.route("/", pushRoutes);
 
 /** DEV mode only: fill the test database with ~3 weeks of realistic dummy training. */
 app.post("/dev/seed", async (c) => {
@@ -189,7 +192,7 @@ app.post("/dev/seed", async (c) => {
     await d.update(t.sessions).set({ blockId: blk.id }).where(sql`${t.sessions.blockId} is null`);
   }
   const ids = { dev: "dev", omar: "dev-omar", sara: "dev-sara" };
-  for (const f of [seedAuth, seedAccount, seedPrograms, seedSocial, seedChat]) await f(raw, ids);
+  for (const f of [seedAuth, seedAccount, seedPrograms, seedSocial, seedChat, seedRich]) await f(raw, ids);
   return c.json({ ok: true, rows: n, users: people.map((u) => u.username) });
 });
 

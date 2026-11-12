@@ -489,3 +489,25 @@ export const challengeMembers = sqliteTable(
   { challengeId: text("challenge_id").notNull(), userId: text("user_id").notNull(), joinedAt: integer("joined_at").notNull() },
   (t) => [primaryKey({ columns: [t.challengeId, t.userId] }), index("chm_user").on(t.userId)],
 );
+
+// ================================================================== phone notifications (migration 0014)
+
+/**
+ * Web Push subscriptions: one row per device/browser that allowed notifications (Android app/Chrome, desktop, iOS home-screen app).
+ * endpoint is unique per device; keys p256dh/auth encrypt the payload (RFC 8291). Removed when the push service says 404/410.
+ */
+export const pushSubs = sqliteTable(
+  "push_subscriptions",
+  {
+    id: text("id").primaryKey(), // sha-256 of the endpoint
+    userId: text("user_id").notNull(),
+    endpoint: text("endpoint").notNull(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    ua: text("ua"), // "Android · Chrome" — shown in the device list
+    createdAt: integer("created_at").notNull(),
+    lastOkAt: integer("last_ok_at"),
+    fails: integer("fails").notNull().default(0),
+  },
+  (t) => [index("push_user").on(t.userId)],
+);

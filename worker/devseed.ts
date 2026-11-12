@@ -28,7 +28,8 @@ export async function seedDev(d: DB, today: string, real?: DB): Promise<number> 
   const sessions: (typeof t.sessions.$inferInsert)[] = [];
   const sets: (typeof t.sets.$inferInsert)[] = [];
   let n = 0;
-  const id = (p: string) => `${p}-${++n}`;
+  const who = (d as unknown as { uid?: string }).uid ?? "dev"; // ids unique per test user
+  const id = (p: string) => (who === "dev" ? `${p}-${++n}` : `${who}-${p}-${++n}`);
   for (const [back, week, dayKey] of order) {
     const date = iso(today, back);
     const plan = buildPlan(CURRENT, week, dayKey);
@@ -70,18 +71,18 @@ export async function seedDev(d: DB, today: string, real?: DB): Promise<number> 
     { id: id("c"), date: iso(today, 20), protocol: "incline_hiit30", status: "done", minutes: 30, kcalEst: 316, rpe: 8, createdAt: Date.now() },
     { id: id("c"), date: iso(today, 16), protocol: "hill_walk30", status: "done", minutes: 30, kcalEst: 280, rpe: 6, createdAt: Date.now() },
     { id: id("c"), date: iso(today, 13), protocol: "incline_hiit30", status: "skipped", minutes: 0, createdAt: Date.now() },
-    { id: `football-${iso(today, 3)}`, date: iso(today, 3), protocol: "football", status: "done", minutes: 90, kcalEst: 840, rpe: 7, note: "normal", createdAt: Date.now() },
+    { id: who === "dev" ? `football-${iso(today, 3)}` : `football-${who}-${iso(today, 3)}`, date: iso(today, 3), protocol: "football", status: "done", minutes: 90, kcalEst: 840, rpe: 7, note: "normal", createdAt: Date.now() },
   ];
   await d.insert(t.cardio).values(cardio);
   const intake = Array.from({ length: 18 }, (_, i) => i).filter((i) => i !== 4 && i !== 11).map((i) => ({ id: id("i"), date: iso(today, i), item: "creatine", amount: 5, unit: "g", at: at(iso(today, i), 8, 30) }));
   for (let i = 0; i < intake.length; i += 10) await d.insert(t.intake).values(intake.slice(i, i + 10));
-  await d.insert(t.body).values([20, 13, 6, 0].map((b, k) => ({ date: iso(today, b), weightKg: 80 + k * 0.3, waistCm: 86 - k * 0.2, sleepH: 7, proteinG: 150, updatedAt: Date.now() })));
+  await d.insert(t.body).values([20, 13, 6, 0].map((b, k) => ({ userId: "", date: iso(today, b), weightKg: 80 + k * 0.3, waistCm: 86 - k * 0.2, sleepH: 7, proteinG: 150, updatedAt: Date.now() })));
   await d.insert(t.tests).values([{ id: id("t"), date: iso(today, 20), testKey: "dead_hang", value: 32, unit: "s", createdAt: Date.now() }, { id: id("t"), date: iso(today, 20), testKey: "pushups", value: 28, unit: "reps", createdAt: Date.now() }]);
   await d.insert(t.journal).values({ id: id("j"), date: iso(today, 6), text: "Week 3. Football on Wednesday so Legs moved — felt fine.", tags: "life", createdAt: Date.now() });
   const marks = { [iso(today, 3)]: "football", [iso(today, -2)]: "football" };
   // copy YOUR real preferences (read-only) so test mode looks like your week; dummy football marks on top
   const mine = real ? (await real.select().from(t.settings)).filter((r) => r.key !== "weekMarks") : [];
   const base = mine.length ? mine : [{ key: "schedule", value: "A (Mon start)" }, { key: "barKg", value: "20" }, { key: "ezKg", value: "10" }];
-  await d.insert(t.settings).values([...base, { key: "weekMarks", value: JSON.stringify(marks) }]);
+  await d.insert(t.settings).values([...base, { key: "weekMarks", value: JSON.stringify(marks) }].map((x) => ({ ...x, userId: "" }))); // userId stamped by db()
   return sessions.length + sets.length + cardio.length + intake.length;
 }

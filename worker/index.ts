@@ -3,6 +3,12 @@ import { drizzle } from "drizzle-orm/d1";
 import { and, desc, eq, inArray, like, ne, sql } from "drizzle-orm";
 import * as t from "./db/schema";
 import type { Env } from "./env";
+import { db, rawDb, resolveProgram, scopedDb, type DB } from "./db";
+import { authRoutes, seedAuth } from "./routes/auth";
+import { accountRoutes, seedAccount } from "./routes/account";
+import { socialRoutes, seedSocial } from "./routes/social";
+import { chatRoutes, seedChat } from "./routes/chat";
+import { programRoutes, seedPrograms } from "./routes/programs";
 import { PASS_RE, USERNAME_RE, checkPass, hashPass, login, reissue, requireAuth, setup } from "./auth";
 import { CURRENT, EXERCISES, programVersionId } from "../program";
 import { buildPlan } from "../shared/plan";
@@ -15,9 +21,7 @@ import type {
 } from "../shared/api";
 
 const app = new Hono<Env>().basePath("/api");
-/** Real database, or the separate test database in DEV mode. */
-const db = (c: { env: Env["Bindings"]; var: Env["Variables"] }) => drizzle(c.var.dev ? c.env.DB_DEV : c.env.DB, { schema: t });
-type DB = ReturnType<typeof db>;
+// db(c) = the logged-in user's data only (see worker/db.ts). rawDb(c) = unscoped, for shared tables.
 
 const now = () => Date.now();
 const j = <T>(s: string | null | undefined): T | null => (s ? (JSON.parse(s) as T) : null);
@@ -34,9 +38,9 @@ function rowToSession(r: typeof t.sessions.$inferSelect): Session {
 }
 
 async function ensureVersion(d: DB) {
-  const id = programVersionId(CURRENT);
+  const id = programVersionId(d.prog);
   await d.insert(t.programVersions)
-    .values({ id, name: CURRENT.name, changelog: CURRENT.changelog, snapshot: JSON.stringify({ ...CURRENT, exercises: EXERCISES }), firstSeenAt: now() })
+    .values({ id, name: d.prog.name, changelog: d.prog.changelog, snapshot: JSON.stringify({ ...d.prog, exercises: EXERCISES }), firstSeenAt: now() })
     .onConflictDoNothing();
   return id;
 }
@@ -60,7 +64,7 @@ async function baselineNow(d: DB) {
  */
 async function activeBlock(d: DB, startDate?: string) {
   let [b] = await d.select().from(t.blocks).where(eq(t.blocks.status, "active")).orderBy(desc(t.blocks.n)).limit(1);
-  if (b && b.programId !== CURRENT.id) {
+  if (b && b.programId !== d.prog.id) {
     await closeBlock(d, b, startDate ?? isoToday());
     b = undefined as unknown as typeof b;
   }
@@ -68,7 +72,7 @@ async function activeBlock(d: DB, startDate?: string) {
     const [last] = await d.select().from(t.blocks).orderBy(desc(t.blocks.n)).limit(1);
     const n = (last?.n ?? 0) + 1;
     const date = startDate ?? isoToday();
-    const row = { id: `blk-${n}-${now().toString(36)}`, n, name: `Month ${n}`, programId: CURRENT.id, startVersion: programVersionId(CURRENT), startDate: date,
+    const row = { id: `blk-${n}-${now().toString(36)}`, n, name: `Month ${n}`, programId: d.prog.id, startVersion: programVersionId(d.prog), startDate: date,
       endDate: null, status: "active", goal: null, notes: null, review: null, baseline: JSON.stringify(await baselineNow(d)), summary: null, createdAt: now(), updatedAt: now() };
     await d.insert(t.blocks).values(row);
     b = row as typeof b;
@@ -82,7 +86,7 @@ async function blockStats(d: DB, b: typeof t.blocks.$inferSelect) {
   const ids = sess.map((x) => x.id);
   const sets = ids.length ? await d.select().from(t.sets).where(and(inArray(t.sets.sessionId, ids), eq(t.sets.deleted, 0))) : [];
   const done = sess.filter((x) => x.status === "done");
-  const planned = (CURRENT.weeks.length || 4) * CURRENT.order.length;
+  const planned = (d.prog.weeks.length || 4) * d.prog.order.length;
   const counted = sess.filter((x) => x.kind !== "extra" && ["done", "missed", "skipped"].includes(x.status));
   const work = sets.filter((x) => x.kind !== "W");
   const mins = done.filter((x) => x.startedAt && x.endedAt).map((x) => (x.endedAt! - x.startedAt!) / 60000).filter((m) => m >= 5 && m <= 300);
@@ -128,11 +132,11 @@ async function slots(d: DB): Promise<SlotInfo[]> {
   const blk = await activeBlock(d);
   const rows = await d.select({ week: t.sessions.week, dayKey: t.sessions.dayKey, status: t.sessions.status })
     .from(t.sessions)
-    .where(and(eq(t.sessions.blockId, blk.id), like(t.sessions.programVersionId, `${CURRENT.id}@%`), inArray(t.sessions.status, ["done", "skipped"]), ne(t.sessions.kind, "extra")));
+    .where(and(eq(t.sessions.blockId, blk.id), like(t.sessions.programVersionId, `${d.prog.id}@%`), inArray(t.sessions.status, ["done", "skipped"]), ne(t.sessions.kind, "extra")));
   const st = new Map(rows.map((r) => [`${r.week}-${r.dayKey}`, r.status as "done" | "skipped"]));
   const out: SlotInfo[] = [];
-  for (const w of CURRENT.weeks)
-    for (const key of CURRENT.order) {
+  for (const w of d.prog.weeks)
+    for (const key of d.prog.order) {
       const d2 = w.days.find((x) => x.key === key);
       if (!d2) continue;
       out.push({ week: w.n, dayKey: key, dayName: d2.name, focus: d2.focus, items: d2.items.length, status: st.get(`${w.n}-${key}`) ?? "open" });
@@ -143,24 +147,50 @@ async function slots(d: DB): Promise<SlotInfo[]> {
 // ---------------------------------------------------------------- auth
 
 app.post("/login", login);
-app.use("*", async (c, next) => (c.req.path === "/api/login" ? next() : requireAuth(c, next)));
+app.route("/", authRoutes); // public: /api/signup, /api/auth/* (Google) …
+const PUBLIC = (p: string) => p === "/api/login" || p === "/api/signup" || p.startsWith("/api/auth/") || p.startsWith("/api/public/");
+app.use("*", async (c, next) => (PUBLIC(c.req.path) ? next() : requireAuth(c, next)));
+app.use("*", async (c, next) => {
+  if (c.var.programId) c.set("prog", await resolveProgram(rawDb(c), { programId: c.var.programId }));
+  return next();
+});
 app.get("/me", async (c) => {
   const u = await profileOf(c);
-  return c.json({ ok: true, dev: c.var.dev, setup: !c.var.dev && !u, user: u ? { id: u.id, username: u.username, name: u.name, avatarId: u.avatarId } : null });
+  return c.json({ ok: true, dev: c.var.dev, setup: !c.var.dev && !u, user: u ? { id: u.id, username: u.username, name: u.name, avatarId: u.avatarId, role: u.role } : null });
 });
 app.post("/setup", setup);
+app.route("/", accountRoutes);
+app.route("/", socialRoutes);
+app.route("/", chatRoutes);
+app.route("/", programRoutes);
 
 /** DEV mode only: fill the test database with ~3 weeks of realistic dummy training. */
 app.post("/dev/seed", async (c) => {
   if (!c.var.dev) return c.json({ error: "Only in DEV mode" }, 403);
-  const n = await seedDev(db(c), c.req.query("today") ?? new Date().toISOString().slice(0, 10), drizzle(c.env.DB, { schema: t }));
-  // link the dummy sessions to a fresh Month 1 (same as the real data migration)
-  const d = db(c);
-  await d.delete(t.blocks);
-  const [first] = await d.select({ date: t.sessions.date }).from(t.sessions).orderBy(t.sessions.date).limit(1);
-  const blk = await activeBlock(d, first?.date);
-  await d.update(t.sessions).set({ blockId: blk.id }).where(sql`${t.sessions.blockId} is null`);
-  return c.json({ ok: true, rows: n });
+  const today = c.req.query("today") ?? new Date().toISOString().slice(0, 10);
+  const raw = rawDb(c); // DEV database only (c.var.dev)
+  // test people: you (dev) + two friends — log in as any of them with the DEV passcode
+  const people = [
+    { id: "dev", username: "dev", name: "Test user", bio: "DEV mode · dummy data", role: "owner" },
+    { id: "dev-omar", username: "dev_omar", name: "Omar Test", bio: "Leg day enjoyer · 4-day upper/lower", role: "member" },
+    { id: "dev-sara", username: "dev_sara", name: "Sara Test", bio: "Pull-ups > everything", role: "member" },
+  ];
+  for (const u of people)
+    await raw.insert(t.users).values({ ...u, avatarId: null, passHash: "-", createdAt: now(), updatedAt: now() })
+      .onConflictDoUpdate({ target: t.users.id, set: { username: u.username, name: u.name, bio: u.bio, role: u.role } });
+  let n = 0;
+  for (const u of people) {
+    const d = scopedDb(c.env.DB_DEV, u.id, CURRENT);
+    n += await seedDev(d, today);
+    // link the dummy sessions to a fresh Month 1 (same as the real data migration)
+    await d.delete(t.blocks);
+    const [first] = await d.select({ date: t.sessions.date }).from(t.sessions).orderBy(t.sessions.date).limit(1);
+    const blk = await activeBlock(d, first?.date);
+    await d.update(t.sessions).set({ blockId: blk.id }).where(sql`${t.sessions.blockId} is null`);
+  }
+  const ids = { dev: "dev", omar: "dev-omar", sara: "dev-sara" };
+  for (const f of [seedAuth, seedAccount, seedPrograms, seedSocial, seedChat]) await f(raw, ids);
+  return c.json({ ok: true, rows: n, users: people.map((u) => u.username) });
 });
 
 // ---------------------------------------------------------------- state
@@ -175,15 +205,15 @@ app.get("/state", async (c) => {
   const recent = await d.select().from(t.sessions).where(sql`${t.sessions.date} >= ${weekAgo}`);
   const blk = await activeBlock(d);
   const body: AppState = {
-    program: { id: CURRENT.id, version: CURRENT.version, name: CURRENT.name, changelog: CURRENT.changelog, rules: CURRENT.rules },
+    program: { id: d.prog.id, version: d.prog.version, name: d.prog.name, changelog: d.prog.changelog, rules: d.prog.rules },
     block: { id: blk.id, n: blk.n, name: blk.name, startDate: blk.startDate, startVersion: blk.startVersion },
-    weeks: CURRENT.weeks.map((w) => ({ n: w.n, name: w.name, brief: w.brief })),
+    weeks: d.prog.weeks.map((w) => ({ n: w.n, name: w.name, brief: w.brief })),
     slots: all,
     next: all.find((s) => s.status === "open") ?? null,
     active: active[0] ? { id: active[0].id, dayName: active[0].dayName, week: active[0].week, startedAt: active[0].startedAt } : null,
-    schedules: CURRENT.schedules,
+    schedules: d.prog.schedules,
     settings: Object.fromEntries(settingsRows.map((r) => [r.key, r.value])),
-    tests: CURRENT.tests,
+    tests: d.prog.tests,
     thisWeek: {
       done: recent.filter((r) => r.status === "done").length,
       missed: recent.filter((r) => r.status === "missed").length,
@@ -195,7 +225,7 @@ app.get("/state", async (c) => {
 
 app.put("/settings/:key", async (c) => {
   const { value } = await c.req.json<{ value: string }>();
-  await db(c).insert(t.settings).values({ key: c.req.param("key"), value }).onConflictDoUpdate({ target: t.settings.key, set: { value } });
+  await db(c).insert(t.settings).values({ userId: "", key: c.req.param("key"), value }).onConflictDoUpdate({ target: [t.settings.userId, t.settings.key], set: { value } });
   return c.json({ ok: true });
 });
 
@@ -206,7 +236,7 @@ app.post("/sessions", async (c) => {
   const b = await c.req.json<{ id: string; week: number; dayKey: string; kind: Session["kind"]; date: string; tz: string; readiness?: object; startedAt: number }>();
   const d = db(c);
   const pv = await ensureVersion(d);
-  const plan = buildPlan(CURRENT, b.week, b.dayKey);
+  const plan = buildPlan(d.prog, b.week, b.dayKey);
   const blk = await activeBlock(d, b.date);
   await d.insert(t.sessions).values({
     id: b.id, programVersionId: pv, blockId: blk.id, week: b.week, dayKey: b.dayKey, dayName: plan.name, status: "active", kind: b.kind,
@@ -268,7 +298,7 @@ app.post("/missed", async (c) => {
   const b = await c.req.json<{ id: string; week: number; dayKey: string; date: string; excuse: string; note?: string; tz: string; skip?: boolean; kind?: "planned" | "extra" }>();
   const d = db(c);
   const pv = await ensureVersion(d);
-  const plan = buildPlan(CURRENT, b.week, b.dayKey);
+  const plan = buildPlan(d.prog, b.week, b.dayKey);
   const blk = await activeBlock(d, b.date);
   await d.insert(t.sessions).values({
     id: b.id, programVersionId: pv, blockId: blk.id, week: b.week, dayKey: b.dayKey, dayName: plan.name, status: b.skip ? "skipped" : "missed",
@@ -659,7 +689,7 @@ async function profileOf(c: { env: Env["Bindings"]; var: Env["Variables"] }) {
   const [u] = await d.select().from(t.users).where(eq(t.users.id, c.var.userId));
   if (u || !c.var.dev) return u ?? null;
   // DEV mode: a throwaway profile in the test database
-  const dev = { id: "dev", username: "dev", name: "Test user", bio: "DEV mode · dummy data", avatarId: null, passHash: "-", createdAt: now(), updatedAt: now() };
+  const dev = { id: "dev", username: "dev", name: "Test user", bio: "DEV mode · dummy data", avatarId: null, passHash: "-", role: "owner", email: null, googleSub: null, privacy: null, prefs: null, programId: null, lastSeenAt: null, createdAt: now(), updatedAt: now() };
   await d.insert(t.users).values(dev).onConflictDoNothing();
   return dev;
 }
@@ -758,9 +788,9 @@ app.post("/transcribe", async (c) => {
 app.get("/body", async (c) => c.json(await db(c).select().from(t.body).orderBy(desc(t.body.date)).limit(120)));
 app.put("/body/:date", async (c) => {
   const b = await c.req.json<Partial<typeof t.body.$inferInsert>>();
-  const row = { ...b, date: c.req.param("date"), updatedAt: now() };
-  const { date: _d, ...upd } = row;
-  await db(c).insert(t.body).values(row).onConflictDoUpdate({ target: t.body.date, set: upd });
+  const row = { ...b, userId: "", date: c.req.param("date"), updatedAt: now() }; // userId stamped by db()
+  const { date: _d, userId: _u, ...upd } = row;
+  await db(c).insert(t.body).values(row).onConflictDoUpdate({ target: [t.body.userId, t.body.date], set: upd });
   return c.json({ ok: true });
 });
 
@@ -829,22 +859,27 @@ app.delete("/intake/:id", async (c) => {
 // ---------------------------------------------------------------- cardio
 
 app.get("/cardio", async (c) => c.json(await db(c).select().from(t.cardio).orderBy(desc(t.cardio.date), desc(t.cardio.createdAt)).limit(200)));
+/** Game-day ids are built from the date ("football-2026-11-12"). The owner keeps that (existing rows); everyone else gets
+ *  their user id in it so two people logging a game on the same day never share an id. */
+const cardioId = (c: { var: Env["Variables"] }, id: string) =>
+  c.var.role !== "owner" && /^football-\d{4}-\d{2}-\d{2}$/.test(id) ? `football-${c.var.userId}-${id.slice(9)}` : id;
+
 app.put("/cardio/:id", async (c) => {
   const b = await c.req.json<Partial<typeof t.cardio.$inferInsert>>();
   if (b.status === "skipped") {
     // a skip is once per day per protocol: ignore repeat taps instead of storing duplicates
     const dup = await db(c).select({ id: t.cardio.id }).from(t.cardio)
-      .where(and(eq(t.cardio.date, b.date!), eq(t.cardio.protocol, b.protocol!), eq(t.cardio.status, "skipped"), ne(t.cardio.id, c.req.param("id")))).limit(1);
+      .where(and(eq(t.cardio.date, b.date!), eq(t.cardio.protocol, b.protocol!), eq(t.cardio.status, "skipped"), ne(t.cardio.id, cardioId(c, c.req.param("id"))))).limit(1);
     if (dup.length) return c.json({ ok: true, duplicate: true });
   }
   if (b.minutes != null && (b.minutes < 0 || b.minutes > 300)) return c.json({ error: "minutes 0-300" }, 400);
-  const row = { ...b, id: c.req.param("id"), date: b.date!, protocol: b.protocol!, status: b.status ?? "done", createdAt: b.createdAt ?? now() };
+  const row = { ...b, id: cardioId(c, c.req.param("id")), date: b.date!, protocol: b.protocol!, status: b.status ?? "done", createdAt: b.createdAt ?? now() };
   const { id: _i, ...upd } = row;
   await db(c).insert(t.cardio).values(row).onConflictDoUpdate({ target: t.cardio.id, set: upd });
   return c.json({ ok: true });
 });
 app.delete("/cardio/:id", async (c) => {
-  await db(c).delete(t.cardio).where(eq(t.cardio.id, c.req.param("id")));
+  await db(c).delete(t.cardio).where(eq(t.cardio.id, cardioId(c, c.req.param("id"))));
   return c.json({ ok: true });
 });
 
@@ -1019,3 +1054,4 @@ app.onError((err, c) => {
 });
 
 export default app;
+export { ChatRoom } from "./chat";

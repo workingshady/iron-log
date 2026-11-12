@@ -24,5 +24,8 @@
   ],
   // Workers AI (free: 10k neurons/day ≈ 200 min of Whisper) — voice notes → text, Arabic + English + mixed.
   "ai": { "binding": "AI" },
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
+  // Chat: one Durable Object per conversation (SQLite-backed → available on the free plan), WebSocket hibernation.
+  "durable_objects": { "bindings": [{ "name": "CHAT", "class_name": "ChatRoom" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ChatRoom"] }]
 }

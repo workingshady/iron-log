@@ -43,19 +43,22 @@ export async function checkPass(pass: string, stored: string, env: Env["Bindings
   return safeEqual(got, want);
 }
 
-function safeEqual(a: string, b: string) {
+export function safeEqual(a: string, b: string) {
   if (a.length !== b.length) return false;
   let r = 0;
   for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return r === 0;
 }
 
-const userToken = async (env: Env["Bindings"], id: string, passHash: string) => `u.${id}.${await hmac(pepper(env), `user:${id}:${passHash}`)}`;
+export const userToken = async (env: Env["Bindings"], id: string, passHash: string) => `u.${id}.${await hmac(pepper(env), `user:${id}:${passHash}`)}`;
+/** Old single DEV cookie (= user "dev"). */
 const devToken = async (env: Env["Bindings"]) => `dev.${await hmac(env.DEV_PASSCODE!, "iron-log:dev:v1")}`;
+/** DEV cookie for one test user in the DEV database (dev, dev_omar, dev_sara …). */
+const devUserToken = async (env: Env["Bindings"], id: string) => `dev.${id}.${await hmac(env.DEV_PASSCODE!, `iron-log:dev:v2:${id}`)}`;
 /** Pre-username cookie (passcode only). Still accepted once, then swapped for a user cookie. */
 const legacyToken = async (env: Env["Bindings"]) => hmac(env.APP_PASSCODE, "iron-log:v1");
 
-function setAuth(c: Context<Env>, value: string) {
+export function setAuth(c: Context<Env>, value: string) {
   setCookie(c, COOKIE, value, { httpOnly: true, secure: new URL(c.req.url).protocol === "https:", sameSite: "Lax", path: "/", maxAge: 60 * 60 * 24 * 365 });
 }
 
@@ -94,9 +97,11 @@ export async function login(c: Context<Env>) {
 
   // DEV / test mode
   const dev = c.env.DEV_PASSCODE;
-  if (dev && (!username || username === "dev") && safeEqual(passcode, dev)) {
+  if (dev && (!username || username === "dev" || username.startsWith("dev_")) && safeEqual(passcode, dev)) {
+    const dd = drizzle(c.env.DB_DEV, { schema: t });
+    const [du] = await dd.select({ id: t.users.id }).from(t.users).where(eq(t.users.username, username || "dev"));
     await clear(d, keys);
-    setAuth(c, await devToken(c.env));
+    setAuth(c, du ? await devUserToken(c.env, du.id) : await devToken(c.env));
     return c.json({ ok: true, dev: true });
   }
 
@@ -138,7 +143,7 @@ export async function setup(c: Context<Env>) {
   const id = `usr-${crypto.randomUUID()}`;
   const passHash = await hashPass(String(b.passcode), c.env);
   const at = Date.now();
-  await d.insert(t.users).values({ id, username, name: b.name?.trim().slice(0, 40) || null, bio: null, avatarId: null, passHash, createdAt: at, updatedAt: at });
+  await d.insert(t.users).values({ id, username, name: b.name?.trim().slice(0, 40) || null, bio: null, avatarId: null, passHash, role: "owner", createdAt: at, updatedAt: at });
   setAuth(c, await userToken(c.env, id, passHash));
   return c.json({ ok: true });
 }
@@ -146,24 +151,36 @@ export async function setup(c: Context<Env>) {
 export async function requireAuth(c: Context<Env>, next: Next) {
   const got = getCookie(c, COOKIE);
   if (!got) return c.json({ error: "unauthorized" }, 401);
+  const who = { id: t.users.id, passHash: t.users.passHash, role: t.users.role, programId: t.users.programId };
   if (got.startsWith("dev.")) {
-    if (!c.env.DEV_PASSCODE || !safeEqual(got, await devToken(c.env))) return c.json({ error: "unauthorized" }, 401);
+    if (!c.env.DEV_PASSCODE) return c.json({ error: "unauthorized" }, 401);
+    const parts = got.split(".");
+    let id = "dev";
+    if (parts.length === 3) {
+      if (!safeEqual(got, await devUserToken(c.env, parts[1]))) return c.json({ error: "unauthorized" }, 401);
+      id = parts[1];
+    } else if (!safeEqual(got, await devToken(c.env))) return c.json({ error: "unauthorized" }, 401);
+    const [u] = await drizzle(c.env.DB_DEV, { schema: t }).select(who).from(t.users).where(eq(t.users.id, id));
     c.set("dev", true);
-    c.set("userId", "dev");
+    c.set("userId", id);
+    c.set("role", u?.role ?? "owner");
+    c.set("programId", u?.programId ?? null);
     return next();
   }
   const d = drizzle(c.env.DB, { schema: t });
   if (got.startsWith("u.")) {
     const id = got.split(".")[1] ?? "";
-    const [u] = await d.select({ id: t.users.id, passHash: t.users.passHash }).from(t.users).where(eq(t.users.id, id));
+    const [u] = await d.select(who).from(t.users).where(eq(t.users.id, id));
     if (!u || !safeEqual(got, await userToken(c.env, u.id, u.passHash))) return c.json({ error: "unauthorized" }, 401);
     c.set("dev", false);
     c.set("userId", u.id);
+    c.set("role", u.role);
+    c.set("programId", u.programId);
     return next();
   }
   // legacy passcode-only cookie → upgrade to the (single) owner account
   if (c.env.APP_PASSCODE && safeEqual(got, await legacyToken(c.env))) {
-    const [u] = await d.select({ id: t.users.id, passHash: t.users.passHash }).from(t.users).orderBy(t.users.createdAt).limit(1);
+    const [u] = await d.select(who).from(t.users).orderBy(t.users.createdAt).limit(1);
     if (!u) {
       // no account yet: only /me and /setup are allowed until the owner creates one
       if (!["/api/me", "/api/setup"].includes(c.req.path)) return c.json({ error: "unauthorized", setup: true }, 401);
@@ -174,6 +191,8 @@ export async function requireAuth(c: Context<Env>, next: Next) {
     setAuth(c, await userToken(c.env, u.id, u.passHash));
     c.set("dev", false);
     c.set("userId", u.id);
+    c.set("role", u.role);
+    c.set("programId", u.programId);
     return next();
   }
   return c.json({ error: "unauthorized" }, 401);

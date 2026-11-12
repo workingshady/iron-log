@@ -21,6 +21,16 @@ import Settings from "./screens/Settings";
 import More from "./screens/More";
 import Cardio from "./screens/Cardio";
 import Profile from "./screens/Profile";
+import Feed from "./screens/Feed";
+import Friends from "./screens/Friends";
+import UserProfile from "./screens/UserProfile";
+import Privacy from "./screens/Privacy";
+import Notifications from "./screens/Notifications";
+import Chats from "./screens/Chats";
+import ChatRoomScreen from "./screens/ChatRoom";
+import Programs from "./screens/Programs";
+import ProgramEditor from "./screens/ProgramEditor";
+import Security from "./screens/Security";
 import { Avatar } from "./components/Avatar";
 import { setMe, useMe, type Me } from "./lib/me";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -60,6 +70,7 @@ function useRoute() {
 const PAGES: Record<string, () => React.ReactElement | null> = {
   "/": Home, "/plan": Plan, "/history": History, "/stats": Stats, "/body": Body, "/creatine": Creatine,
   "/tests": Tests, "/journal": Journal, "/notes": Journal, "/extra": Extras, "/library": Library, "/months": Months, "/learn": Learn, "/settings": Settings, "/more": More, "/cardio": Cardio, "/profile": Profile,
+  "/feed": Feed, "/friends": Friends, "/privacy": Privacy, "/notifications": Notifications, "/chats": Chats, "/programs": Programs, "/security": Security,
 };
 
 export default function App() {
@@ -89,7 +100,9 @@ export default function App() {
   if (auth === "setup") return <Setup />;
 
   const inSession = route.startsWith("/s/");
-  const Page = PAGES[route] ?? Home;
+  // pages with a parameter: #/u/<username> · #/chat/<id> · #/program/<id>
+  const param = (p: string) => (route.startsWith(p) ? decodeURIComponent(route.slice(p.length)) : null);
+  const Page = PAGES[route] ?? (param("/u/") != null ? () => <UserProfile username={param("/u/")!} /> : param("/chat/") != null ? () => <ChatRoomScreen id={param("/chat/")!} /> : param("/program/") != null ? () => <ProgramEditor id={param("/program/")!} /> : Home);
   const isMore = MORE.some((m) => m.path === route) || route === "/more" || route === "/notes" || route === "/profile";
 
   return (

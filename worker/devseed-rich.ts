@@ -3,7 +3,7 @@ import * as t from "./db/schema";
 import { resolveProgram, type RawDB } from "./db";
 import { CURRENT, EXERCISES, programVersionId } from "../program";
 import type { Program } from "../program/types";
-import { PRIVACY_DEFAULTS, type PrSummary, type WorkoutSummary } from "../shared/social";
+import { PRIVACY_DEFAULTS, mentionNames, type PrSummary, type WorkoutSummary } from "../shared/social";
 import { shownKg as shownKg0, totalKg as totalKg0 } from "../shared/load";
 import { DEV_IMG } from "./devassets";
 import { addDays, at, bulk, dowOf, genTraining, rng, type Persona, type Training } from "./devseed";
@@ -56,11 +56,14 @@ export async function seedRich(raw: RawDB, users: Record<string, string>) {
     raw.delete(t.blocks).where(inArray(t.blocks.userId, everyone)), raw.delete(t.photos).where(inArray(t.photos.userId, everyone)),
     raw.delete(t.friendships).where(or(inArray(t.friendships.requesterId, everyone), inArray(t.friendships.addresseeId, everyone))),
     raw.delete(t.postLikes).where(sql`${t.postLikes.postId} in (select id from posts where user_id in (${ids}))`),
+    raw.delete(t.commentLikes).where(sql`${t.commentLikes.commentId} in (select id from post_comments where post_id in (select id from posts where user_id in (${ids})))`),
+    raw.delete(t.commentLikes).where(inArray(t.commentLikes.userId, everyone)),
     raw.delete(t.postComments).where(sql`${t.postComments.postId} in (select id from posts where user_id in (${ids}))`),
     raw.delete(t.posts).where(inArray(t.posts.userId, everyone)),
     // seedSocial likes its workout posts even when they don't exist (no sessions before this seed) → drop orphans so re-runs stay clean
     raw.delete(t.postLikes).where(sql`${t.postLikes.postId} not in (select id from posts)`),
     raw.delete(t.postComments).where(sql`${t.postComments.postId} not in (select id from posts)`),
+    raw.delete(t.commentLikes).where(sql`${t.commentLikes.commentId} not in (select id from post_comments)`),
     raw.delete(t.notifications).where(inArray(t.notifications.userId, everyone)),
     raw.delete(t.challengeMembers).where(sql`${t.challengeMembers.challengeId} in (select id from challenges where created_by in (${ids}))`),
     raw.delete(t.challenges).where(inArray(t.challenges.createdBy, everyone)),
@@ -325,6 +328,10 @@ export async function seedRich(raw: RawDB, users: Record<string, string>) {
   photoPost("rich-p-you-1", youssef, "photo", ["youssef-ph-hello"], "Joined Iron Log 👋 tracking everything from today", 23, 20);
   wpost("rich-p-you-2", youssef, doneOn(youssef, (s) => s.dayKey === "D1").at(0), "First real push day. أول مرة أعمل bench بجد");
   post("rich-p-you-3", youssef, "text", "Is 3× a week enough to start? asking for a friend (me) 😂", at(addDays(today, -6), 22, 15));
+  // shared with everyone on Iron Log → Discover (Mona isn't friends with anyone yet, so Discover is how she sees people)
+  post("rich-p-mona-1", mona, "text", "Hi everyone 👋 new to Iron Log. Any tips for a total beginner?", T - 20 * H, { visibility: "members" });
+  post("rich-p-sara-pub", sara, "text", "Pull-up progression that worked for me: negatives → band → 3 × max strict. Took 5 months. Anyone can do it 🧗‍♀️ @dev_mona this one's for you", T - 9 * H, { visibility: "members" });
+  post("rich-p-omar-pub", omar, "photo", "Home dumbbell day 🏠 who else trains at home?", at(addDays(today, -3), 21, 10), { photoIds: JSON.stringify(["omar-ph-db"]), visibility: "members" });
   await bulk(raw, t.posts, posts, 10);
 
   // likes + comment threads
@@ -337,15 +344,16 @@ export async function seedRich(raw: RawDB, users: Record<string, string>) {
     if (actorId === userId) return;
     notifs.push({ id, userId, kind, actorId, refId, createdAt, readAt: createdAt < unreadAfter ? createdAt + r.int(5, 300) * M : null });
   };
-  const threads: Record<string, [string, string][]> = {
+  /** [who, text, index of the comment this replies to (→ same top-level thread, Instagram-style)] */
+  const threads: Record<string, [string, string, number?][]> = {
     "rich-p-dev-1": [[omar, "Welcome back bro 🔥"], [sara, "Consistency > everything 👏"], [dev, "Thanks! sore everywhere 😂"]],
-    "rich-p-dev-2": [[sara, "I'm in!"], [omar, "If I wake up 😅"], [dev, "9 am, no excuses"], [youssef, "Can I join? I can do 2 😂"]],
-    "rich-p-dev-3": [[omar, "Beast 🔥"], [sara, "Told you the rice works 🍚"], [omar, "Next stop 100 kg"]],
+    "rich-p-dev-2": [[sara, "I'm in!"], [omar, "If I wake up 😅"], [dev, "@dev_omar 9 am, no excuses", 1], [youssef, "Can I join? I can do 2 😂"], [dev, "@dev_youssef of course! bring chalk", 3], [sara, "@dev_youssef I'll spot you 💪", 3], [omar, "@dev fine… 9:30 😂", 1]],
+    "rich-p-dev-3": [[omar, "Beast 🔥"], [sara, "Told you the rice works 🍚"], [dev, "@dev_sara rice + chicken every day 😂", 1], [omar, "Next stop 100 kg"], [dev, "@dev_omar inshallah by December", 3]],
     "rich-p-dev-4": [[omar, "Welcome to my world 😂"], [sara, "Walk it off, 10k steps tomorrow"]],
     "rich-p-dev-5": [[omar, "Next time pass the ball 😂"], [dev, "I scored twice!!"], [omar, "Both offside"]],
     "rich-p-dev-6": [[sara, "Huge difference!! 😍"], [omar, "Shoulders 3D now 🔥"], [youssef, "Goals"], [dev, "7 weeks of not skipping laterals 😅"]],
-    "rich-p-dev-7": [[sara, "Pull-up practice Friday?"], [dev, "Yes!"]],
-    "rich-p-omar-1": [[dev, "What weight on the squats?"], [omar, "130 × 5, belt on"], [sara, "Strong 💪"]],
+    "rich-p-dev-7": [[sara, "Pull-up practice Friday?"], [dev, "Yes!", 0], [sara, "@dev bring chalk this time 😂", 1], [omar, "Strict pull-ups loading… 🧗"]],
+    "rich-p-omar-1": [[dev, "What weight on the squats?"], [omar, "@dev 130 × 5, belt on", 0], [sara, "Strong 💪"], [dev, "@dev_omar teach me the bracing thing", 0], [sara, "@dev big breath into the belt, then brace like someone's punching you 👊", 0]],
     "rich-p-omar-2": [[youssef, "Thanks! that's me who asked 🙏"], [dev, "Saving this"]],
     "rich-p-omar-3": [[dev, "Monster 🦵"], [sara, "Legs for days"], [youssef, "😳😳"]],
     "rich-p-omar-4": [[sara, "Friday is the new Thursday 😂"], [dev, "Put it on the week planner and pin it"], [omar, "Done ✅"]],
@@ -354,31 +362,60 @@ export async function seedRich(raw: RawDB, users: Record<string, string>) {
     "rich-p-sara-1": [[dev, "7 am?! respect"], [omar, "I'd still be asleep"]],
     "rich-p-sara-2": [[dev, "Where is this?"], [sara, "Wadi Degla 🏜️"], [omar, "Next time call us"]],
     "rich-p-sara-3": [[omar, "Pulling more than me soon 😅"], [dev, "Teach us"]],
-    "rich-p-sara-4": [[dev, "WOW 🎉🎉"], [omar, "Legend"], [youssef, "I can do 2 😭"], [sara, "@dev_youssef you'll get there, dead hangs every day!"], [dev, "مبروك يا بطلة"]],
+    "rich-p-sara-4": [[dev, "WOW 🎉🎉"], [omar, "Legend"], [youssef, "I can do 2 😭"], [sara, "@dev_youssef you'll get there, dead hangs every day!", 2], [dev, "مبروك يا بطلة @dev_sara 🎉"]],
     "rich-p-sara-5": [[dev, "Recipe pls"], [sara, "50 g oats, milk, berries, banana. That's it"]],
     "rich-p-sara-6": [[omar, "Calves are genetic 😂"], [sara, "Excuses 😂"]],
     "rich-p-you-1": [[omar, "Finally!! 💪"], [sara, "Welcome 👋"], [dev, "Welcome to the crew"]],
     "rich-p-you-2": [[omar, "Proud of you bro"], [dev, "Form looked good on the video"]],
-    "rich-p-you-3": [[sara, "Yes! 3 good days beat 5 skipped ones"], [omar, "Start with 3, earn the 4th"], [youssef, "Deal 🤝"]],
+    "rich-p-you-3": [[sara, "Yes! 3 good days beat 5 skipped ones"], [omar, "Start with 3, earn the 4th"], [youssef, "Deal 🤝", 1], [dev, "@dev_youssef 3 days + football = perfect", 0]],
+    "rich-p-mona-1": [[sara, "Welcome! Start with 3 full-body days and log everything 💪"], [mona, "@dev_sara thank you!! 🙏 which plan?", 0], [sara, "@dev_mona Full Body 3× in Programs, it's what I run", 0], [dev, "Welcome Mona 👋 sleep + protein first"], [mona, "@dev noted, thank you! 🙏", 3]],
+    "rich-p-sara-pub": [[mona, "Saving this 🙌"], [omar, "Negatives are brutal but they work"], [sara, "@dev_omar slow ones, 5 seconds down", 1]],
+    "rich-p-omar-pub": [[youssef, "Me! adjustable dumbbells ftw"], [mona, "Same 🙋‍♀️"], [omar, "@dev_youssef @dev_mona home gym crew 💪", 0]],
   };
+  // same rules as worker/routes/social.ts: who can see a post, who hears about a reply / comment / @mention / comment like
+  const byName = new Map([[dev, "dev"], [omar, "dev_omar"], [sara, "dev_sara"], [youssef, "dev_youssef"], [mona, "dev_mona"]].map(([id, u]) => [u, id]));
+  const canSeeP = (p: P, u: string) => p.userId === u || (p.visibility === "members") || (p.visibility === "friends" && friendsOf(p.userId).includes(u));
+  const mentionNotifs = (text: string | null | undefined, actor: string, p: P, refId: string, at0: number, told: Set<string>) => {
+    for (const n of mentionNames(text)) {
+      const u = byName.get(n);
+      if (u && u !== actor && !told.has(u) && canSeeP(p, u)) notif(`mn-${refId}-${u}`, u, "mention", actor, refId, at0 + M);
+    }
+  };
+  const cLikes: (typeof t.commentLikes.$inferInsert)[] = [];
   for (const p of posts) {
-    if (p.visibility !== "friends") continue;
-    const fs = friendsOf(p.userId);
+    if (p.visibility === "private") continue;
+    const fs = p.visibility === "members" ? everyone.filter((u) => u !== p.userId) : friendsOf(p.userId);
     let ts = p.createdAt;
-    for (const f of fs) if (r.chance(0.8)) {
+    mentionNotifs(p.text, p.userId, p, p.id, p.createdAt, new Set());
+    for (const f of fs) if (r.chance(p.visibility === "members" ? 0.6 : 0.8)) {
       const la = Math.min(T - M, p.createdAt + r.int(5, 600) * M);
       likes.push({ postId: p.id, userId: f, createdAt: la });
       notif(`lk-${p.id}-${f}`, p.userId, "like", f, p.id, la);
     }
-    (threads[p.id] ?? []).forEach(([u, text], i) => {
-      ts = Math.min(T - (threads[p.id].length - i) * M, ts + r.int(4, 120) * M);
+    const th = threads[p.id] ?? [];
+    const ids: string[] = [];
+    const parents: (string | null)[] = [];
+    th.forEach(([u, text, to], i) => {
+      ts = Math.min(T - (th.length - i) * M, ts + r.int(4, 120) * M);
       const cid = `rich-cm-${p.id.slice(7)}-${i}`;
-      comments.push({ id: cid, postId: p.id, userId: u, text, createdAt: ts, deleted: 0 });
-      notif(`cm-${cid}`, p.userId, "comment", u, p.id, ts);
+      const parentId = to != null ? parents[to] ?? ids[to] : null;
+      ids.push(cid); parents.push(parentId);
+      comments.push({ id: cid, postId: p.id, userId: u, text, parentId, createdAt: ts, deleted: 0 });
+      const told = new Set([u]);
+      if (to != null) { const target = th[to][0]; if (!told.has(target)) { notif(`rp-${cid}`, target, "reply", u, cid, ts); told.add(target); } }
+      if (!told.has(p.userId)) { notif(`cm-${cid}`, p.userId, "comment", u, p.id, ts); told.add(p.userId); }
+      mentionNotifs(text, u, p, cid, ts, told);
+      // a few hearts per comment (dev's comments get more, so DEV mode shows comment-like notifications)
+      for (const f of [...fs, p.userId]) if (f !== u && canSeeP(p, f) && r.chance(u === dev ? 0.6 : 0.25)) {
+        const la = Math.min(T - M, ts + r.int(2, 240) * M);
+        cLikes.push({ commentId: cid, userId: f, createdAt: la });
+        notif(`cl-${cid}-${f}`, u, "comment_like", f, cid, la);
+      }
     });
   }
   await bulk(raw, t.postLikes, likes, 200);
   await bulk(raw, t.postComments, comments, 100);
+  await bulk(raw, t.commentLikes, cLikes, 200);
 
   // ------------------------------------------------------------ challenges: finished (dev won) · running ×2 · upcoming
   const doneIn = (u: string, from: string, to: string) => train[u].sessions.filter((s) => s.status === "done" && s.date >= from && s.date <= to).length;
@@ -456,8 +493,12 @@ export async function seedRich(raw: RawDB, users: Record<string, string>) {
     msg("rich-g-3", grp, sara, g0 + 3 * M, "Welcome!! Saturday 9 am, you're coming 😄"),
     msg("rich-g-4", grp, dev, g0 + 5 * M, "Leaderboard just got more interesting"),
     msg("rich-g-5", grp, youssef, g0 + 6 * M, "I'm last on everything 😂"),
-    msg("rich-g-6", grp, omar, T - 2.5 * H, "Hard sets challenge update: I'm coming for you all 😤"),
+    msg("rich-g-6", grp, omar, T - 2.5 * H, "Hard sets challenge update: @dev I'm coming for you 😤"),
   ] : [];
+  if (gExists) {
+    const inGroup = new Set((await raw.select({ u: t.conversationMembers.userId }).from(t.conversationMembers).where(eq(t.conversationMembers.convId, grp))).map((x) => x.u));
+    if (inGroup.has(dev)) await raw.insert(t.notifications).values({ id: `mn-rich-g-6-${dev}`, userId: dev, kind: "mention", actorId: omar, refId: "rich-g-6", createdAt: T - 2.5 * H, readAt: null }).onConflictDoNothing();
+  }
   await raw.batch([
     raw.insert(t.conversations).values({ id: dm, kind: "dm", title: null, dmKey: [dev, sara].sort().join("|"), createdBy: sara, theme: JSON.stringify({ accent: "violet", bubble: "round", wallpaper: "none" }), createdAt: d0 - H, lastMessageAt: dmRows[dmRows.length - 1].createdAt }),
     raw.insert(t.conversationMembers).values([{ convId: dm, userId: dev, joinedAt: d0 - H, lastReadAt: T - 12 * H }, { convId: dm, userId: sara, joinedAt: d0 - H, lastReadAt: T - 50 * M }]),

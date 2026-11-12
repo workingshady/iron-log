@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bell, ChevronLeft, Flag, Heart, Loader2, MessageCircle, PartyPopper, Trophy, UserCheck, UserPlus, Zap } from "lucide-react";
+import { AtSign, Bell, ChevronLeft, CornerDownRight, Flag, Heart, Loader2, MessageCircle, PartyPopper, Trophy, UserCheck, UserPlus, Zap } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Notif, Post } from "../../shared/social";
 import { Sheet } from "../components/ui";
@@ -13,11 +13,18 @@ import { cx } from "../lib/util";
 
 /** Short post reference: nothing when a thumbnail already shows which post, else ≤ 28 chars. */
 const snip = (n: Notif) => (n.thumb || !n.snippet ? "" : ` “${n.snippet.length > 28 ? `${n.snippet.slice(0, 27).trimEnd()}…` : n.snippet}”`);
+/** The comment / message itself (always shown, a thumbnail only says which post). */
+const quote = (n: Notif) => (!n.snippet ? "" : `: “${n.snippet.length > 60 ? `${n.snippet.slice(0, 59).trimEnd()}…` : n.snippet}”`);
+/** Notifications that point at a comment you can answer inline. */
+const replyable = (n: Notif) => !!n.commentId && !!n.postId && (n.kind === "comment" || n.kind === "reply" || (n.kind === "mention" && n.where === "comment"));
 const KIND: Record<string, { icon: LucideIcon; bg: string; text: (n: Notif) => string }> = {
   friend_request: { icon: UserPlus, bg: "bg-info", text: () => "wants to be friends" },
   friend_accept: { icon: UserCheck, bg: "bg-acc", text: () => "accepted your request. Say hi 👋" },
   like: { icon: Heart, bg: "bg-bad", text: (n) => `liked your post${snip(n)}` },
-  comment: { icon: MessageCircle, bg: "bg-info", text: (n) => `commented${snip(n) ? ` on${snip(n)}` : " on your post"}` },
+  comment: { icon: MessageCircle, bg: "bg-info", text: (n) => (n.commentId ? `commented${quote(n)}` : `commented${snip(n) ? ` on${snip(n)}` : " on your post"}`) },
+  reply: { icon: CornerDownRight, bg: "bg-info", text: (n) => `replied to your comment${quote(n)}` },
+  comment_like: { icon: Heart, bg: "bg-bad", text: (n) => `liked your comment${quote(n)}` },
+  mention: { icon: AtSign, bg: "bg-vio", text: (n) => (n.where === "chat" ? `mentioned you in a chat${quote(n)}` : n.where === "comment" ? `mentioned you in a comment${quote(n)}` : `mentioned you in a post${snip(n)}`) },
   cheer: { icon: Zap, bg: "bg-warn", text: () => "cheered you on 💪" },
   challenge_invite: { icon: Flag, bg: "bg-warn", text: (n) => `challenged you${n.snippet ? `: ${n.snippet}` : ""}` },
   challenge_join: { icon: Flag, bg: "bg-acc", text: (n) => `joined ${n.snippet ? `“${n.snippet}”` : "your challenge"}` },
@@ -47,7 +54,7 @@ export default function Notifications() {
   const [items, setItems] = useState<Notif[] | null>(null);
   const [next, setNext] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
-  const [post, setPost] = useState<Post | null>(null);
+  const [post, setPost] = useState<{ p: Post; open?: { focus?: string | null; reply?: string | null } } | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const seen = useRef(new Set<string>());
 
@@ -69,9 +76,15 @@ export default function Notifications() {
     try { const r = await sx<{ items: Notif[]; next: number | null }>("GET", `/notifications?before=${next}`); setItems((l) => [...(l ?? []), ...r.items]); setNext(r.next); }
     finally { setBusy(false); }
   }
-  async function open(n: Notif) {
-    if ((n.kind === "like" || n.kind === "comment") && n.refId) {
-      try { setPost(await sx<Post>("GET", `/posts/${n.refId}`)); } catch (e) { setErr((e as Error).message); }
+  async function open(n: Notif, reply = false) {
+    if (n.kind === "mention" && n.where === "chat") { if (n.convId) location.hash = `#/chat/${encodeURIComponent(n.convId)}`; else setErr("That message is gone."); return; }
+    const postId = n.postId ?? ((n.kind === "like" || n.kind === "comment") ? n.refId : null);
+    if (["like", "comment", "reply", "comment_like", "mention"].includes(n.kind)) {
+      if (!postId) { setErr(n.snippet?.startsWith("(deleted") ? `That ${n.snippet.slice(9, -1)} is gone.` : "That post is gone."); return; }
+      try {
+        const p = await sx<Post>("GET", `/posts/${postId}`);
+        setPost({ p, open: n.commentId ? (reply ? { reply: n.commentId } : { focus: n.commentId }) : undefined });
+      } catch (e) { setErr((e as Error).message); }
     } else if (n.kind.startsWith("challenge_")) { try { sessionStorage.setItem("il:compete", "challenges"); } catch { /* ignore */ } location.hash = "#/compete"; }
     else if (n.actor) location.hash = `#/u/${encodeURIComponent(n.actor.username)}`;
   }
@@ -104,17 +117,17 @@ export default function Notifications() {
         <section key={g.label} aria-label={g.label} className="mb-5">
           <h2 className="mb-1 text-base font-bold">{g.label}</h2>
           <ul>
-            {g.rows.map((r) => <RowView key={r.key} r={r} onOpen={open} onChanged={() => void load()} />)}
+            {g.rows.map((r) => <RowView key={r.key} r={r} onOpen={(n) => void open(n)} onReply={(n) => void open(n, true)} onChanged={() => void load()} />)}
           </ul>
         </section>
       ))}
       {next && <div className="flex justify-center"><button type="button" onClick={more} disabled={busy} className="min-h-11 rounded-xl px-4 text-sm text-info">{busy ? <Loader2 size={16} className="animate-spin" aria-label="Loading" /> : "Show older"}</button></div>}
-      {post && <Sheet open onClose={() => setPost(null)}><div className="-mx-4 md:-mx-6"><PostCard post={post} onDelete={() => setPost(null)} /></div></Sheet>}
+      {post && <Sheet open onClose={() => setPost(null)}><div className="-mx-4 md:-mx-6"><PostCard key={`${post.p.id}-${post.open?.focus ?? post.open?.reply ?? ""}`} post={post.p} open={post.open} onDelete={() => setPost(null)} /></div></Sheet>}
     </div>
   );
 }
 
-function RowView({ r, onOpen, onChanged }: { r: Row; onOpen: (n: Notif) => void; onChanged: () => void }) {
+function RowView({ r, onOpen, onReply, onChanged }: { r: Row; onOpen: (n: Notif) => void; onReply: (n: Notif) => void; onChanged: () => void }) {
   const n = r.items[0];
   const k = KIND[n.kind] ?? { icon: Bell, bg: "bg-card3", text: () => n.kind };
   const self = n.kind === "challenge_won" || n.kind === "challenge_done";
@@ -139,11 +152,16 @@ function RowView({ r, onOpen, onChanged }: { r: Row; onOpen: (n: Notif) => void;
           : <span className={cx("flex h-11 w-11 items-center justify-center rounded-full text-black", k.bg)} aria-hidden><k.icon size={20} /></span>}
         {(n.actor && !self) && <span className={cx("absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-bg text-black", k.bg)} aria-hidden><k.icon size={10} strokeWidth={2.6} /></span>}
       </span>
-      <button type="button" onClick={() => onOpen(n)} className="min-h-11 min-w-0 flex-1 text-left text-sm leading-snug">
-        {who && !self && <>{who} </>}<span dir="auto" className="text-ink/90">{k.text(n)}</span>{" "}
-        <time className="whitespace-nowrap text-xs text-faint" title={fullTime(n.createdAt)}>{ago(r.at)}</time>
-        {!r.read && <span className="sr-only"> (new)</span>}
-      </button>
+      <div className="min-w-0 flex-1">
+        <button type="button" onClick={() => onOpen(n)} className="block min-h-11 w-full text-left text-sm leading-snug [overflow-wrap:anywhere]">
+          {who && !self && <>{who} </>}<span dir="auto" className="bidi text-ink/90">{k.text(n)}</span>{" "}
+          <time className="whitespace-nowrap text-xs text-faint" title={fullTime(n.createdAt)}>{ago(r.at)}</time>
+          {!r.read && <span className="sr-only"> (new)</span>}
+        </button>
+        {replyable(n) && n.actor && (
+          <button type="button" onClick={() => onReply(n)} className="-mt-1.5 flex min-h-11 items-center text-xs font-semibold text-mute hover:text-ink" aria-label={`Reply to ${n.actor.username}`}>Reply</button>
+        )}
+      </div>
       {right && <span className="shrink-0">{right}</span>}
     </li>
   );

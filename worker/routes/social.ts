@@ -9,9 +9,9 @@ import { isPair, shownKg, totalKg } from "../../shared/load";
 import {
   BADGES, LIMITS, METRIC, POST_KINDS, needsMuscle, PRIVACY_DEFAULTS, addDays, DATE_RE, epley, sanitizePrivacy, weekStartOf,
   type Badge, type Board, type BoardRow, type Challenge, type Comment, type LiftBest, type LiftDetail, type LiftRow, type LiftsBoard, type MetricId, type MuscleBoard, type Notif, type Period, type Post, type PostKind,
-  type PrSummary, type Relation, type Story, type UserLite, type WeekDay, type WorkoutSummary,
+  type PrSummary, type Relation, type Story, type UserLite, type WeekDay, type WorkoutSummary, type MentionUser, isPostVis,
 } from "../../shared/social";
-import { ID_RE, LITE, blockedIds, canSee, friendIds, friendIdsSql, lite, notify, privacyOf, relationOf } from "../friends";
+import { ID_RE, LITE, blockedIds, blockedIdsSql, canSee, canSeePost, friendIds, friendIdsSql, lite, mentionTargets, notify, privacyOf, relationOf } from "../friends";
 
 // Friends, privacy, feed posts, likes, comments, notifications, friend profiles, leaderboard + challenges. Owned by the Social agent.
 // Mounted in worker/index.ts under /api. db(c) = MY data only; rawDb(c) = unscoped → every cross-user read here filters by
@@ -212,6 +212,12 @@ socialRoutes.get("/social/photos/:id/img", async (c) => {
     else if (rel !== "blocked") {
       const [o] = await raw.select({ avatarId: t.users.avatarId }).from(t.users).where(eq(t.users.id, p.userId));
       ok = o?.avatarId === id;
+      // a photo in a post shared with everyone on Iron Log (Discover)
+      if (!ok && p.visibility !== "private") {
+        const [mp] = await raw.select({ id: t.posts.id }).from(t.posts)
+          .where(and(eq(t.posts.userId, p.userId), eq(t.posts.visibility, "members"), eq(t.posts.deleted, 0), sql`${t.posts.photoIds} like ${`%"${id}"%`}`)).limit(1);
+        ok = !!mp;
+      }
     }
   }
   if (!ok) return bad(c, "not found", 404);
@@ -388,14 +394,12 @@ socialRoutes.get("/social/users/:username/photos", async (c) => {
 
 // ================================================================== posts + feed
 
-/** Can `uid` see this post? Author always; friends when it's shared with friends; never when deleted or blocked. */
+/** Can `uid` see this post? See canSeePost (author · friends · members · never when deleted or blocked). */
 async function visiblePost(raw: RawDB, uid: string, postId: string) {
   if (!ID_RE.test(postId)) return null;
   const [p] = await raw.select().from(t.posts).where(and(eq(t.posts.id, postId), eq(t.posts.deleted, 0)));
   if (!p) return null;
-  if (p.userId === uid) return p;
-  if (p.visibility !== "friends") return null;
-  return (await relationOf(raw, uid, p.userId)) === "friends" ? p : null;
+  return (await canSeePost(raw, uid, p)) ? p : null;
 }
 
 async function hydrate(raw: RawDB, uid: string, rows: (typeof t.posts.$inferSelect)[]): Promise<Post[]> {
@@ -441,7 +445,12 @@ function cursorWhere(cur: string | undefined): SQL | undefined {
   return or(lt(t.posts.createdAt, at), and(eq(t.posts.createdAt, at), lt(t.posts.id, m[2])));
 }
 
-/** Feed: my posts + friends' posts shared with friends, newest first. ?user=<username> = one person's posts (profile). */
+/**
+ * Feed, newest first, cursor-paginated.
+ *   ?tab=friends (default) = my posts + friends' posts shared with friends or everyone.
+ *   ?tab=discover = only posts shared with everyone on Iron Log ("members"), never from people in a block with me.
+ *   ?user=<username> = one person's posts (profile): friends see friends + members posts, other members only members posts.
+ */
 socialRoutes.get("/feed", async (c) => {
   const raw = rawDb(c);
   const uid = me(c);
@@ -453,10 +462,14 @@ socialRoutes.get("/feed", async (c) => {
     if (!u) return c.json({ posts: [], next: null });
     const rel = await relationOf(raw, uid, u.id);
     const asFriend = rel === "self" && c.req.query("as") === "friend";
-    if (rel !== "self" && rel !== "friends") return c.json({ posts: [], next: null });
-    who = rel === "self" && !asFriend ? eq(t.posts.userId, uid) : and(eq(t.posts.userId, u.id), eq(t.posts.visibility, "friends"))!;
+    if (rel === "blocked") return c.json({ posts: [], next: null });
+    who = rel === "self" && !asFriend ? eq(t.posts.userId, uid)
+      : rel === "self" || rel === "friends" ? and(eq(t.posts.userId, u.id), inArray(t.posts.visibility, ["friends", "members"]))!
+        : and(eq(t.posts.userId, u.id), eq(t.posts.visibility, "members"))!;
+  } else if (c.req.query("tab") === "discover") {
+    who = and(eq(t.posts.visibility, "members"), sql`${t.posts.userId} not in ${blockedIdsSql(uid)}`)!;
   } else {
-    who = or(eq(t.posts.userId, uid), and(sql`${t.posts.userId} in ${friendIdsSql(uid)}`, eq(t.posts.visibility, "friends")))!;
+    who = or(eq(t.posts.userId, uid), and(sql`${t.posts.userId} in ${friendIdsSql(uid)}`, inArray(t.posts.visibility, ["friends", "members"])))!;
   }
   const rows = await raw.select().from(t.posts).where(and(eq(t.posts.deleted, 0), who, cursorWhere(c.req.query("cursor"))))
     .orderBy(desc(t.posts.createdAt), desc(t.posts.id)).limit(limit + 1);
@@ -537,7 +550,7 @@ socialRoutes.post("/posts", async (c) => {
   if (!ID_RE.test(id)) return bad(c, "bad id");
   const kind = b.kind as PostKind;
   if (!POST_KINDS.includes(kind)) return bad(c, "bad kind");
-  const visibility = b.visibility === "private" ? "private" : "friends";
+  const visibility = isPostVis(b.visibility) ? b.visibility : "friends";
   const text = str(b.text, LIMITS.postText) || null;
   const photoIds = Array.isArray(b.photoIds) ? [...new Set(b.photoIds.map(String))].slice(0, LIMITS.photosPerPost) : [];
   const raw = rawDb(c);
@@ -567,9 +580,11 @@ socialRoutes.post("/posts", async (c) => {
   } else if (kind === "photo" || kind === "progress") {
     if (!photoIds.length) return bad(c, "Add at least one photo");
   } else if (!text) return bad(c, "Write something");
-  // a post shared with friends shares its photos with friends (the composer says so)
-  if (photoIds.length && visibility === "friends") await d.update(t.photos).set({ visibility: "friends" }).where(inArray(t.photos.id, photoIds));
-  await raw.insert(t.posts).values({ id, userId: me(c), kind, text, photoIds: photoIds.length ? JSON.stringify(photoIds) : null, sessionId, data: data ? JSON.stringify(data) : null, visibility, createdAt: now(), updatedAt: now(), deleted: 0 });
+  // a post shared with friends (or everyone) shares its photos too (the composer says so); members reach them via the post
+  if (photoIds.length && visibility !== "private") await d.update(t.photos).set({ visibility: "friends" }).where(inArray(t.photos.id, photoIds));
+  const row = { id, userId: me(c), kind, text, photoIds: photoIds.length ? JSON.stringify(photoIds) : null, sessionId, data: data ? JSON.stringify(data) : null, visibility, createdAt: now(), updatedAt: now(), deleted: 0 };
+  await raw.insert(t.posts).values(row);
+  await notifyMentions(raw, me(c), text, row, row.id);
   return c.json({ ok: true, id });
 });
 
@@ -577,9 +592,14 @@ socialRoutes.put("/posts/:id", async (c) => {
   const b = await body<{ text: string; visibility: string }>(c);
   const set: Partial<typeof t.posts.$inferInsert> = { updatedAt: now() };
   if (b.text !== undefined) set.text = str(b.text, LIMITS.postText) || null;
-  if (b.visibility !== undefined) { if (b.visibility !== "friends" && b.visibility !== "private") return bad(c, "bad visibility"); set.visibility = b.visibility; }
-  const res = await rawDb(c).update(t.posts).set(set).where(and(eq(t.posts.id, c.req.param("id")), eq(t.posts.userId, me(c)), eq(t.posts.deleted, 0))).returning({ kind: t.posts.kind, text: t.posts.text });
+  if (b.visibility !== undefined) { if (!isPostVis(b.visibility)) return bad(c, "bad visibility"); set.visibility = b.visibility; }
+  const raw = rawDb(c);
+  const res = await raw.update(t.posts).set(set).where(and(eq(t.posts.id, c.req.param("id")), eq(t.posts.userId, me(c)), eq(t.posts.deleted, 0))).returning();
   if (!res.length) return bad(c, "Post not found", 404);
+  const p = res[0];
+  if (p.photoIds && p.visibility !== "private") { try { const ids = JSON.parse(p.photoIds) as string[]; if (ids.length) await db(c).update(t.photos).set({ visibility: "friends" }).where(inArray(t.photos.id, ids)); } catch { /* ignore */ } }
+  // newly added @mentions in an edited caption (ids are per post + person, so nobody hears twice)
+  if (b.text !== undefined) await notifyMentions(raw, me(c), p.text, p, p.id);
   return c.json({ ok: true });
 });
 
@@ -587,7 +607,7 @@ socialRoutes.delete("/posts/:id", async (c) => {
   const raw = rawDb(c);
   const res = await raw.update(t.posts).set({ deleted: 1, updatedAt: now() }).where(and(eq(t.posts.id, c.req.param("id")), eq(t.posts.userId, me(c)))).returning({ id: t.posts.id });
   if (!res.length) return bad(c, "Post not found", 404);
-  await raw.delete(t.notifications).where(and(inArray(t.notifications.kind, ["like", "comment"]), eq(t.notifications.refId, c.req.param("id"))));
+  await raw.delete(t.notifications).where(and(inArray(t.notifications.kind, ["like", "comment", "mention"]), eq(t.notifications.refId, c.req.param("id"))));
   return c.json({ ok: true });
 });
 
@@ -620,46 +640,255 @@ socialRoutes.get("/posts/:id/likes", async (c) => {
   return c.json(rows.filter((r) => !blocked.has(r.u)).map((r) => users.get(r.u)).filter(Boolean));
 });
 
+// ---------------------------------------------------------------- comments: one level of replies (Instagram-style), likes, hide
+
+type CommentRow = typeof t.postComments.$inferSelect;
+type PostRow = typeof t.posts.$inferSelect;
+const UNKNOWN = (id: string): UserLite => ({ id, username: "unknown", name: null, avatarId: null });
+const chunks = <T>(xs: T[], n = 90) => Array.from({ length: Math.ceil(xs.length / n) }, (_, i) => xs.slice(i * n, i * n + n));
+
+/** Comments I hid ("Hide / report"), kept in users.prefs.hiddenComments (newest 500). */
+async function hiddenComments(raw: RawDB, uid: string): Promise<Set<string>> {
+  const [u] = await raw.select({ prefs: t.users.prefs }).from(t.users).where(eq(t.users.id, uid));
+  try {
+    const h = (JSON.parse(u?.prefs || "{}") as { hiddenComments?: unknown }).hiddenComments;
+    return new Set(Array.isArray(h) ? h.map(String) : []);
+  } catch { return new Set(); }
+}
+
+/** Rows → API comments with like counts, "liked by me" and delete rights (author or post author). */
+async function shapeComments(raw: RawDB, uid: string, postAuthor: string, rows: CommentRow[]): Promise<Comment[]> {
+  if (!rows.length) return [];
+  const ids = rows.map((r) => r.id);
+  const counts = new Map<string, number>(), mine = new Set<string>();
+  for (const part of chunks(ids)) {
+    const [n, m] = await Promise.all([
+      raw.select({ c: t.commentLikes.commentId, n: sql<number>`count(*)` }).from(t.commentLikes)
+        .where(and(inArray(t.commentLikes.commentId, part), sql`${t.commentLikes.userId} not in ${blockedIdsSql(uid)}`)).groupBy(t.commentLikes.commentId),
+      raw.select({ c: t.commentLikes.commentId }).from(t.commentLikes).where(and(inArray(t.commentLikes.commentId, part), eq(t.commentLikes.userId, uid))),
+    ]);
+    n.forEach((x) => counts.set(x.c, x.n));
+    m.forEach((x) => mine.add(x.c));
+  }
+  const users = await lite(raw, rows.map((r) => r.userId));
+  return rows.map((r) => ({
+    id: r.id, text: r.text, createdAt: r.createdAt, author: users.get(r.userId) ?? UNKNOWN(r.userId), parentId: r.parentId ?? null,
+    canDelete: r.userId === uid || postAuthor === uid, likes: counts.get(r.id) ?? 0, liked: mine.has(r.id),
+  }));
+}
+
+/** Non-deleted comments of a post that I may see (blocked people and comments I hid are left out). */
+async function seenComments(raw: RawDB, uid: string, postId: string, parentId?: string) {
+  const [blocked, hidden] = await Promise.all([blockedIds(raw, uid).then((x) => new Set(x)), hiddenComments(raw, uid)]);
+  const rows = await raw.select().from(t.postComments)
+    .where(and(eq(t.postComments.postId, postId), eq(t.postComments.deleted, 0), parentId ? eq(t.postComments.parentId, parentId) : undefined))
+    .orderBy(t.postComments.createdAt).limit(1000);
+  return rows.filter((r) => !blocked.has(r.userId) && !hidden.has(r.id));
+}
+
+/**
+ * Top-level comments (oldest first) with their reply count and the first 2 replies.
+ * ?focus=<commentId> (deep link from a notification) = that comment's thread comes with all its replies.
+ */
 socialRoutes.get("/posts/:id/comments", async (c) => {
   const raw = rawDb(c);
-  const p = await visiblePost(raw, me(c), c.req.param("id"));
+  const uid = me(c);
+  const p = await visiblePost(raw, uid, c.req.param("id"));
   if (!p) return bad(c, "Post not found", 404);
-  const blocked = new Set(await blockedIds(raw, me(c)));
-  const rows = await raw.select().from(t.postComments).where(and(eq(t.postComments.postId, p.id), eq(t.postComments.deleted, 0))).orderBy(t.postComments.createdAt).limit(300);
-  const users = await lite(raw, rows.map((r) => r.userId));
-  const out: Comment[] = rows.filter((r) => !blocked.has(r.userId)).map((r) => ({
-    id: r.id, text: r.text, createdAt: r.createdAt, author: users.get(r.userId) ?? { id: r.userId, username: "unknown", name: null, avatarId: null },
-    canDelete: r.userId === me(c) || p.userId === me(c),
+  const rows = await seenComments(raw, uid, p.id);
+  const top = rows.filter((r) => !r.parentId).slice(-300);
+  const topIds = new Set(top.map((r) => r.id));
+  const kids = new Map<string, CommentRow[]>();
+  for (const r of rows) if (r.parentId && topIds.has(r.parentId)) (kids.get(r.parentId) ?? kids.set(r.parentId, []).get(r.parentId)!).push(r);
+  const f = rows.find((r) => r.id === c.req.query("focus"));
+  const focusTop = f ? f.parentId ?? f.id : null;
+  const inline = top.flatMap((r) => (kids.get(r.id) ?? []).slice(0, r.id === focusTop ? 300 : 2));
+  const shaped = new Map((await shapeComments(raw, uid, p.userId, [...top, ...inline])).map((x) => [x.id, x]));
+  const inlineSet = new Set(inline.map((r) => r.id));
+  const out: Comment[] = top.map((r) => ({
+    ...shaped.get(r.id)!,
+    replyCount: kids.get(r.id)?.length ?? 0,
+    replies: (kids.get(r.id) ?? []).filter((k) => inlineSet.has(k.id)).map((k) => shaped.get(k.id)!),
   }));
   return c.json(out);
 });
 
-socialRoutes.post("/posts/:id/comments", async (c) => {
-  const b = await body<{ id: string; text: string }>(c);
+/** All replies of one top-level comment (oldest first). */
+socialRoutes.get("/comments/:id/replies", async (c) => {
   const raw = rawDb(c);
-  const p = await visiblePost(raw, me(c), c.req.param("id"));
+  const uid = me(c);
+  const v = await visibleComment(raw, uid, c.req.param("id"));
+  if (!v) return bad(c, "Comment not found", 404);
+  const top = v.cm.parentId ?? v.cm.id;
+  return c.json(await shapeComments(raw, uid, v.post.userId, await seenComments(raw, uid, v.post.id, top)));
+});
+
+/** A comment I can see: not deleted, on a post I can see, its author not in a block with me. */
+async function visibleComment(raw: RawDB, uid: string, id: string): Promise<{ cm: CommentRow; post: PostRow } | null> {
+  if (!ID_RE.test(id)) return null;
+  const [cm] = await raw.select().from(t.postComments).where(and(eq(t.postComments.id, id), eq(t.postComments.deleted, 0)));
+  if (!cm) return null;
+  const post = await visiblePost(raw, uid, cm.postId);
+  if (!post) return null;
+  if (cm.userId !== uid && (await relationOf(raw, uid, cm.userId)) === "blocked") return null;
+  return { cm, post };
+}
+
+/** "mention" notifications for @usernames in a post / comment, to people who can see that post. `skip` = already told. */
+async function notifyMentions(raw: RawDB, actor: string, text: string | null, post: { userId: string; visibility: string; deleted?: number | null }, refId: string, skip = new Set<string>()) {
+  const ids = await mentionTargets(raw, actor, text, (u) => canSeePost(raw, u, post));
+  for (const u of ids) if (!skip.has(u)) await notify(raw, { userId: u, kind: "mention", actorId: actor, refId, id: `mn-${refId}-${u}` });
+}
+
+/**
+ * Add a comment. {id, text, parentId?}: a reply to a reply attaches to the same top-level comment (one level, Instagram-style).
+ * Notifies: the comment I replied to ("reply") · the post author ("comment") · @mentioned people who can see the post ("mention").
+ */
+socialRoutes.post("/posts/:id/comments", async (c) => {
+  const b = await body<{ id: string; text: string; parentId: string | null }>(c);
+  const raw = rawDb(c);
+  const uid = me(c);
+  const p = await visiblePost(raw, uid, c.req.param("id"));
   if (!p) return bad(c, "Post not found", 404);
   const id = String(b.id ?? "");
   if (!ID_RE.test(id)) return bad(c, "bad id");
   const text = str(b.text, LIMITS.comment);
   if (!text) return bad(c, "Write a comment");
-  const [{ n }] = await raw.select({ n: sql<number>`count(*)` }).from(t.postComments).where(and(eq(t.postComments.userId, me(c)), gte(t.postComments.createdAt, now() - 3600e3)));
+  let target: CommentRow | null = null;
+  if (b.parentId != null && b.parentId !== "") {
+    const v = await visibleComment(raw, uid, String(b.parentId));
+    if (!v || v.post.id !== p.id) return bad(c, "That comment is gone", 404);
+    target = v.cm;
+  }
+  const parentId = target ? target.parentId ?? target.id : null;
+  const [{ n }] = await raw.select({ n: sql<number>`count(*)` }).from(t.postComments).where(and(eq(t.postComments.userId, uid), gte(t.postComments.createdAt, now() - 3600e3)));
   if (n >= 60) return bad(c, "Slow down a little.", 429);
-  const ins = await raw.insert(t.postComments).values({ id, postId: p.id, userId: me(c), text, createdAt: now(), deleted: 0 }).onConflictDoNothing().returning({ id: t.postComments.id });
-  if (ins.length) await notify(raw, { userId: p.userId, kind: "comment", actorId: me(c), refId: p.id, id: `cm-${id}` });
-  return c.json({ ok: true, id });
+  const ins = await raw.insert(t.postComments).values({ id, postId: p.id, userId: uid, text, parentId, createdAt: now(), deleted: 0 }).onConflictDoNothing().returning({ id: t.postComments.id });
+  if (ins.length) {
+    const told = new Set<string>([uid]);
+    if (target && !told.has(target.userId) && (await canSeePost(raw, target.userId, p))) {
+      await notify(raw, { userId: target.userId, kind: "reply", actorId: uid, refId: id, id: `rp-${id}` });
+      told.add(target.userId);
+    }
+    if (!told.has(p.userId)) { await notify(raw, { userId: p.userId, kind: "comment", actorId: uid, refId: p.id, id: `cm-${id}` }); told.add(p.userId); }
+    await notifyMentions(raw, uid, text, p, id, told);
+  }
+  return c.json({ ok: true, id, parentId });
 });
 
-/** Delete a comment: its author, or the author of the post. */
+/** Delete a comment: its author, or the author of the post. Deleting a top-level comment removes its replies too. */
 socialRoutes.delete("/comments/:id", async (c) => {
   const raw = rawDb(c);
-  const [cm] = await raw.select({ id: t.postComments.id, userId: t.postComments.userId, postId: t.postComments.postId }).from(t.postComments).where(eq(t.postComments.id, c.req.param("id")));
+  const id = c.req.param("id");
+  const [cm] = await raw.select({ id: t.postComments.id, userId: t.postComments.userId, postId: t.postComments.postId, parentId: t.postComments.parentId }).from(t.postComments).where(and(eq(t.postComments.id, id), eq(t.postComments.deleted, 0)));
   if (!cm) return bad(c, "Comment not found", 404);
   const [p] = await raw.select({ userId: t.posts.userId }).from(t.posts).where(eq(t.posts.id, cm.postId));
   if (cm.userId !== me(c) && p?.userId !== me(c)) return bad(c, "Not allowed", 403);
-  await raw.update(t.postComments).set({ deleted: 1 }).where(eq(t.postComments.id, cm.id));
-  await raw.delete(t.notifications).where(eq(t.notifications.id, `cm-${cm.id}`));
+  const gone = await raw.update(t.postComments).set({ deleted: 1 })
+    .where(and(eq(t.postComments.deleted, 0), cm.parentId ? eq(t.postComments.id, cm.id) : or(eq(t.postComments.id, cm.id), eq(t.postComments.parentId, cm.id))))
+    .returning({ id: t.postComments.id });
+  const ids = gone.map((g) => g.id);
+  for (const part of chunks(ids, 40)) {
+    await raw.batch([
+      raw.delete(t.notifications).where(inArray(t.notifications.id, part.flatMap((x) => [`cm-${x}`, `rp-${x}`]))),
+      raw.delete(t.notifications).where(and(inArray(t.notifications.kind, ["reply", "mention", "comment_like"]), inArray(t.notifications.refId, part))),
+      raw.delete(t.commentLikes).where(inArray(t.commentLikes.commentId, part)),
+    ]);
+  }
+  return c.json({ ok: true, removed: ids.length });
+});
+
+const commentLikeCount = async (raw: RawDB, uid: string, id: string) =>
+  (await raw.select({ n: sql<number>`count(*)` }).from(t.commentLikes).where(and(eq(t.commentLikes.commentId, id), sql`${t.commentLikes.userId} not in ${blockedIdsSql(uid)}`)))[0].n;
+
+socialRoutes.post("/comments/:id/like", async (c) => {
+  const raw = rawDb(c);
+  const uid = me(c);
+  const v = await visibleComment(raw, uid, c.req.param("id"));
+  if (!v) return bad(c, "Comment not found", 404);
+  const ins = await raw.insert(t.commentLikes).values({ commentId: v.cm.id, userId: uid, createdAt: now() }).onConflictDoNothing().returning({ c: t.commentLikes.commentId });
+  if (ins.length) await notify(raw, { userId: v.cm.userId, kind: "comment_like", actorId: uid, refId: v.cm.id, id: `cl-${v.cm.id}-${uid}` });
+  return c.json({ ok: true, likes: await commentLikeCount(raw, uid, v.cm.id), liked: true });
+});
+socialRoutes.delete("/comments/:id/like", async (c) => {
+  const raw = rawDb(c);
+  const uid = me(c);
+  const id = c.req.param("id");
+  if (!ID_RE.test(id)) return bad(c, "Comment not found", 404);
+  await raw.delete(t.commentLikes).where(and(eq(t.commentLikes.commentId, id), eq(t.commentLikes.userId, uid)));
+  await raw.delete(t.notifications).where(and(eq(t.notifications.id, `cl-${id}-${uid}`), sql`${t.notifications.readAt} is null`));
+  return c.json({ ok: true, likes: await commentLikeCount(raw, uid, id), liked: false });
+});
+
+/** Who liked a comment (anyone who can see it; blocked people hidden). */
+socialRoutes.get("/comments/:id/likes", async (c) => {
+  const raw = rawDb(c);
+  const uid = me(c);
+  const v = await visibleComment(raw, uid, c.req.param("id"));
+  if (!v) return bad(c, "Comment not found", 404);
+  const blocked = new Set(await blockedIds(raw, uid));
+  const rows = await raw.select({ u: t.commentLikes.userId }).from(t.commentLikes).where(eq(t.commentLikes.commentId, v.cm.id)).orderBy(desc(t.commentLikes.createdAt)).limit(200);
+  const users = await lite(raw, rows.map((r) => r.u));
+  return c.json(rows.filter((r) => !blocked.has(r.u)).map((r) => users.get(r.u)).filter(Boolean));
+});
+
+/**
+ * Hide a comment for me ("Report / hide"). There's no moderation queue (small friend group): it's logged for the admin,
+ * and the post author can delete it. Stored in users.prefs.hiddenComments (newest 500).
+ */
+socialRoutes.post("/comments/:id/hide", async (c) => {
+  const raw = rawDb(c);
+  const uid = me(c);
+  const v = await visibleComment(raw, uid, c.req.param("id"));
+  if (!v) return bad(c, "Comment not found", 404);
+  if (v.cm.userId === uid) return bad(c, "That's your own comment");
+  const [u] = await raw.select({ prefs: t.users.prefs }).from(t.users).where(eq(t.users.id, uid));
+  let all: Record<string, unknown> = {};
+  try { all = JSON.parse(u?.prefs || "{}") ?? {}; } catch { /* reset broken json */ }
+  const prev = Array.isArray(all.hiddenComments) ? (all.hiddenComments as unknown[]).map(String) : [];
+  all.hiddenComments = [...prev.filter((x) => x !== v.cm.id), v.cm.id].slice(-500);
+  await raw.update(t.users).set({ prefs: JSON.stringify(all) }).where(eq(t.users.id, uid));
+  console.log("comment reported", JSON.stringify({ by: uid, comment: v.cm.id, author: v.cm.userId, post: v.post.id }));
   return c.json({ ok: true });
+});
+
+// ---------------------------------------------------------------- @mention suggestions
+
+/**
+ * People to @mention: friends first, then other people who can see the content. Never me, never blocked.
+ *   ?post=<id> (comment on / edit a post) · or ?vis=friends|members|private (new post in the composer) · ?q=<prefix>
+ * Chat suggests from the chat's members on the client (they're already loaded).
+ */
+socialRoutes.get("/mentions", async (c) => {
+  const raw = rawDb(c);
+  const uid = me(c);
+  const q = (c.req.query("q") ?? "").trim().toLowerCase().replace(/^@/, "");
+  if (!/^[a-z0-9._]{0,30}$/.test(q)) return c.json([]);
+  const postId = c.req.query("post");
+  const post = postId ? await visiblePost(raw, uid, postId) : null;
+  if (postId && !post) return c.json([]);
+  const vis = post?.visibility ?? (isPostVis(c.req.query("vis")) ? c.req.query("vis")! : "friends");
+  if (!post && vis === "private") return c.json([]);
+  const [fids, blocked] = await Promise.all([friendIds(raw, uid), blockedIds(raw, uid).then((x) => new Set(x))]);
+  const fset = new Set(fids);
+  const match = (u: UserLite) => !q || u.username.startsWith(q) || (u.name ?? "").toLowerCase().split(/\s+/).some((w) => w.startsWith(q));
+  const ok = (u: UserLite) => u.id !== uid && !blocked.has(u.id) && match(u);
+  const canSeeIt = async (id: string) => (post ? canSeePost(raw, id, post) : vis === "members" ? true : fset.has(id));
+  const friends = [...(await lite(raw, fids)).values()].filter(ok).sort((a, z) => a.username.localeCompare(z.username));
+  const others: UserLite[] = [];
+  if (post) {
+    const people = await raw.select({ u: t.postComments.userId }).from(t.postComments).where(and(eq(t.postComments.postId, post.id), eq(t.postComments.deleted, 0))).limit(300);
+    others.push(...(await lite(raw, [post.userId, ...people.map((x) => x.u)])).values());
+  }
+  if (vis === "members" && q) others.push(...(await raw.select(LITE).from(t.users).where(sql`${t.users.username} like ${`${q.replace(/[%_\\]/g, (m) => `\\${m}`)}%`} escape '\\'`).limit(20)));
+  const out: MentionUser[] = [];
+  const seen = new Set<string>();
+  for (const [u, friend] of [...friends.map((u) => [u, true] as const), ...others.filter((u) => !fset.has(u.id)).map((u) => [u, false] as const)]) {
+    if (out.length >= 8 || seen.has(u.id) || !ok(u)) continue;
+    seen.add(u.id);
+    if (await canSeeIt(u.id)) out.push({ ...u, friend });
+  }
+  return c.json(out);
 });
 
 // ================================================================== notifications
@@ -673,9 +902,25 @@ socialRoutes.get("/notifications", async (c) => {
     .where(and(eq(t.notifications.userId, uid), before ? lt(t.notifications.createdAt, before) : undefined, blocked.length ? sql`coalesce(${t.notifications.actorId}, '') not in (${idList(blocked.slice(0, 90))})` : undefined))
     .orderBy(desc(t.notifications.createdAt)).limit(40);
   const users = await lite(raw, rows.map((r) => r.actorId ?? ""));
-  const postIds = rows.filter((r) => (r.kind === "like" || r.kind === "comment") && r.refId).map((r) => r.refId!);
+  // comments behind a notification: reply / comment_like / mention refId = comment id; "comment" id = cm-<comment id>
+  const cmOf = (r: (typeof rows)[number]) => (r.kind === "comment" && r.id.startsWith("cm-") ? r.id.slice(3) : r.kind === "reply" || r.kind === "comment_like" || r.kind === "mention" ? r.refId : null);
+  const cmIds = [...new Set(rows.map(cmOf).filter((x): x is string => !!x))].slice(0, 90);
+  const cms = cmIds.length ? await raw.select({ id: t.postComments.id, postId: t.postComments.postId, text: t.postComments.text, deleted: t.postComments.deleted }).from(t.postComments).where(inArray(t.postComments.id, cmIds)) : [];
+  const cmMap = new Map(cms.map((x) => [x.id, x]));
+  const postIds = [...new Set([
+    ...rows.filter((r) => (r.kind === "like" || r.kind === "comment" || (r.kind === "mention" && !cmMap.has(r.refId ?? ""))) && r.refId).map((r) => r.refId!),
+    ...cms.map((x) => x.postId),
+  ])].slice(0, 90);
   const chIds = rows.filter((r) => r.kind.startsWith("challenge_") && r.refId).map((r) => r.refId!);
-  const posts = postIds.length ? await raw.select({ id: t.posts.id, text: t.posts.text, kind: t.posts.kind, data: t.posts.data, deleted: t.posts.deleted, photoIds: t.posts.photoIds }).from(t.posts).where(inArray(t.posts.id, [...new Set(postIds)].slice(0, 90))) : [];
+  const posts = postIds.length ? await raw.select({ id: t.posts.id, userId: t.posts.userId, visibility: t.posts.visibility, text: t.posts.text, kind: t.posts.kind, data: t.posts.data, deleted: t.posts.deleted, photoIds: t.posts.photoIds }).from(t.posts).where(inArray(t.posts.id, postIds)) : [];
+  // someone else's post (replies, mentions): only while I can still see it
+  const canPost = new Map(await Promise.all(posts.map(async (p) => [p.id, !p.deleted && (p.userId === uid || (await canSeePost(raw, uid, p)))] as const)));
+  // chat mentions: refId = message id; only while I'm still in that chat
+  const msgIds = rows.filter((r) => r.kind === "mention" && r.refId && !cmMap.has(r.refId) && !posts.some((p) => p.id === r.refId)).map((r) => r.refId!).slice(0, 90);
+  const msgs = msgIds.length ? await raw.select({ id: t.messages.id, convId: t.messages.convId, text: t.messages.text, deleted: t.messages.deleted }).from(t.messages).where(inArray(t.messages.id, msgIds)) : [];
+  const convIds = [...new Set(msgs.map((m) => m.convId))];
+  const myConvs = convIds.length ? await raw.select({ id: t.conversationMembers.convId }).from(t.conversationMembers).where(and(eq(t.conversationMembers.userId, uid), inArray(t.conversationMembers.convId, convIds))) : [];
+  const inConv = new Set(myConvs.map((x) => x.id));
   const chs = chIds.length ? await raw.select({ id: t.challenges.id, title: t.challenges.title }).from(t.challenges).where(inArray(t.challenges.id, [...new Set(chIds)].slice(0, 90))) : [];
   const snip = (p: (typeof posts)[number]) => {
     if (p.text) return p.text.slice(0, 80);
@@ -686,11 +931,27 @@ socialRoutes.get("/notifications", async (c) => {
   const rels = new Map(await Promise.all(relIds.map(async (id) => [id, await relationOf(raw, uid, id)] as const)));
   const thumbOf = (p: (typeof posts)[number] | undefined) => { try { return p && !p.deleted && p.photoIds ? (JSON.parse(p.photoIds) as string[])[0] ?? null : null; } catch { return null; } };
   const out: Notif[] = rows.map((r) => {
+    const base = { id: r.id, kind: r.kind, actor: r.actorId ? users.get(r.actorId) ?? null : null, createdAt: r.createdAt, read: r.readAt != null, relation: r.actorId ? rels.get(r.actorId) : undefined };
+    const cid = cmOf(r);
+    const cm = cid ? cmMap.get(cid) : undefined;
+    if (cm || r.kind === "reply" || r.kind === "comment_like") {
+      // comment-based: comment text as the snippet, post photo as the thumbnail
+      const p = posts.find((x) => x.id === (cm?.postId ?? (r.kind === "comment" ? r.refId : null)));
+      const ok = !!p && canPost.get(p.id) && (!cm || !cm.deleted);
+      if (!ok) return { ...base, refId: null, snippet: p && !canPost.get(p.id) ? "(deleted post)" : "(deleted comment)", thumb: null, where: r.kind === "mention" ? "comment" : undefined };
+      return { ...base, refId: p!.id, postId: p!.id, commentId: cm?.id ?? null, snippet: cm ? cm.text.slice(0, 80) : snip(p!), thumb: thumbOf(p), where: r.kind === "mention" ? "comment" : undefined };
+    }
+    if (r.kind === "mention") {
+      const p = posts.find((x) => x.id === r.refId);
+      if (p) return canPost.get(p.id) ? { ...base, refId: p.id, postId: p.id, snippet: snip(p), thumb: thumbOf(p), where: "post" } : { ...base, refId: null, snippet: "(deleted post)", where: "post" };
+      const m = msgs.find((x) => x.id === r.refId);
+      if (m && inConv.has(m.convId)) return { ...base, refId: m.id, convId: m.convId, snippet: m.deleted ? "(deleted message)" : (m.text ?? "").slice(0, 80), where: "chat" };
+      return { ...base, refId: null, snippet: null, where: "chat" };
+    }
     const p = posts.find((x) => x.id === r.refId);
     const ch = chs.find((x) => x.id === r.refId);
     return {
-      id: r.id, kind: r.kind, actor: r.actorId ? users.get(r.actorId) ?? null : null, refId: p?.deleted ? null : r.refId, snippet: p ? (p.deleted ? "(deleted post)" : snip(p)) : ch ? ch.title : null,
-      createdAt: r.createdAt, read: r.readAt != null, thumb: thumbOf(p), relation: r.actorId ? rels.get(r.actorId) : undefined,
+      ...base, refId: p?.deleted ? null : r.refId, postId: p && !p.deleted ? p.id : undefined, snippet: p ? (p.deleted ? "(deleted post)" : snip(p)) : ch ? ch.title : null, thumb: thumbOf(p),
     };
   });
   return c.json({ items: out, next: rows.length === 40 ? rows[rows.length - 1].createdAt : null });

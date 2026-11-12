@@ -4,7 +4,7 @@ import * as t from "../db/schema";
 import type { Env } from "../env";
 import { db, rawDb, type RawDB } from "../db";
 import { mergePrivacy } from "../../shared/social";
-import { areFriends, friendIds as friendList, isBlocked } from "../friends";
+import { areFriends, friendIds as friendList, isBlocked, mentionTargets, notify as notifyUser } from "../friends";
 import { later, pushChatMessage } from "../push";
 
 const friendIds = async (raw: RawDB, me: string) => new Set(await friendList(raw, me));
@@ -421,6 +421,13 @@ chatRoutes.get("/chat/:id/messages", async (c) => {
   return c.json({ messages: await hydrate(raw, rows.slice(0, limit).reverse()), hasMore });
 });
 
+async function chatMentions(raw: RawDB, m: typeof t.messages.$inferSelect, me: string) {
+  const members = new Set(await memberIds(raw, m.convId));
+  const ids = await mentionTargets(raw, me, m.text, async (u) => members.has(u));
+  const hint = { url: `#/chat/${m.convId}`, tag: `chat-${m.convId}`, topic: `chat-${m.convId}` };
+  for (const u of ids) await notifyUser(raw, { userId: u, kind: "mention", actorId: me, refId: m.id, id: `mn-${m.id}-${u}`, push: hint });
+}
+
 /** Send. Idempotent on the client-generated id (a retry returns the stored message). */
 chatRoutes.post("/chat/:id/messages", async (c) => {
   const convId = c.req.param("id");
@@ -474,6 +481,8 @@ chatRoutes.post("/chat/:id/messages", async (c) => {
   notify(c, convId, { t: "msg", msg }, await memberIds(raw, convId));
   // phone push to the other members (after the response; prefs, mute, quiet hours checked inside)
   later(pushChatMessage(raw, c.env, saved), (p) => c.executionCtx.waitUntil(p));
+  // @mentions → Activity "mention" for members of this chat (its phone push shares the chat's tag, so it collapses with it)
+  if (saved.text) later(chatMentions(raw, saved, me), (p) => c.executionCtx.waitUntil(p));
   touch(c);
   return c.json(msg);
 });

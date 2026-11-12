@@ -3,7 +3,13 @@
 Iron Log can be connected to **Claude** or **ChatGPT** so the AI works as your coach: it reads your workouts and can adjust your plan, your target weights and your next workout. It's the same thing Shady does with Claude Code for his own plan, now for everyone, from the chat app you already use.
 
 > Connector URL: **`https://iron-log.workingshady.workers.dev/mcp`**
-> Connect code: Iron Log → **You → Account & security → Connect AI → Create connect code**
+> Connect code: Iron Log → **You → ≡ → Account & security → Connect AI → Create connect code**
+
+| Way | Best for | Works on |
+|---|---|---|
+| **⭐ Claude Code (recommended)** | the most reliable and powerful way; also works when your Claude account belongs to a company/team that blocks custom connectors | Windows, Mac, Linux terminal (Claude Pro, Max, Team or Enterprise, or an API account) |
+| Claude website / desktop app | chatting from the normal Claude app | personal Claude accounts (Free allows 1 custom connector); on Team/Enterprise only the organisation owner can add it |
+| ChatGPT | if you prefer ChatGPT | ChatGPT web with Developer mode (plan-dependent) |
 
 ---
 
@@ -39,25 +45,73 @@ Every change is logged in your account (as an `ai_…` event with the app's name
 
 ---
 
-## Connect Claude
+## ⭐ Option 1 (recommended): Claude Code
 
-Works on the **Claude website, desktop app and phone app**. Custom connectors work on all plans; at the time of writing (Nov 2026), the **Free plan allows one custom connector** (this may change; see Anthropic's help pages linked below).
+Claude Code is Claude in your terminal. It talks to Iron Log directly, isn't blocked by company/team connector rules, and is
+exactly how Shady's own plan is managed. It needs a Claude **Pro, Max, Team or Enterprise** plan (or an Anthropic API account).
 
-1. **Make a code first.** Open Iron Log → **You → Account & security**. Scroll to **Connect AI** and tap **Create connect code**. You'll see a big 8-character code like `K7QM-3XWP` with a 10-minute countdown. Keep this screen open (or copy the code).
-2. **Open Claude's connector settings.**
-   - Web / desktop: click your name (bottom left) → **Settings** → **Connectors**. (In some versions it's under **Customize → Connectors**.)
-   - Phone: tap the menu → **Settings** → **Connectors**.
-3. Click **Add custom connector**. A small window asks for a **name** and a **remote MCP server URL**.
-   - Name: `Iron Log`
-   - URL: `https://iron-log.workingshady.workers.dev/mcp`
-   - Leave the advanced OAuth fields empty, then click **Add**.
-4. Iron Log now appears in the list with a **Connect** button. Click it. A dark Iron Log page opens in your browser: *"Connect Claude to Iron Log"*.
-5. Type the connect code (with or without the dash, any case) and press **Approve**. You land back in Claude and the connector shows as connected.
-6. In a chat, open the tools menu (the "+" or sliders icon under the message box) and make sure **Iron Log** is switched on. Then just ask, e.g. *"Review my last workout"*. Claude asks for permission the first time it uses each tool; you can allow it once or always.
+**1. Install Claude Code** (once):
 
-Tip: Iron Log also offers ready-made prompts (Review my last workout, Weekly check-in, Monthly review, I only have N days, Something hurts). In Claude they're in the "+" menu under Iron Log.
+- Windows (PowerShell): `irm https://claude.ai/install.ps1 | iex`
+- Mac / Linux: `curl -fsSL https://claude.ai/install.sh | bash`
+- Then run `claude` once and sign in with your Claude account.
 
-## Connect ChatGPT
+**2. Add Iron Log** (once). The `--scope user` part makes it work from any folder:
+
+```
+claude mcp add --scope user --transport http iron-log https://iron-log.workingshady.workers.dev/mcp
+```
+
+You should see *"Added HTTP MCP server iron-log …"*.
+
+**3. Sign in with a connect code:**
+
+1. Start Claude Code: `claude`
+2. Type `/mcp`, choose **iron-log** → **Authenticate**. Your browser opens the dark Iron Log page *"Connect Claude Code to Iron Log"*.
+   (If no browser opens, copy the link Claude Code prints and open it.)
+3. In the Iron Log app: **You → ≡ → Account & security → Connect AI → Create connect code** (8 characters, valid 10 minutes).
+4. Type the code on the Iron Log page in the browser (with or without the dash) → **Approve**.
+5. Back in Claude Code you'll see **"Authentication successful. Connected to iron-log."**
+
+**4. Use it.** Just ask, for example:
+
+- `Read my Iron Log and review my last workout`
+- `Show my bench press history and what I should lift next time`
+- `I only have 3 days a week now. Make my own copy of my plan and adapt it`
+- `Write my month review`
+
+Claude Code asks before it runs a tool that changes something. Type `/mcp` any time to see the connection, re-authenticate or
+disconnect. To remove it completely: `claude mcp remove --scope user iron-log`.
+
+> Already added it without `--scope user`? It then only works when you start `claude` in that same folder. Fix:
+> `claude mcp remove iron-log` and add it again with `--scope user`.
+
+## Option 2: Claude website or desktop app
+
+Add the connector on the **website or desktop app** (adding custom connectors isn't available in the phone app; once added, it
+then also works in the Claude phone app).
+
+**Personal account (Free, Pro, Max).** The **Free plan allows one custom connector** (Anthropic's help page).
+
+1. **Make a code first** in Iron Log: **You → ≡ → Account & security → Connect AI → Create connect code** (10 minutes).
+2. In Claude: **Customize → Connectors → "+" Add → Add custom connector**. (Older layout: **Settings → Connectors**.)
+3. Name `Iron Log`, URL `https://iron-log.workingshady.workers.dev/mcp` → **Continue**. Claude shows the settings it detected →
+   **Continue** again.
+4. **Authentication:** keep **Sign in now**. **OAuth client:** keep **"Use Claude's published identity (Recommended)"**
+   ("Register automatically" also works). Click **Add**.
+5. A dark Iron Log page opens: *"Connect Claude to Iron Log"*. Type the connect code → **Approve**. You're back in Claude, connected.
+6. In a chat: **"+" → Connectors** → switch **Iron Log** on. Ask e.g. *"Review my last workout"*. Claude asks permission the
+   first time it uses each tool (allow once or always).
+
+**Team or Enterprise account (e.g. a work account).** Only an organisation **Owner** can add custom connectors: **Organization
+settings → Connectors → Add → Custom → Web**, name `Iron Log`, the URL above, default sign-in settings. Members then just open
+**Customize → Connectors → Iron Log → Connect** and enter their own code. If you see *"Ask an organization owner to add this for
+your team"* (the button is greyed out), either ask the owner, use a personal Claude account, or use **Claude Code** (Option 1).
+
+Tip: Iron Log also offers ready-made prompts (Review my last workout, Weekly check-in, Monthly review, I only have N days,
+Something hurts). In Claude they're in the "+" menu under Iron Log.
+
+## Option 3: ChatGPT
 
 ChatGPT calls these **apps / connectors in Developer mode**. At the time of writing (Nov 2026) it's a beta, available on the web for paid plans (OpenAI lists Business and Enterprise/Edu; Plus/Pro have had it too). On Business/Enterprise an admin may have to allow it. **Plans and menus change often**; check OpenAI's help page below if something looks different.
 
@@ -113,6 +167,9 @@ ChatGPT calls these **apps / connectors in Developer mode**. At the time of writ
 
 | Problem | Fix |
 |---|---|
+| Claude: "Add custom connector" is greyed out / "Ask an organization owner…" | Your Claude account belongs to a Team/Enterprise organisation. Use **Claude Code** (Option 1), a personal account, or ask the owner. |
+| Claude Code: tools missing in another folder | It was added without `--scope user`. Remove it and add it again with `--scope user`. |
+| Claude Code: "needs authentication" | Type `/mcp` → iron-log → **Authenticate** and enter a fresh connect code. |
 | "That code isn't right" / "expired" | Codes last 10 minutes and work once. Make a new one right before you press Connect. Only the newest code works. |
 | "Too many wrong codes" | Wait the minutes shown, then try again with a fresh code. |
 | "This app isn't registered" / "Wrong return address" | Remove the Iron Log connector in Claude/ChatGPT and add it again. |
@@ -133,6 +190,6 @@ ChatGPT calls these **apps / connectors in Developer mode**. At the time of writ
 
 - MCP specification: [Authorization](https://modelcontextprotocol.io/specification/latest/basic/authorization), [Authorization server discovery](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/authorization-server-discovery), [Client registration](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/client-registration), [Streamable HTTP](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http), [Versioning](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning), [server/discover](https://modelcontextprotocol.io/specification/2026-07-28/server/discover), [2025-11-25 transports](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)
 - Anthropic: [Building custom connectors via remote MCP servers](https://support.anthropic.com/en/articles/11503834-building-custom-connectors-via-remote-mcp-servers), [Connector authentication (callback URL, PKCE, refresh rules)](https://www.claude.com/docs/connectors/building/authentication)
-- OpenAI: [Developer mode and MCP connectors in ChatGPT](https://help.openai.com/en/articles/12584461-developer-mode-apps-and-full-mcp-connectors-in-chatgpt)
-- Free-plan connector limit as described in third-party setup guides, e.g. [Boomi: Connect Claude](https://help.boomi.com/docs/Atomsphere/Connect/MCPSetup/Connect_claude_setup) (not stated on Anthropic's page; may change)
+- Anthropic: [Get started with custom connectors using remote MCP](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp) (plans, Free = 1 custom connector, Team/Enterprise owner rule, web/desktop), [Claude Code: connect to MCP servers](https://docs.claude.com/en/docs/claude-code/mcp)
+- OpenAI: [Connecting custom MCP servers in ChatGPT](https://help.openai.com/en/articles/12584461-developer-mode-apps-and-full-mcp-connectors-in-chatgpt) (menus and plan availability change often)
 - OAuth RFCs: [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728), [RFC 8414](https://datatracker.ietf.org/doc/html/rfc8414), [RFC 7591](https://datatracker.ietf.org/doc/html/rfc7591), [RFC 7009](https://datatracker.ietf.org/doc/html/rfc7009), [RFC 8707](https://www.rfc-editor.org/rfc/rfc8707.html), [RFC 9207](https://datatracker.ietf.org/doc/html/rfc9207), [OAuth 2.1 draft](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13)

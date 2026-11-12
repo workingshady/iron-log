@@ -30,18 +30,18 @@ export interface PushPayload {
   ts?: number;
 }
 
-export type NotifyCat = "chat" | "friends" | "likes" | "comments" | "cheers" | "challenges" | "rest";
-export const CATS: NotifyCat[] = ["chat", "friends", "likes", "comments", "cheers", "challenges", "rest"];
+export type NotifyCat = "chat" | "friends" | "likes" | "comments" | "mentions" | "cheers" | "challenges" | "rest";
+export const CATS: NotifyCat[] = ["chat", "friends", "likes", "comments", "mentions", "cheers", "challenges", "rest"];
 
 export interface NotifyPrefs {
-  chat: boolean; friends: boolean; likes: boolean; comments: boolean; cheers: boolean; challenges: boolean; rest: boolean;
+  chat: boolean; friends: boolean; likes: boolean; comments: boolean; mentions: boolean; cheers: boolean; challenges: boolean; rest: boolean;
   /** Quiet hours: pushes are not sent between from and to (24h "HH:MM", in the user's tz). Rest timer is local → unaffected. */
   quiet: { on: boolean; from: string; to: string };
   /** IANA time zone of the user's phone (for quiet hours). */
   tz: string;
 }
 export const NOTIFY_DEFAULTS: NotifyPrefs = {
-  chat: true, friends: true, likes: true, comments: true, cheers: true, challenges: true, rest: true,
+  chat: true, friends: true, likes: true, comments: true, mentions: true, cheers: true, challenges: true, rest: true,
   quiet: { on: false, from: "22:30", to: "07:30" }, tz: "Africa/Cairo",
 };
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -82,8 +82,9 @@ export function inQuiet(p: NotifyPrefs, at = Date.now()): boolean {
 /** In-app notification kind (worker/friends.ts notify()) → prefs category. Unknown kinds don't push. */
 export function catOf(kind: string): NotifyCat | null {
   if (kind === "friend_request" || kind === "friend_accept") return "friends";
-  if (kind === "like") return "likes";
-  if (kind === "comment") return "comments";
+  if (kind === "like" || kind === "comment_like") return "likes";
+  if (kind === "comment" || kind === "reply") return "comments";
+  if (kind === "mention") return "mentions";
   if (kind === "cheer") return "cheers";
   if (kind.startsWith("challenge_")) return "challenges";
   if (kind === "message") return "chat";
@@ -278,7 +279,7 @@ export async function pushFor(raw: RawDB, env: Bindings, userId: string, cat: No
 const who = (a: { name: string | null; username: string } | undefined) => a?.name?.trim() || (a ? `@${a.username}` : "Someone");
 
 /** Phone text for a worker/friends.ts notify() row. Short, no private data. */
-export function payloadFor(n: { kind: string; refId?: string | null }, actor?: { name: string | null; username: string }): (PushPayload & { opts: SendOpts }) | null {
+export function payloadFor(n: { kind: string; refId?: string | null; push?: { url?: string; tag?: string; topic?: string } }, actor?: { name: string | null; username: string }): (PushPayload & { opts: SendOpts }) | null {
   const a = who(actor);
   const ref = n.refId ?? "";
   const day = 86400;
@@ -288,6 +289,12 @@ export function payloadFor(n: { kind: string; refId?: string | null }, actor?: {
     // likes: one notification per post on the phone (tag), newest liker wins; quiet (no re-alert)
     case "like": return { kind: n.kind, title: "New like", body: `${a} liked your post`, url: "#/notifications", tag: `like-${ref}`, opts: { ttl: 3 * day, urgency: "low", topic: `like-${ref}` } };
     case "comment": return { kind: n.kind, title: "New comment", body: `${a} commented on your post`, url: "#/notifications", tag: `cm-${ref}`, renotify: true, opts: { ttl: 3 * day, topic: `cm-${ref}` } };
+    // a reply to my comment: one per reply, re-alerts
+    case "reply": return { kind: n.kind, title: "New reply", body: `${a} replied to your comment`, url: n.push?.url ?? "#/notifications", tag: `rp-${ref}`, renotify: true, opts: { ttl: 3 * day, topic: `rp-${ref}` } };
+    // comment likes: one per comment (newest liker wins), quiet like post likes
+    case "comment_like": return { kind: n.kind, title: "New like", body: `${a} liked your comment`, url: n.push?.url ?? "#/notifications", tag: `cl-${ref}`, opts: { ttl: 3 * day, urgency: "low", topic: `cl-${ref}` } };
+    // mentions: in a post / comment, or in a chat (then it opens the chat and shares the chat's tag → one notification per chat)
+    case "mention": return { kind: n.kind, title: "Mention", body: `${a} mentioned you`, url: n.push?.url ?? "#/notifications", tag: n.push?.tag ?? `mn-${ref}`, renotify: true, opts: { ttl: 3 * day, topic: n.push?.topic ?? `mn-${ref}` } };
     case "cheer": return { kind: n.kind, title: "Cheer 💪", body: `${a} cheered you on`, url: "#/compete", tag: `cheer-${actor?.username ?? ""}`, opts: { ttl: day, topic: `cheer-${actor?.username ?? ""}` } };
     case "challenge_invite": return { kind: n.kind, title: "Challenge", body: `${a} invited you to a challenge`, url: "#/compete", tag: `ch-${ref}`, renotify: true, opts: { ttl: 3 * day } };
     case "challenge_join": return { kind: n.kind, title: "Challenge", body: `${a} joined your challenge`, url: "#/compete", tag: `ch-${ref}`, opts: { ttl: day, urgency: "low", topic: `chj-${ref}` } };
@@ -298,7 +305,7 @@ export function payloadFor(n: { kind: string; refId?: string | null }, actor?: {
 }
 
 /** Phone push for an in-app notification row (called from worker/friends.ts notify(), after the response). */
-export async function pushForNotification(raw: RawDB, env: Bindings, n: { userId: string; kind: string; actorId?: string | null; refId?: string | null }) {
+export async function pushForNotification(raw: RawDB, env: Bindings, n: { userId: string; kind: string; actorId?: string | null; refId?: string | null; push?: { url?: string; tag?: string; topic?: string } }) {
   const cat = catOf(n.kind);
   if (!cat || !pushConfigured(env)) return;
   let actor: { name: string | null; username: string } | undefined;

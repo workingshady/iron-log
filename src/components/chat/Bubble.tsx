@@ -6,6 +6,10 @@ import { UserAvatar as Avatar } from "../social/UserAvatar";
 import { bigEmoji, emojiName, QUICK } from "./emoji";
 import { Sticker, stickerById } from "./stickers";
 import { fmt, VoicePlayer } from "./Voice";
+import { MentionText } from "../mentions/MentionText";
+
+/** @mentions in a bubble: same colour as the text (works on every theme / bubble colour), bold + underlined. */
+const MENTION_CLS = "text-inherit underline decoration-1 underline-offset-2";
 
 export type Tick = "pending" | "failed" | "sent" | "delivered" | "read";
 
@@ -22,7 +26,7 @@ export function Linkified({ text }: { text: string }) {
   for (const m of text.matchAll(LINK)) {
     const url = cleanUrl(m[0]);
     const i = m.index ?? 0;
-    if (i > last) out.push(text.slice(last, i));
+    if (i > last) out.push(<MentionText key={`t${last}`} text={text.slice(last, i)} className={MENTION_CLS} />);
     out.push(
       <a key={i} href={url.startsWith("http") ? url : `https://${url}`} target="_blank" rel="noopener noreferrer nofollow ugc"
         className="break-all underline decoration-1 underline-offset-2" onClick={(e) => e.stopPropagation()} dir="ltr">
@@ -31,7 +35,7 @@ export function Linkified({ text }: { text: string }) {
     );
     last = i + url.length;
   }
-  if (last < text.length) out.push(text.slice(last));
+  if (last < text.length) out.push(<MentionText key={`t${last}`} text={text.slice(last)} className={MENTION_CLS} />);
   return <>{out}</>;
 }
 /** First link in a text → { href, host } (domain-only preview, nothing is fetched). */

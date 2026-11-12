@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { AlertCircle, Check, RotateCw, X } from "lucide-react";
-import type { Post, PostKind, PrSummary, UserLite, WorkoutSummary } from "../../../shared/social";
+import type { Post, PostKind, PostVis, PrSummary, UserLite, WorkoutSummary } from "../../../shared/social";
 import { today } from "../../lib/util";
 import { cx } from "../../lib/util";
 import type { Edited } from "../PhotoEditor";
@@ -15,7 +15,7 @@ import { sx } from "./lib";
 export type PhotoItem = { kind: "new"; edited: Edited; id: string; done: boolean } | { kind: "existing"; id: string };
 export interface Job {
   id: string; // = post id
-  kind: PostKind; text: string; visibility: "friends" | "private";
+  kind: PostKind; text: string; visibility: PostVis;
   photos: PhotoItem[]; sessionId?: string | null; setId?: string | null;
   data: WorkoutSummary | PrSummary | null; author: UserLite; createdAt: number;
   progress: number; state: "uploading" | "posting" | "done" | "error"; error?: string;

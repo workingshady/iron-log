@@ -105,13 +105,19 @@ export default function UserProfile({ username, asFriend }: { username: string; 
       {!!p.badges?.length && <div className="mt-4 px-4"><BadgeRow badges={p.badges} /></div>}
       {p.week && <div className="mt-3 px-4"><WeekStrip days={p.week} today={today} /></div>}
 
-      {locked ? (
+      {locked ? (<>
         <div className="mx-4 mt-6 rounded-3xl bg-card p-6 text-center">
           <Lock size={26} className="mx-auto text-faint" aria-hidden />
           <p className="mt-2 font-semibold">{p.relation === "outgoing" ? "Request sent" : "Friends only"}</p>
           <p className="mt-0.5 text-sm text-mute">{p.relation === "outgoing" ? `You'll see ${display}'s posts once they accept.` : `Add ${display} to see posts and training.`}</p>
         </div>
-      ) : (
+        {!!posts?.length && (
+          <section aria-label="Posts shared with everyone" className="mt-5 pb-6">
+            <h2 className="mb-2 px-4 text-sm font-semibold text-mute">Shared with everyone on Iron Log</h2>
+            <PostGrid posts={posts} onChange={setPosts} />
+          </section>
+        )}
+      </>) : (
         <>
           <div role="tablist" aria-label="Profile sections" className="sticky top-0 z-10 mt-4 flex border-b border-line bg-bg">
             {([["posts", "Posts", Grid3x3], ["photos", "Photos", Images], ["prs", "PRs", Trophy]] as const).map(([id, label, Icon]) => (

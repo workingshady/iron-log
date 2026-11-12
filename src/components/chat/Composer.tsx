@@ -7,6 +7,7 @@ import { pushRecent, searchEmoji } from "./emoji";
 import { PhotoSend } from "./PhotoSend";
 import { Tray } from "./Tray";
 import { Bars, fmt, MAX_VOICE_MS, toBars, useRecorder, VoicePlayer } from "./Voice";
+import { filterPeople, useMentions } from "../mentions/useMentions";
 
 const desktop = () => typeof matchMedia !== "undefined" && matchMedia("(hover: hover) and (pointer: fine)").matches;
 const MAX = 4000;
@@ -35,6 +36,8 @@ export function Composer({ convId, members, meId, replyTo, onCancelReply, editin
   const hold = useRef<{ down: boolean; x: number; t0: number } | null>(null);
   const rec = useRecorder(onError);
   const lastSubmit = useRef({ text: "", at: 0 });
+  // "@" → the chat's other members (a mention notifies them in Activity, even when the chat is muted)
+  const mention = useMentions({ ref: ta, value: text, setValue: setText, source: (q) => filterPeople(members.filter((u) => u.id !== meId), q), id: `chat-${convId}` });
 
   // photos dropped on the room (desktop drag-and-drop) arrive here
   useEffect(() => {
@@ -169,7 +172,7 @@ export function Composer({ convId, members, meId, replyTo, onCancelReply, editin
   const replyName = replyTo ? (replyTo.senderId === meId ? "yourself" : displayName(members.find((u) => u.id === replyTo.senderId))) : "";
 
   return (
-    <div className="shrink-0 border-t border-line bg-bg/95 backdrop-blur">
+    <div className="relative z-20 shrink-0 border-t border-line bg-bg/95 backdrop-blur">
       {(replyTo || editing) && (
         <div className="flex items-center gap-2 px-3 pt-2">
           {editing ? <Pencil size={18} className="shrink-0 text-[var(--ch-acc)]" aria-hidden /> : <Reply size={18} className="shrink-0 text-[var(--ch-acc)]" aria-hidden />}
@@ -226,18 +229,20 @@ export function Composer({ convId, members, meId, replyTo, onCancelReply, editin
               aria-label={tray ? "Show keyboard" : "Emoji and stickers"} aria-expanded={tray}>
               {tray ? <Keyboard size={22} aria-hidden /> : <Smile size={22} aria-hidden />}
             </button>
-            <label className="min-w-0 flex-1">
+            <label className="relative min-w-0 flex-1">
+              {mention.popover}
               <span className="sr-only">Message</span>
               <textarea
                 ref={ta}
+                {...mention.comboProps}
                 rows={1}
                 value={text}
                 maxLength={MAX + 200}
                 dir="auto"
                 enterKeyHint={desktop() ? "send" : "enter"}
                 placeholder={editing ? "Edit message" : "Message"}
-                onChange={(e) => { setText(e.target.value); setCaret(e.target.selectionStart ?? e.target.value.length); sendTyping(convId, !!e.target.value); }}
-                onSelect={(e) => setCaret(e.currentTarget.selectionStart ?? 0)}
+                onChange={(e) => { setText(e.target.value); setCaret(e.target.selectionStart ?? e.target.value.length); mention.sync(e.target); sendTyping(convId, !!e.target.value); }}
+                onSelect={(e) => { setCaret(e.currentTarget.selectionStart ?? 0); mention.sync(e.currentTarget); }}
                 onPaste={(e) => {
                   const fs = [...e.clipboardData.files].filter((f) => f.type.startsWith("image/"));
                   if (fs.length && !editing) { e.preventDefault(); setFiles(fs); }
@@ -245,6 +250,7 @@ export function Composer({ convId, members, meId, replyTo, onCancelReply, editin
                 onFocus={() => setTray(false)}
                 onBlur={() => sendTyping(convId, false)}
                 onKeyDown={(e) => {
+                  if (mention.onKeyDown(e)) return;
                   if (e.key === "Tab" && sugs.length && !e.shiftKey) { e.preventDefault(); pickSug(sugs[0].e); return; }
                   if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && desktop()) { e.preventDefault(); void submit(); }
                   if (e.key === "Escape" && (editing || replyTo)) { e.preventDefault(); if (editing) onCancelEdit(); else onCancelReply(); }

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Activity, Camera, CircleDot, Dumbbell, Eye, Lock, Scale, Shield, Trophy, UserRound, Users } from "lucide-react";
+import { Activity, Camera, CircleDot, Compass, Dumbbell, Eye, Lock, Scale, Shield, Trophy, UserRound, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { PRIVACY_DEFAULTS, type Privacy as P } from "../../shared/social";
 import { Btn, PageHead, SectionHead, Sheet } from "../components/ui";
@@ -19,6 +19,7 @@ const ROWS: { key: keyof P; icon: LucideIcon; title: string; help: string; opts:
   { key: "body", icon: Scale, title: "Bodyweight", help: "Your latest weigh-in on your profile. Off by default: body data is sensitive.", opts: VIS },
   { key: "online", icon: CircleDot, title: "Online status", help: "“Active now” / “Active 3 h ago”.", opts: VIS },
   { key: "photos", icon: Camera, title: "Photos in new posts", help: "Default for photos you add to a post. Photos you don't post stay private; each one can be changed.", opts: VIS },
+  { key: "discover", icon: Compass, title: "Discover tab", help: "Show the Discover tab in Feed: posts people chose to share with everyone on Iron Log. Only changes what you see.", opts: [{ id: true, label: "Show" }, { id: false, label: "Hide" }] },
   { key: "leaderboard", icon: Users, title: "Leaderboard", help: "Join the friends leaderboard. You only see the board after you join, and you can leave any time.", opts: [{ id: true, label: "Join" }, { id: false, label: "Off" }] },
 ];
 
@@ -40,7 +41,7 @@ export default function Privacy() {
 
   return (
     <div className="md:mx-auto md:max-w-xl">
-      <PageHead icon={Shield} title="Privacy" sub="You decide what friends see. Only accepted friends ever see shared things." />
+      <PageHead icon={Shield} title="Privacy" sub="You decide what friends see. Posts are friends-only unless you pick “Everyone” when posting." />
       <p className="sr-only" role="status" aria-live="polite">{saved ?? ""}</p>
 
       <Btn kind="soft" icon={Eye} className="w-full" onClick={() => setPreview(true)} disabled={!me}>Preview your profile as a friend</Btn>

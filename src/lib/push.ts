@@ -4,9 +4,9 @@
 // Permission UX (web.dev): never ask on load. Ask after a meaningful action, behind a soft pre-prompt that says what
 // you'll get (components/push/PushPrompt.tsx). The browser prompt only appears after the user taps "Turn on".
 
-export type NotifyCat = "chat" | "friends" | "likes" | "comments" | "cheers" | "challenges" | "rest";
+export type NotifyCat = "chat" | "friends" | "likes" | "comments" | "mentions" | "cheers" | "challenges" | "rest";
 export interface NotifyPrefs {
-  chat: boolean; friends: boolean; likes: boolean; comments: boolean; cheers: boolean; challenges: boolean; rest: boolean;
+  chat: boolean; friends: boolean; likes: boolean; comments: boolean; mentions: boolean; cheers: boolean; challenges: boolean; rest: boolean;
   quiet: { on: boolean; from: string; to: string };
   tz: string;
 }
@@ -17,7 +17,8 @@ export const CAT_LABELS: { id: NotifyCat; label: string; hint: string }[] = [
   { id: "friends", label: "Friend requests", hint: "Requests and accepts" },
   { id: "cheers", label: "Cheers", hint: "When a friend cheers you on" },
   { id: "likes", label: "Likes", hint: "One per post, no re-alert" },
-  { id: "comments", label: "Comments", hint: "On your posts" },
+  { id: "comments", label: "Comments & replies", hint: "On your posts, and replies to your comments" },
+  { id: "mentions", label: "Mentions", hint: "When someone @mentions you" },
   { id: "challenges", label: "Challenges", hint: "Invites, joins, results" },
   { id: "rest", label: "Rest timer", hint: "“Rest over” when the screen is off or you're in another app" },
 ];

@@ -21,6 +21,8 @@ export interface Privacy {
   body: Vis;
   /** "Active now / 3 h ago". */
   online: Vis;
+  /** Show the Discover tab in the feed (posts people shared with everyone on Iron Log). Purely a viewing preference. */
+  discover: boolean;
 }
 
 export const PRIVACY_DEFAULTS: Privacy = {
@@ -32,6 +34,7 @@ export const PRIVACY_DEFAULTS: Privacy = {
   photos: "friends",
   body: "private",
   online: "friends",
+  discover: true,
 };
 
 /** Merge a stored JSON string with the defaults, keeping only valid values. */
@@ -47,6 +50,7 @@ export function sanitizePrivacy(raw: Record<string, unknown>, base: Privacy): Pr
   if (raw.profile === "members" || raw.profile === "friends" || raw.profile === "private") out.profile = raw.profile;
   for (const k of ["workouts", "prs", "stats", "photos", "body", "online"] as const) if (vis(raw[k])) out[k] = raw[k] as Vis;
   if (typeof raw.leaderboard === "boolean") out.leaderboard = raw.leaderboard;
+  if (typeof raw.discover === "boolean") out.discover = raw.discover;
   return out;
 }
 
@@ -58,7 +62,12 @@ export interface UserLite { id: string; username: string; name: string | null; a
 
 export type PostKind = "text" | "photo" | "workout" | "pr" | "progress";
 export const POST_KINDS: PostKind[] = ["text", "photo", "workout", "pr", "progress"];
-export const LIMITS = { postText: 2000, comment: 500, photosPerPost: 10, challengeTitle: 60 };
+export const LIMITS = { postText: 2000, comment: 500, photosPerPost: 10, challengeTitle: 60, mentions: 10 };
+/** Who sees a post. "members" = everyone with an Iron Log account (shows in Discover); blocked people never. */
+export type PostVis = "friends" | "members" | "private";
+export const POST_VIS: PostVis[] = ["friends", "members", "private"];
+export const isPostVis = (v: unknown): v is PostVis => v === "friends" || v === "members" || v === "private";
+export type FeedTab = "friends" | "discover";
 
 /** Snapshot of a finished workout, built on the server from the author's own logs. Never contains notes or pain. */
 export interface WorkoutSummary {
@@ -81,7 +90,7 @@ export interface Post {
   text: string | null;
   photoIds: string[];
   data: WorkoutSummary | PrSummary | null;
-  visibility: Vis;
+  visibility: PostVis;
   createdAt: number;
   updatedAt: number;
   author: UserLite;
@@ -94,17 +103,61 @@ export interface Post {
   likedBy?: UserLite[];
 }
 
-export interface Comment { id: string; text: string; createdAt: number; author: UserLite; canDelete: boolean }
+export interface Comment {
+  id: string; text: string; createdAt: number; author: UserLite; canDelete: boolean;
+  /** Top-level comment this replies to (one level, Instagram-style); null = top-level. */
+  parentId: string | null;
+  likes: number; liked: boolean;
+  /** Top-level only: replies shown inline (first 2, or all when focused) + the total. */
+  replies?: Comment[]; replyCount?: number;
+}
+
+// ---------------------------------------------------------------- @mentions (stored as plain "@username" text)
+
+/** "@name" not glued to a word / email / another @ before it. Group 2 = the username (case-insensitive; stored lower-case). */
+export const MENTION_RE = /(^|[^\w@.])@([A-Za-z0-9._]{1,30})/g;
+/** Unique lower-case usernames mentioned in a text (trailing dots dropped: "@omar." → omar), at most `max`. */
+export function mentionNames(text: string | null | undefined, max = LIMITS.mentions): string[] {
+  const out: string[] = [];
+  for (const m of (text ?? "").matchAll(MENTION_RE)) {
+    const u = m[2].replace(/\.+$/, "").toLowerCase();
+    if (u && !out.includes(u)) out.push(u);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+/** Text split into plain parts and mentions (for rendering links to #/u/<username>). */
+export function splitMentions(text: string): ({ t: string } | { u: string; raw: string })[] {
+  const out: ({ t: string } | { u: string; raw: string })[] = [];
+  let last = 0;
+  for (const m of text.matchAll(MENTION_RE)) {
+    const name = m[2].replace(/\.+$/, "");
+    const start = (m.index ?? 0) + m[1].length;
+    if (start > last) out.push({ t: text.slice(last, start) });
+    out.push({ u: name.toLowerCase(), raw: `@${name}` });
+    last = start + 1 + name.length;
+  }
+  if (last < text.length) out.push({ t: text.slice(last) });
+  return out;
+}
+/** A suggestion in the @ popover. */
+export interface MentionUser extends UserLite { friend: boolean }
 
 // ---------------------------------------------------------------- notifications
 
-export type NotifKind = "friend_request" | "friend_accept" | "like" | "comment" | "cheer" | "challenge_invite" | "challenge_join" | "challenge_won" | "challenge_done";
+export type NotifKind = "friend_request" | "friend_accept" | "like" | "comment" | "reply" | "comment_like" | "mention" | "cheer" | "challenge_invite" | "challenge_join" | "challenge_won" | "challenge_done";
 export interface Notif {
   id: string; kind: NotifKind | string; actor: UserLite | null; refId: string | null; snippet: string | null; createdAt: number; read: boolean;
   /** First photo of the post (likes / comments), for the thumbnail on the right. */
   thumb?: string | null;
   /** My relation to the actor now (friend requests / accepts / cheers), for inline actions. */
   relation?: Relation;
+  /** Post / comment / chat the notification points at (comments, replies, comment likes, mentions). */
+  postId?: string | null;
+  commentId?: string | null;
+  convId?: string | null;
+  /** Where a mention happened. */
+  where?: "post" | "comment" | "chat";
 }
 
 // ---------------------------------------------------------------- leaderboard + challenges

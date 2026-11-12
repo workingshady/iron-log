@@ -79,7 +79,7 @@ const PAGES: Record<string, () => React.ReactElement | null> = {
 };
 
 export default function App() {
-  const route = useRoute();
+  const route = useRoute().split("?")[0]; // "#/feed?post=…" → "/feed" (pages read the query from location.hash)
   const [auth, setAuth] = useState<"checking" | "in" | "out" | "setup">("checking");
   const [pending, setPending] = useState(0);
   const me = useMe();

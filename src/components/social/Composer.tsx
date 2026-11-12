@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { Camera, Check, ChevronLeft, Dumbbell, Globe2, ImagePlus, Images, Lock, PenLine, Plus, Send, Share2, TrendingUp, Trophy, Type, X } from "lucide-react";
-import { LIMITS, type PostKind, type PrSummary, type WorkoutSummary } from "../../../shared/social";
+import { Camera, Check, ChevronLeft, Dumbbell, ImagePlus, Images, PenLine, Plus, Send, Share2, TrendingUp, Trophy, Type, X } from "lucide-react";
+import { LIMITS, type PostKind, type PostVis, type PrSummary, type WorkoutSummary } from "../../../shared/social";
 import { uid } from "../../lib/api";
 import { useMe } from "../../lib/me";
 import { cx, niceDate } from "../../lib/util";
 import { Btn, Sheet } from "../ui";
 import { PhotoEditor, type Edited } from "../PhotoEditor";
 import { INPUT, confetti, socialPhotoUrl, sx } from "./lib";
-import { PrHero, WorkoutHero } from "./PostCard";
+import { PrHero, VisPicker, WorkoutHero } from "./PostCard";
+import { postMentionSource, useMentions } from "../mentions/useMentions";
 import { localSrc, startPost, type PhotoItem } from "./Uploads";
 
 interface Shareable { workouts: { id: string; date: string; dayName: string }[]; prs: { id: string; name: string; kg: number | null; reps: number | null; doneAt: number }[] }
@@ -34,7 +35,7 @@ export function Composer({ open, onClose, onPosted, initial }: { open: boolean; 
   const [queue, setQueue] = useState<File[]>([]);
   const [qi, setQi] = useState(0);
   const [text, setText] = useState("");
-  const [vis, setVis] = useState<"friends" | "private">("friends");
+  const [vis, setVis] = useState<PostVis>("friends");
   const [sessionId, setSessionId] = useState<string | null>(initial?.sessionId ?? null);
   const [setId, setSetId] = useState<string | null>(null);
   const [share, setShare] = useState<Shareable | null>(null);
@@ -44,11 +45,13 @@ export function Composer({ open, onClose, onPosted, initial }: { open: boolean; 
   const pick = useRef<HTMLInputElement>(null);
   const hero = useRef<HTMLDivElement>(null);
   const celebrated = useRef(false);
+  const area = useRef<HTMLTextAreaElement>(null);
+  const mention = useMentions({ ref: area, value: text, setValue: setText, source: postMentionSource({ vis }), id: "composer", place: "below" });
 
   useEffect(() => {
     if (!open) return;
     sx<Shareable>("GET", "/social/shareable").then((s) => { setShare(s); setSessionId((x) => x ?? s.workouts[0]?.id ?? null); setSetId((x) => x ?? s.prs[0]?.id ?? null); }).catch(() => setShare({ workouts: [], prs: [] }));
-    sx<{ photos: "friends" | "private" }>("GET", "/privacy").then((p) => setVis(p.photos)).catch(() => {});
+    sx<{ photos: "friends" | "private" }>("GET", "/privacy").then((p) => setVis(p.photos)).catch(() => {}); // default stays Friends unless photos are private by default
   }, [open]);
   useEffect(() => {
     if (!open || kind !== "workout" || !sessionId) return;
@@ -177,18 +180,16 @@ export function Composer({ open, onClose, onPosted, initial }: { open: boolean; 
             )
           )}
 
-          <label className="mt-3 block">
+          <label className="relative mt-3 block">
             <span className="sr-only">{kind === "text" ? "What's on your mind?" : "Caption"}</span>
-            <textarea value={text} onChange={(e) => setText(e.target.value)} maxLength={LIMITS.postText} rows={kind === "text" ? 5 : 2} dir="auto" autoFocus={kind === "text"}
-              placeholder={kind === "text" ? "What's on your mind?" : kind === "workout" ? "How did it feel?" : kind === "pr" ? "Say something about it…" : "Write a caption…"} className={cx(INPUT, "py-2.5", kind === "text" && "text-lg")} />
+            <textarea ref={area} value={text} onChange={(e) => { setText(e.target.value); mention.sync(e.target); }} onSelect={(e) => mention.sync(e.currentTarget)} onKeyDown={(e) => { mention.onKeyDown(e); }}
+              {...mention.comboProps} maxLength={LIMITS.postText} rows={kind === "text" ? 5 : 2} dir="auto" autoFocus={kind === "text"}
+              placeholder={kind === "text" ? "What's on your mind? @ to mention" : kind === "workout" ? "How did it feel?" : kind === "pr" ? "Say something about it…" : "Write a caption…"} className={cx(INPUT, "py-2.5", kind === "text" && "text-lg")} />
+            {mention.popover}
           </label>
 
-          <div role="radiogroup" aria-label="Who can see it" className="mt-3 flex rounded-xl bg-card2 p-1">
-            {([["friends", "Friends", Globe2], ["private", "Only me", Lock]] as const).map(([id, l, Icon]) => (
-              <button key={id} type="button" role="radio" aria-checked={vis === id} onClick={() => setVis(id)} className={cx("flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-lg text-sm", vis === id ? "bg-card3 font-semibold" : "text-mute")}><Icon size={15} aria-hidden />{l}</button>
-            ))}
-          </div>
-          {vis === "friends" && items.length > 0 && <p className="mt-1.5 text-[11px] text-faint">These photos become visible to friends.</p>}
+          <div className="mt-3"><VisPicker value={vis} onPick={setVis} /></div>
+          {vis !== "private" && items.length > 0 && <p className="mt-1 text-[11px] text-faint">These photos become visible to {vis === "members" ? "everyone on Iron Log through this post" : "friends"}.</p>}
 
           {err && <p role="alert" className="mt-2 text-sm text-bad">{err}</p>}
           <Btn kind="primary" icon={kind === "workout" && initial?.sessionId ? Share2 : Send} className="mt-4 w-full" disabled={!ready} onClick={post}>Share</Btn>

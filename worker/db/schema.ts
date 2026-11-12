@@ -361,10 +361,11 @@ export const postComments = sqliteTable(
     postId: text("post_id").notNull(),
     userId: text("user_id").notNull(),
     text: text("text").notNull(),
+    parentId: text("parent_id"), // reply to a top-level comment (one level deep, Instagram-style); null = top-level
     createdAt: integer("created_at").notNull(),
     deleted: integer("deleted").notNull().default(0),
   },
-  (t) => [index("comments_post").on(t.postId, t.createdAt)],
+  (t) => [index("comments_post").on(t.postId, t.createdAt), index("comments_parent").on(t.parentId)],
 );
 /** In-app notifications: friend_request, friend_accept, like, comment, message … */
 export const notifications = sqliteTable(
@@ -546,4 +547,11 @@ export const oauthTokens = sqliteTable(
     revokedAt: integer("revoked_at"),
   },
   (t) => [index("oauth_user").on(t.userId, t.kind), index("oauth_grant").on(t.grantId)],
+);
+
+// ================================================================== comment likes (migration 0016)
+export const commentLikes = sqliteTable(
+  "comment_likes",
+  { commentId: text("comment_id").notNull(), userId: text("user_id").notNull(), createdAt: integer("created_at").notNull() },
+  (t) => [primaryKey({ columns: [t.commentId, t.userId] })],
 );

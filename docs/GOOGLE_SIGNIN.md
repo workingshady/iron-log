@@ -24,11 +24,11 @@ Google button stays hidden, so nothing breaks while you set it up.
 | 1 | Project created | Cloud console | ✅ done (`iron-log-514509`) |
 | 2 | Google Auth Platform configured | Auth Platform → Overview | ✅ done ("OAuth configuration created") |
 | 3 | Branding: name, support email, home page, authorised domain | Auth Platform → Branding | ✅ done |
-| 3b | Branding: privacy policy + terms links, logo | Auth Platform → Branding | ⬜ **next** (section 3) |
-| 4 | Audience: **Publish app → In production** (recommended) or Testing + test users | Auth Platform → Audience | ⬜ |
+| 3b | Branding: privacy policy + terms links (logo: leave empty in Production) | Auth Platform → Branding | ⬜ paste the two links (section 3) |
+| 4 | Audience: **Publish app → In production** | Auth Platform → Audience | ✅ done (In production, External) |
 | 5 | Data access: 3 basic scopes | Auth Platform → Data access | ⬜ |
-| 6 | Create the OAuth client (Web application) | Auth Platform → Clients | ⬜ (Overview says *"You haven't configured any OAuth clients"*) |
-| 7 | Put the 2 secrets in the Worker | your terminal | ⬜ |
+| 6 | Create the OAuth client (Web application) | Auth Platform → Clients | ✅ done ("Iron Log web", 12 Nov 2026) |
+| 7 | Put the 2 secrets in the Worker | your terminal | ✅ done (`/api/auth/providers` → `{"google":true}`) |
 | 8 | Test: link your account, sign in, invite a friend | the app | ⬜ |
 
 ---

@@ -1,15 +1,16 @@
 import { useMemo, useState } from "react";
-import { Ban, CalendarClock, Check, Dumbbell, Eye, Moon, Trophy } from "lucide-react";
+import { Ban, CalendarClock, Check, Dumbbell, Eye, Medal, Moon, Trophy } from "lucide-react";
 import { WorkoutPreview } from "./WorkoutPreview";
 import type { AppState, HistoryRow, SlotInfo } from "../../shared/api";
-import { planWeek, weekDates, type Mark, type WeekPlanOut } from "../../shared/weekplan";
+import { planWeek, sportName, sportOfMark, weekDates, type Mark, type WeekPlanOut } from "../../shared/weekplan";
+import { SPORTS, SPORT_INTENSITY, sportById, sportRowId } from "../../shared/lists";
 import { weekConfig } from "../../shared/week";
 import { queue, send, track, uid } from "../lib/api";
 import { useLoad } from "../lib/useLoad";
 import { cx, today, tz } from "../lib/util";
 import { Btn, Card, Chips, Label, Sheet } from "./ui";
 
-const FOOTBALL_MET = 7; // recreational soccer ≈ 7 METs (Compendium of Physical Activities)
+const FOOTBALL_MET = 7; // recreational soccer ≈ 7 METs (Compendium of Physical Activities); other sports: SPORTS[].met
 
 /** Reads marks + history and returns this week's adapted plan. Shared by Home and Plan. */
 export function useWeekPlan() {
@@ -49,7 +50,7 @@ export function useNextSession(): { next: SlotInfo | null; iso: string | null; i
 }
 
 const TILE: Record<string, string> = {
-  done: "bg-acc/15 text-acc", planned: "bg-info/15 text-info", football: "bg-warn/20 text-warn",
+  done: "bg-acc/15 text-acc", planned: "bg-info/15 text-info", football: "bg-warn/20 text-warn", sport: "bg-warn/20 text-warn",
   busy: "bg-card3 text-faint", rest: "bg-card2 text-mute", past: "bg-card2 text-faint",
 };
 const short = (name?: string) => (name ?? "").replace("Shoulders + Arms", "Sh+Arms").replace("Chest + Back", "Ch+Back");
@@ -60,6 +61,9 @@ export function WeekPlanner({ compact }: { compact?: boolean }) {
   if (!s || !plan) return null;
 
   async function setMark(iso: string, m: Mark | null) {
+    // a logged game belongs to its mark: changing / clearing the sport deletes that day's row
+    const was = sportOfMark(marks[iso]), now = sportOfMark(m);
+    if (was && was.id !== now?.id) queue("DELETE", `/cardio/${sportRowId(was.id, iso)}`, undefined, `sport-del ${was.id} ${iso}`);
     const next = { ...marks };
     if (m) next[iso] = m; else delete next[iso];
     // keep the last ~60 days only
@@ -74,11 +78,11 @@ export function WeekPlanner({ compact }: { compact?: boolean }) {
     <Card title={`This week${plan.summary ? ` · ${plan.summary}` : ""}`} icon={CalendarClock}>
       <div className="grid grid-cols-7 gap-1">
         {plan.days.map((d) => (
-          <button key={d.iso} onClick={() => setDay(d.iso)} className={cx("flex min-h-16 flex-col items-center justify-start rounded-lg px-0.5 py-1.5 text-center", TILE[d.kind], d.today && "ring-2 ring-ink")}>
+          <button key={d.iso} onClick={() => setDay(d.iso)} aria-label={`${new Date(`${d.iso}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long", day: "numeric", timeZone: "UTC" })}: ${d.sport ? sportById(d.sport)?.label ?? d.kind : d.dayName ?? d.kind}`} className={cx("flex min-h-16 flex-col items-center justify-start rounded-lg px-0.5 py-1.5 text-center", TILE[d.kind], d.today && "ring-2 ring-ink")}>
             <span className="text-[10px] uppercase opacity-80">{"SMTWTFS"[d.dow]}</span>
             <span className="text-sm font-bold num leading-tight">{Number(d.iso.slice(8))}</span>
             <span className="mt-0.5 line-clamp-2 text-[9px] leading-tight">
-              {d.kind === "football" ? "⚽" : d.kind === "busy" ? "busy" : d.kind === "rest" ? "rest" : d.kind === "past" ? "" : short(d.dayName)}{d.pinned ? " 📌" : ""}
+              {d.kind === "football" || d.kind === "sport" ? sportById(d.sport)?.emoji ?? "🏅" : d.kind === "busy" ? "busy" : d.kind === "rest" ? "rest" : d.kind === "past" ? "" : short(d.dayName)}{(d.kind === "done" || d.kind === "planned") && d.sport ? ` ${sportById(d.sport)?.emoji ?? ""}` : ""}{d.pinned ? " 📌" : ""}
             </span>
           </button>
         ))}
@@ -95,15 +99,16 @@ export function WeekPlanner({ compact }: { compact?: boolean }) {
           <div className="text-warn">{u.advice}</div>
           {u.action === "skip_sport" || u.action === "legs_lite" ? (
             <Btn kind="soft" icon={Ban} className="mt-2 min-h-10 w-full text-sm" onClick={() => {
-              if (!confirm(`Skip ${u.dayName} this week (counts football as your leg day)?`)) return;
-              queue("POST", "/missed", { id: uid(), week: s.next?.week, dayKey: u.dayKey, date: today(), excuse: "sport", note: "Football this week — legs loaded", tz: tz(), skip: true }, `skip-sport ${u.dayKey} ${today()}`);
+              const sp = u.sport ?? "football";
+              if (!confirm(`Skip ${u.dayName} this week (counts ${sp} as your leg day)?`)) return;
+              queue("POST", "/missed", { id: uid(), week: s.next?.week, dayKey: u.dayKey, date: today(), excuse: "sport", note: `${sp.charAt(0).toUpperCase()}${sp.slice(1)} this week — legs loaded`, tz: tz(), skip: true }, `skip-sport ${u.dayKey} ${today()}`);
               track("session_skip", { excuse: "sport", dayKey: u.dayKey });
               setTimeout(reload, 800);
-            }}>Skip {u.dayName} this week (football)</Btn>
+            }}>Skip {u.dayName} this week ({u.sport ?? "football"})</Btn>
           ) : null}
         </div>
       ))}
-      <p className="mt-2 text-[11px] text-faint">Tap a day: ⚽ football, busy, or pick the session yourself (📌). The rest re-fits automatically — legs stay ≥ 48 h from football.</p>
+      <p className="mt-2 text-[11px] text-faint">Tap a day: ⚽ football, another sport, busy, or pick the session yourself (📌). The rest re-fits around it.</p>
 
       {day && <DaySheet iso={day} week={s.next?.week} mark={marks[day] ?? null} plan={plan} open={(s.next ? s.slots.filter((x) => x.week === s.next!.week && x.status === "open") : [])} onClose={() => setDay(null)} onMark={(m) => { setMark(day, m); }} />}
     </Card>
@@ -115,19 +120,23 @@ function DaySheet({ iso, week, mark, plan, open, onClose, onMark }: { iso: strin
   const label = new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "short" });
   const past = iso <= today();
   const [min, setMin] = useState<number | null>(90);
-  const [int, setInt] = useState<string | null>("normal");
+  const [int, setInt] = useState<keyof typeof SPORT_INTENSITY | null>("normal");
+  const [note, setNote] = useState("");
   const [logged, setLogged] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const sport = sportOfMark(mark);
+  const isFootball = mark === "football";
   const [preview, setPreview] = useState(false);
   const { data: body } = useLoad<{ weightKg: number | null }[]>("/body");
   const kg = body?.find((b) => b.weightKg)?.weightKg ?? 80;
   return (
     <Sheet open onClose={onClose} title={label} icon={CalendarClock}>
-      {d && <p className="text-sm text-mute">{d.kind === "planned" ? `Planned: ${d.dayName}${d.note ? ` — ${d.note}` : ""}` : d.kind === "done" ? `Done: ${d.dayName}` : d.kind === "football" ? "Football day — no lifting." : d.kind === "busy" ? "Marked busy." : "Rest day."}</p>}
+      {d && <p className="text-sm text-mute">{d.kind === "planned" ? `Planned: ${d.dayName}${d.note ? ` — ${d.note}` : ""}` : d.kind === "done" ? `Done: ${d.dayName}` : d.kind === "football" || d.kind === "sport" ? `${sportById(d.sport)?.label ?? "Sport"} day — no lifting.` : d.kind === "busy" ? "Marked busy." : "Rest day."}</p>}
       {d?.kind === "planned" && d.dayKey && week && (
         <Btn kind="soft" icon={Eye} className="mt-2 w-full" onClick={() => { setPreview(true); track("preview_open", { from: "week", dayKey: d.dayKey }); }}>Preview {d.dayName}</Btn>
       )}
       {preview && d?.dayKey && week && <WorkoutPreview week={week} dayKey={d.dayKey} onClose={() => setPreview(false)} />}
-      {iso >= today() && mark !== "football" && mark !== "busy" && (
+      {iso >= today() && !sport && mark !== "busy" && (
         <div className="mt-3">
           <div className="mb-1.5 text-xs text-mute">Plan this day yourself</div>
           <div className="flex flex-wrap gap-1.5">
@@ -140,27 +149,43 @@ function DaySheet({ iso, week, mark, plan, open, onClose, onMark }: { iso: strin
           <p className="mt-1 text-[11px] text-faint">Your choice is fixed; the rest of the week re-fits around it. Legs can't be pinned next to football.</p>
         </div>
       )}
-      <div className="mt-3 grid grid-cols-3 gap-2">
-        <Btn kind={mark === "football" ? "primary" : "soft"} icon={Trophy} onClick={() => onMark(mark === "football" ? null : "football")}>⚽ Football</Btn>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <Btn kind={isFootball ? "primary" : "soft"} icon={Trophy} onClick={() => { setPicking(false); setLogged(false); onMark(isFootball ? null : "football"); }}>⚽ Football</Btn>
+        <Btn kind={sport && !isFootball ? "primary" : picking ? "primary" : "soft"} icon={Medal} onClick={() => setPicking(!picking)}>{sport && !isFootball ? `${sport.emoji} ${sport.label}` : "Other sport"}</Btn>
         <Btn kind={mark === "busy" ? "primary" : "soft"} icon={Moon} onClick={() => onMark(mark === "busy" ? null : "busy")}>Busy</Btn>
-        <Btn kind="soft" icon={Dumbbell} disabled={!mark} onClick={() => onMark(null)}>Clear</Btn>
+        <Btn kind="soft" icon={Dumbbell} disabled={!mark} onClick={() => { setLogged(false); onMark(null); }}>Clear</Btn>
       </div>
-      {mark === "football" && past && (
-        <div className="mt-4 rounded-xl border border-line p-3">
-          <div className="text-sm font-semibold">Log the game (counts as cardio)</div>
-          <Label>Minutes</Label>
-          <Chips small clearable={false} options={[30, 45, 60, 90, 120].map((m) => ({ id: m, label: `${m}` }))} value={min} onChange={setMin} />
-          <Label>Intensity</Label>
-          <Chips small clearable={false} options={[{ id: "easy", label: "Easy kick-about" }, { id: "normal", label: "Normal game" }, { id: "hard", label: "Hard match" }]} value={int} onChange={setInt} />
-          <Btn kind="primary" icon={Check} className="mt-3 w-full" disabled={logged} onClick={() => {
-            const met = int === "easy" ? 5 : int === "hard" ? 9 : FOOTBALL_MET;
-            queue("PUT", `/cardio/football-${iso}`, { date: iso, protocol: "football", status: "done", minutes: min, kcalEst: Math.round((met * kg * (min ?? 0)) / 60), rpe: int === "easy" ? 4 : int === "hard" ? 9 : 7, note: int }, `football ${iso}`);
-            track("football_log", { iso, min, int });
-            setLogged(true);
-          }}>{logged ? "Logged ✓" : "Save game"}</Btn>
+      {picking && (
+        <div className="mt-3 grid grid-cols-3 gap-1.5" role="group" aria-label="Pick a sport">
+          {SPORTS.filter((x) => x.id !== "football").map((x) => (
+            <button key={x.id} type="button" aria-pressed={sport?.id === x.id && !isFootball}
+              onClick={() => { setPicking(false); setLogged(false); onMark(`sport:${x.id}`); track("sport_mark", { iso, sport: x.id }); }}
+              className={cx("flex min-h-14 min-w-0 flex-col items-center justify-center rounded-xl border px-1 py-1.5 text-center text-xs leading-tight", sport?.id === x.id && !isFootball ? "border-acc bg-acc/10 font-semibold text-acc" : "border-line text-ink hover:bg-card2")}>
+              <span className="text-lg leading-none" aria-hidden>{x.emoji}</span>
+              <span className="mt-1 w-full truncate">{x.label}</span>
+            </button>
+          ))}
         </div>
       )}
-      <p className="mt-4 text-xs text-mute">The planner keeps heavy legs at least a day away from football on both sides, never lifts on a football day, and keeps your rest days unless sessions wouldn't fit.</p>
+      {sport && past && !picking && (
+        <div className="mt-4 rounded-xl border border-line p-3">
+          <div className="text-sm font-semibold">Log {isFootball ? "the game" : sportName(sport)} (counts as cardio)</div>
+          <Label>Minutes</Label>
+          <Chips clearable={false} options={[30, 45, 60, 90, 120].map((m) => ({ id: m, label: `${m}` }))} value={min} onChange={setMin} />
+          <Label>Intensity</Label>
+          <Chips clearable={false} options={isFootball ? [{ id: "easy" as const, label: "Easy kick-about" }, { id: "normal" as const, label: "Normal game" }, { id: "hard" as const, label: "Hard match" }] : [{ id: "easy" as const, label: "Easy" }, { id: "normal" as const, label: "Normal" }, { id: "hard" as const, label: "Hard" }]} value={int} onChange={setInt} />
+          <Label>Note</Label>
+          <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} placeholder="optional" aria-label="Note" className="min-h-11 w-full min-w-0 rounded-lg bg-card2 px-3 text-sm outline-none focus:ring-2 focus:ring-acc" />
+          <Btn kind="primary" icon={Check} className="mt-3 w-full" disabled={logged} onClick={() => {
+            const i = SPORT_INTENSITY[int ?? "normal"];
+            const met = isFootball ? (int === "easy" ? 5 : int === "hard" ? 9 : FOOTBALL_MET) : sport.met * i.k;
+            queue("PUT", `/cardio/${sportRowId(sport.id, iso)}`, { date: iso, protocol: sport.id, status: "done", minutes: min, kcalEst: Math.round((met * kg * (min ?? 0)) / 60), rpe: i.rpe, note: note.trim() || int }, `${isFootball ? "football" : `sport ${sport.id}`} ${iso}`);
+            track(isFootball ? "football_log" : "sport_log", { iso, sport: sport.id, min, int });
+            setLogged(true);
+          }}>{logged ? "Logged ✓" : "Save"}</Btn>
+        </div>
+      )}
+      <p className="mt-4 text-xs text-mute">No lifting on a sport day. Leg-heavy sports keep heavy Legs a day away on both sides; shoulder-heavy ones push presses back a day.</p>
     </Sheet>
   );
 }

@@ -4,6 +4,15 @@
 // incline WALKS; no hard intervals on or the day before leg day. Fat loss comes from the calorie deficit, cardio helps.
 // Speeds in km/h, incline in %. Edit freely; keys are stored in the DB (don't rename, add new ones).
 
+import { sportById } from "../shared/lists";
+
+/** Display name for any cardio row: a treadmill protocol, a sport (shared/lists.ts SPORTS), or the raw key. */
+export function cardioName(protocol: string, emoji = true): string {
+  const sp = sportById(protocol);
+  if (sp) return emoji ? `${sp.emoji} ${sp.label}` : sp.label;
+  return PROTOCOLS[protocol]?.name ?? protocol.replace(/_/g, " ");
+}
+
 export type SegKind = "warm" | "hard" | "easy" | "hill" | "steady" | "cool";
 export interface Row { label: string; min: number; speed: number; incline: number; kind: SegKind }
 export interface Block { rounds?: number; rows: Row[] }

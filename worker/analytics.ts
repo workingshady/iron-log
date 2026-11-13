@@ -17,6 +17,7 @@ import { EX_GROUP, GROUPS, type Group } from "../program/groups";
 import { EX_MUSCLES, type Muscle } from "../program/muscles";
 import { shownKg, totalKg } from "../shared/load";
 import { e1rmRir } from "../shared/recommend";
+import { sportById } from "../shared/lists";
 import type { AnalyticsData, AnalyticsLink } from "../shared/api";
 
 export type ASess = { id: string; date: string; week: number; status: string; excuse: string | null; startedAt: number | null; endedAt: number | null; readiness: string | null };
@@ -160,7 +161,8 @@ export function buildAnalytics(
   intake.forEach((i) => creDay.set(i.date, (creDay.get(i.date) ?? 0) + i.amount));
   const moodDay = new Map<string, number[]>();
   journal.filter((j) => j.mood != null).forEach((j) => moodDay.set(j.date, [...(moodDay.get(j.date) ?? []), j.mood!]));
-  const football = new Set(cardio.filter((c) => c.protocol === "football" && c.status !== "skipped").map((c) => c.date));
+  // football + any other sport that isn't light on both legs and upper body (yoga doesn't count as a load)
+  const football = new Set(cardio.filter((c) => { const sp = sportById(c.protocol); return !!sp && (sp.legs !== "light" || sp.upper !== "light") && c.status !== "skipped"; }).map((c) => c.date));
   const readiness = (s: ASess) => { try { return JSON.parse(s.readiness ?? "null") as Record<string, number> | null; } catch { return null; } };
   const firstCre = [...creDay.keys()].sort()[0];
 
@@ -170,7 +172,7 @@ export function buildAnalytics(
     { id: "sleep_r", label: "Sleep rating before the workout", hi: "slept well (4-5)", lo: "slept poorly (1-3)", get: (s) => { const v = readiness(s)?.sleep; return v == null ? null : v >= 4; } },
     { id: "ready", label: "Readiness check (average of 5)", hi: "felt ready (3.5+)", lo: "felt flat (under 3.5)", get: (s) => { const r = readiness(s); const v = r ? Object.values(r).filter((x) => typeof x === "number") : []; return v.length ? mean(v) >= 3.5 : null; } },
     { id: "mood", label: "Journal mood that day", hi: "good mood (4-5)", lo: "low mood (1-3)", get: (s) => (moodDay.has(s.date) ? mean(moodDay.get(s.date)!) >= 4 : null) },
-    { id: "football", label: "Football the day before", hi: "no football yesterday", lo: "football yesterday", get: (s) => !football.has(addDays(s.date, -1)) },
+    { id: "football", label: "Football / sport the day before", hi: "no sport yesterday", lo: "sport yesterday", get: (s) => !football.has(addDays(s.date, -1)) },
     // creatine: days in the 7 days up to the session where the daily target was hit (only once you started taking it)
     { id: "creatine", label: "Creatine in the 7 days before", hi: "6-7 days", lo: "0-4 days", get: (s) => { if (!firstCre || s.date < firstCre) return null; let n = 0; for (let i = 0; i < 7; i++) if ((creDay.get(addDays(s.date, -i)) ?? 0) >= creTarget) n++; return n >= 6 ? true : n <= 4 ? false : null; } },
   ];
@@ -188,7 +190,7 @@ export function buildAnalytics(
   for (const f of FACTORS) {
     const hi: number[] = [], lo: number[] = [];
     for (const s of perfSess) { const v = f.get(s); if (v === true) hi.push(perf.get(s.id)!); else if (v === false) lo.push(perf.get(s.id)!); }
-    if (f.id === "football" && !lo.length) continue; // no football logged at all → nothing to say
+    if (f.id === "football" && !lo.length) continue; // no football / sport logged at all → nothing to say
     compare(f.id, f.label, f.hi, f.lo, hi, lo, "%", "higher");
   }
   // rest length vs reps kept: next set at the same weight, same exercise, same session

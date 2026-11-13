@@ -13,6 +13,7 @@ import { TEMPLATES, avgMinutes, fromTemplate, templateById, type CustomEx, type 
 import { targetLabel } from "../../shared/plan";
 import { recommend, type ExHistory } from "../../shared/recommend";
 import { shownKg } from "../../shared/load";
+import { cardioName } from "../../program/cardio";
 import type { AnalyticsData, AppState, DashboardData, HistoryRow, InsightsData, Lifts, ProgressData, SessionBundle } from "../../shared/api";
 import { api, logEvent, raw, refreshWho, scoped, today, type Who } from "./core";
 import {
@@ -401,11 +402,11 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "get_cardio", title: "Cardio",
-    description: "Cardio sessions (treadmill protocols, football games): minutes, distance, kcal, RPE, speed adjustment, notes. Default: last 60 days.",
+    description: "Cardio sessions (treadmill protocols, football and other sports such as padel or swimming): minutes, distance, kcal, RPE, speed adjustment, notes; `label` = readable name. Default: last 60 days.",
     inputSchema: obj(RANGE), annotations: RO("Cardio"),
     async run(w, a) {
       const to = dateArg(a, "to") ?? today(), from = dateArg(a, "from") ?? addDays(to, -59);
-      const rows = (await api<Json[]>(w, "GET", "/cardio")).filter((x) => inRange(String(x.date), from, to)).map(({ userId: _u, ...x }) => x);
+      const rows = (await api<Json[]>(w, "GET", "/cardio")).filter((x) => inRange(String(x.date), from, to)).map(({ userId: _u, ...x }) => ({ ...x, label: cardioName(String(x.protocol)) }));
       return { summary: `${rows.length} cardio entries ${from} → ${to}`, data: rows };
     },
   },

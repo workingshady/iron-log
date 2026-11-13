@@ -19,6 +19,7 @@ import { LiftTrends, WeeklyTrend, useAnalytics } from "../components/Analytics";
 import { MissedSheet, PickSheet, StartSheet } from "../components/StartSheets";
 import { WorkoutPreview } from "../components/WorkoutPreview";
 import { WeekPlanner, useNextSession, useWeekPlan } from "../components/WeekPlanner";
+import { sportById } from "../../shared/lists";
 
 export default function Home() {
   const me = useMe();
@@ -39,7 +40,7 @@ export default function Home() {
   const todayDay = wp?.days.find((x) => x.today) ?? null;
   const nextPlanned = wp?.days.find((x) => x.kind === "planned" && !x.today) ?? null;
   const slotOf = (key?: string | null) => (key && s.next ? s.slots.find((x) => x.week === s.next!.week && x.dayKey === key) ?? null : null);
-  const state: "train" | "rest" | "football" | "done" | "busy" = !todayDay ? "train" : todayDay.kind === "planned" ? "train" : todayDay.kind === "football" ? "football" : todayDay.kind === "done" ? "done" : todayDay.kind === "busy" ? "busy" : "rest";
+  const state: "train" | "rest" | "football" | "done" | "busy" = !todayDay ? "train" : todayDay.kind === "planned" ? "train" : todayDay.kind === "football" || todayDay.kind === "sport" ? "football" : todayDay.kind === "done" ? "done" : todayDay.kind === "busy" ? "busy" : "rest";
   const next = (state === "train" ? slotOf(wp?.todayKey) : null) ?? adapted.next ?? s.next;
   const moved = state === "train" && next && s.next && next.dayKey !== s.next.dayKey;
   const week = next ? s.weeks.find((w) => w.n === next.week) : null;
@@ -62,10 +63,10 @@ export default function Home() {
             <section className={cx("mb-3 rounded-2xl p-5", state === "football" ? "bg-warn/10" : state === "done" ? "bg-acc/10" : "bg-card")}>
               <div className="text-xs font-medium uppercase tracking-wide text-mute">Today</div>
               <div className={cx("mt-1 text-2xl font-bold", state === "football" ? "text-warn" : state === "done" ? "text-acc" : "")}>
-                {state === "football" ? "⚽ Football day" : state === "done" ? `Done: ${todayDay?.dayName} ✓` : state === "busy" ? "Busy day" : "Rest day"}
+                {state === "football" ? `${sportById(todayDay?.sport)?.emoji ?? "🏅"} ${sportById(todayDay?.sport)?.label ?? "Sport"} day` : state === "done" ? `Done: ${todayDay?.dayName} ✓` : state === "busy" ? "Busy day" : "Rest day"}
               </div>
               <p className="mt-1 text-sm text-mute">
-                {state === "football" ? "No lifting — football is your cardio. Log the game from This week (tap today)." : state === "done" ? "Great work. Recover: protein, sleep, creatine." : todayDay?.note ?? "Recovery is where you grow. A walk or mobility is perfect."}
+                {state === "football" ? "No lifting — it's your cardio today. Log it from This week (tap today)." : state === "done" ? "Great work. Recover: protein, sleep, creatine." : todayDay?.note ?? "Recovery is where you grow. A walk or mobility is perfect."}
               </p>
               {nextPlanned && <p className="mt-2 text-sm">Next: <b>{nextPlanned.dayName}</b> on {weekdayOf(nextPlanned.iso)}</p>}
             </section>

@@ -176,9 +176,9 @@ export const METRICS: MetricDef[] = [
   { id: "minutes", label: "Training time", short: "Minutes", unit: "min", help: "Minutes of finished workouts.", challenge: true, higher: true },
   { id: "streak", label: "Weekly streak", short: "Streak", unit: "wk", help: "Weeks in a row with 2+ workouts or cardio. This week doesn't break it until it's over.", challenge: false, higher: true },
   { id: "prs", label: "PRs", short: "PRs", unit: "", help: "Personal records set.", challenge: true, higher: true },
-  { id: "cardio_minutes", label: "Cardio", short: "Cardio", unit: "min", help: "Cardio minutes (treadmill, football…).", challenge: true, higher: true },
+  { id: "cardio_minutes", label: "Cardio", short: "Cardio", unit: "min", help: "Cardio minutes (treadmill, football, padel, any sport…).", challenge: true, higher: true },
   { id: "muscle_sets", label: "Sets per muscle", short: "Muscle sets", unit: "", help: "Hard sets for one muscle group, whatever exercise you used.", challenge: true, higher: true },
-  { id: "cardio_sessions", label: "Cardio sessions", short: "Cardio days", unit: "", help: "Cardio sessions done (treadmill, football…).", challenge: true, higher: true },
+  { id: "cardio_sessions", label: "Cardio sessions", short: "Cardio days", unit: "", help: "Cardio sessions done (treadmill, football, any sport…).", challenge: true, higher: true },
   { id: "muscle_volume", label: "Muscle volume", short: "Muscle kg", unit: "kg", help: "kg × reps for one muscle group (both dumbbells counted).", challenge: true, higher: true },
 ];
 /** Metrics that need a muscle group. */

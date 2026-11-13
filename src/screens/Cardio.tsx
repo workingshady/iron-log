@@ -2,12 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { VoiceButton, appendText } from "../components/Voice";
 import { ArrowDown, ArrowUp, Check, ChevronDown, Flame, Footprints, Minus, Pause, Play, Plus, SkipForward, Square, Timer, Trash2, TriangleAlert, X } from "lucide-react";
 import type { AppState, CardioLog, DashboardData, HistoryRow } from "../../shared/api";
-import { CARDIO_PLAN, CARDIO_TIPS, PROTOCOLS, estimateKcal, forWeek, kcalPerMin, kcalRange, segments, type CardioProtocol, type SegKind } from "../../program/cardio";
+import { CARDIO_PLAN, CARDIO_TIPS, PROTOCOLS, cardioName, estimateKcal, forWeek, kcalPerMin, kcalRange, segments, type CardioProtocol, type SegKind } from "../../program/cardio";
 import { queue, send, track, uid } from "../lib/api";
 import { useLoad } from "../lib/useLoad";
 import { beep, clock, cx, niceDate, today, unlockAudio, vibrate } from "../lib/util";
 import { Badge, Btn, Card, Chips, Label, NumInput, PageHead, Sheet, scale } from "../components/ui";
 import { useWeekPlan } from "../components/WeekPlanner";
+import { sportById } from "../../shared/lists";
 
 const KIND: Record<SegKind, { dot: string; text: string; label: string }> = {
   warm: { dot: "bg-faint", text: "text-mute", label: "warm-up" },
@@ -46,15 +47,19 @@ export default function Cardio() {
   const todays = hist?.find((h) => h.date === today() && (h.status === "done" || h.status === "active"));
   const tDay = wp?.days.find((d) => d.today);
   const tmr = wp?.days.find((d) => d.iso > today());
-  const footballToday = tDay?.kind === "football";
+  // any sport day (football or another sport) = that's today's cardio
+  const footballToday = tDay?.kind === "football" || tDay?.kind === "sport";
+  const sportToday = sportById(tDay?.sport);
+  const tmrSport = sportById(tmr?.sport);
+  const legSport = (d?: { kind: string; sport?: string }) => (d?.kind === "football" || d?.kind === "sport") && sportById(d.sport)?.legs === "heavy";
   const dayKey = todays?.dayKey ?? (tDay?.kind === "planned" ? tDay.dayKey! : "rest");
   let plan = footballToday ? null : CARDIO_PLAN[dayKey === "rest" ? "rest" : dayKey] ?? null;
   // never hard intervals the day before football or the day before Legs
-  const hardTomorrow = tmr && (tmr.kind === "football" || /leg/i.test(tmr.dayName ?? ""));
-  if (plan && PROTOCOLS[plan.key].intensity === "hard" && hardTomorrow) plan = { key: "hill_walk30", when: `${tmr!.kind === "football" ? "football" : "Legs"} tomorrow — easy hill walk instead of intervals` };
+  const hardTomorrow = tmr && (legSport(tmr) || (tmr.kind === "planned" && /leg/i.test(tmr.dayName ?? "")));
+  if (plan && PROTOCOLS[plan.key].intensity === "hard" && hardTomorrow) plan = { key: "hill_walk30", when: `${legSport(tmr) ? tmrSport?.label ?? "Sport" : "Legs"} tomorrow — easy hill walk instead of intervals` };
   // football = your hard cardio: max 2 hard sessions a week counting football → a football week drops one interval day
-  const footballWeek = (wp?.days ?? []).filter((d) => d.kind === "football").length;
-  if (plan && PROTOCOLS[plan.key].intensity === "hard" && footballWeek >= 1 && dayKey === "D6") plan = { key: "hill_walk30", when: "football this week already covers one hard session — hill walk instead" };
+  const footballWeek = (wp?.days ?? []).filter((d) => legSport(d)).length;
+  if (plan && PROTOCOLS[plan.key].intensity === "hard" && footballWeek >= 1 && dayKey === "D6") plan = { key: "hill_walk30", when: "your sport this week already covers one hard session — hill walk instead" };
   const week = st?.active?.week ?? st?.next?.week ?? 1;
   const proto = forWeek(PROTOCOLS[pick ?? plan?.key ?? "hill_walk30"], week);
   const doneToday = (logs ?? []).filter((l) => l.date === today());
@@ -75,8 +80,8 @@ export default function Cardio() {
           </div>
           {footballToday && !pick ? (
             <div className="rounded-xl bg-warn/10 p-4 text-sm">
-              <b className="text-warn">⚽ Football today = your cardio.</b>
-              <p className="mt-1 text-mute">After the game, log it from the week card (Home or Plan): tap today → Log the game.</p>
+              <b className="text-warn">{sportToday ? `${sportToday.emoji} ${sportToday.label}` : "Sport"} today = your cardio.</b>
+              <p className="mt-1 text-mute">Afterwards, log it from the week card (Home or Plan): tap today → Save.</p>
             </div>
           ) : plan === null && !pick ? (
             <div className="rounded-xl bg-card2 p-4 text-sm">
@@ -144,7 +149,7 @@ export default function Cardio() {
           {logs?.map((l) => (
             <div key={l.id} className="flex items-center gap-3 border-b border-line/60 py-2 text-sm last:border-0">
               <span className="w-20 shrink-0 text-xs text-mute">{niceDate(l.date)}</span>
-              <span className="min-w-0 flex-1 truncate">{l.protocol === "football" ? "⚽ Football" : PROTOCOLS[l.protocol]?.name ?? l.protocol}</span>
+              <span className="min-w-0 flex-1 truncate">{cardioName(l.protocol)}</span>
               <span className={cx("text-xs num", l.status === "skipped" ? "text-bad" : l.status === "partial" ? "text-warn" : "text-acc")}>
                 {l.status === "skipped" ? "skipped" : `${Math.round(l.minutes ?? 0)} min · ${l.kcalMachine ?? l.kcalEst ?? "?"} kcal`}
               </span>

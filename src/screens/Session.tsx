@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ShareWorkoutButton } from "../components/social/Composer";
 import type { PlanItem, Session, SessionBundle, SetLog } from "../../shared/api";
 import { EQUIP_USED, NOTE_TAGS, PAIN_AREAS, SET_KINDS, type SetKind } from "../../shared/lists";
+import { sportName, sportOfMark } from "../../shared/weekplan";
 import { suggestSetTags } from "../../shared/notes";
 import { PhotoStrip } from "../components/Photos";
 import { Activity, Camera, Gauge, Layers as LayersIcon, StickyNote, Wrench } from "lucide-react";
@@ -56,13 +57,15 @@ export default function SessionScreen({ id }: { id: string }) {
   });
   const { data: appState } = useLoad<AppState>("/state");
   const bars = barsFrom(appState?.settings);
-  // "2 days before football: no drop sets" (same rule as the week planner)
+  // "2 days before football (or another leg-heavy sport): no drop sets" (same rule as the week planner).
+  // Holds the sport's name, or "" when none is coming.
   const footballSoon = (() => {
     try {
       const marks = JSON.parse(appState?.settings?.weekMarks ?? "{}") as Record<string, string>;
       const d0 = new Date(); const iso = (k: number) => { const d = new Date(d0); d.setDate(d.getDate() + k); return d.toLocaleDateString("en-CA"); };
-      return [1, 2].some((k) => marks[iso(k)] === "football");
-    } catch { return false; }
+      const sp = [1, 2].map((k) => sportOfMark(marks[iso(k)])).find((x) => x?.legs === "heavy");
+      return sp ? sportName(sp) : "";
+    } catch { return ""; }
   })();
   const [undo, setUndo] = useState<{ set: SetLog; pr: string | null; warn?: boolean } | null>(null);
   const lastTap = useRef(0);
@@ -203,7 +206,7 @@ export default function SessionScreen({ id }: { id: string }) {
     // programmed "Last set: drop set" → open the drop panel right away (no rest in between), move on after Done
     if (live && kind === "N" && it.tech && /drop set/i.test(it.tech) && workSets(after, i).length === it.sets && footballSoon) {
       track("drop_skipped_football", { ex: it.ex }, id);
-      setUndo({ set, pr: pr ?? "Drop set skipped — football within 2 days. Save it for recovery.", warn: !pr });
+      setUndo({ set, pr: pr ?? `Drop set skipped — ${footballSoon} within 2 days. Save it for recovery.`, warn: !pr });
     }
     if (live && kind === "N" && it.tech && /drop set/i.test(it.tech) && workSets(after, i).length === it.sets && !footballSoon) {
       setRest(null); setAutoDrop(i); setOpen(i);

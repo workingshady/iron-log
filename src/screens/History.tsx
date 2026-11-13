@@ -3,6 +3,7 @@ import { AlertTriangle, ArrowLeftRight, CalendarDays, ChevronLeft, ChevronRight,
 import type { AppState, DashboardData, HistoryRow, SessionBundle, SetLog } from "../../shared/api";
 import { EXCUSES } from "../../shared/lists";
 import { EXERCISES } from "../../program/exercises";
+import { cardioName } from "../../program/cardio";
 import { shownKg, totalKg, loadOf } from "../../shared/load";
 import { e1rm } from "../../shared/recommend";
 import { get, track } from "../lib/api";
@@ -269,7 +270,7 @@ function DaySheet({ iso, onClose }: { iso: string; onClose: () => void }) {
       {!!data?.cardio.length && (
         <section className="mb-3 rounded-xl bg-card2 p-3">
           <div className="mb-1 flex items-center gap-2 font-semibold"><Footprints size={15} className="text-info" />Cardio</div>
-          {data.cardio.map((c) => <p key={c.id} className="text-xs text-mute">{c.protocol === "football" ? "⚽ Football" : c.protocol.replace(/_/g, " ")} · {c.status}{c.minutes ? ` · ${Math.round(c.minutes)} min` : ""}{c.kcal ? ` · ~${c.kcal} kcal` : ""}{c.note ? ` · ${c.note}` : ""}</p>)}
+          {data.cardio.map((c) => <p key={c.id} className="text-xs text-mute">{cardioName(c.protocol)} · {c.status}{c.minutes ? ` · ${Math.round(c.minutes)} min` : ""}{c.kcal ? ` · ~${c.kcal} kcal` : ""}{c.note ? ` · ${c.note}` : ""}</p>)}
         </section>
       )}
       {!!data?.creatine.grams && (

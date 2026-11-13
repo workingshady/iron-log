@@ -22,6 +22,7 @@ import { buildInsights, muscleSets } from "./insights";
 import { analyticsInsights, buildAnalytics } from "./analytics";
 import { seedDev } from "./devseed";
 import { shownKg, totalKg } from "../shared/load";
+import { sportById } from "../shared/lists";
 import type {
   AppState, HistoryRow, PlanItem, ProgressData, ProgressPoint, Session, SessionBundle, SetLog, SlotInfo,
 } from "../shared/api";
@@ -602,7 +603,7 @@ app.get("/notes", async (c) => {
     ...jr.map((x) => ({ id: x.id, kind: "journal" as const, date: x.date, at: x.createdAt, text: x.text, tag: x.tags, mood: x.mood })),
     ...st.map((x) => ({ id: x.id, kind: "set" as const, date: x.date, at: x.at, text: x.note ?? "", title: `${EXERCISES[x.exKey]?.name ?? x.exKey}${x.kg != null || x.reps != null ? ` · ${x.kg ?? "BW"}×${x.reps ?? "–"}` : ""}`, link: `/s/${x.sessionId}`, pain: x.painArea ? `${x.painArea} ${["", "mild", "moderate", "sharp"][x.painLevel ?? 1]}` : null })),
     ...ss.map((x) => ({ id: x.id, kind: "workout" as const, date: x.date, at: x.endedAt ?? x.startedAt ?? x.createdAt, text: x.note ?? "", title: `W${x.week} · ${x.dayName}`, link: `/s/${x.id}` })),
-    ...ca.map((x) => ({ id: x.id, kind: "cardio" as const, date: x.date, at: x.endedAt ?? x.createdAt, text: x.note ?? "", title: x.protocol === "football" ? "Football" : "Cardio" })),
+    ...ca.map((x) => ({ id: x.id, kind: "cardio" as const, date: x.date, at: x.endedAt ?? x.createdAt, text: x.note ?? "", title: sportById(x.protocol)?.label ?? "Cardio" })),
     ...bo.map((x) => ({ id: x.date, kind: "body" as const, date: x.date, at: x.updatedAt, text: x.note ?? "", title: x.weightKg ? `${x.weightKg} kg` : "Body" })),
     ...te.map((x) => ({ id: x.id, kind: "test" as const, date: x.date, at: x.createdAt, text: x.note ?? "", title: `${x.testKey.replace(/_/g, " ")} ${x.value} ${x.unit}` })),
   ];
@@ -873,10 +874,14 @@ app.delete("/intake/:id", async (c) => {
 // ---------------------------------------------------------------- cardio
 
 app.get("/cardio", async (c) => c.json(await db(c).select().from(t.cardio).orderBy(desc(t.cardio.date), desc(t.cardio.createdAt)).limit(200)));
-/** Game-day ids are built from the date ("football-2026-11-12"). The owner keeps that (existing rows); everyone else gets
- *  their user id in it so two people logging a game on the same day never share an id. */
-const cardioId = (c: { var: Env["Variables"] }, id: string) =>
-  c.var.role !== "owner" && /^football-\d{4}-\d{2}-\d{2}$/.test(id) ? `football-${c.var.userId}-${id.slice(9)}` : id;
+/** Game-day ids are built from the date ("football-2026-11-12", "sport-padel-2026-11-12"). The owner keeps that
+ *  (existing rows); everyone else gets their user id in it (`football-<userId>-<date>`, `sport-padel-<userId>-<date>`)
+ *  so two people logging a game on the same day never share an id. */
+const cardioId = (c: { var: Pick<Env["Variables"], "role" | "userId"> }, id: string) => {
+  if (c.var.role === "owner") return id;
+  const m = /^(football|sport-[a-z_]+)-(\d{4}-\d{2}-\d{2})$/.exec(id);
+  return m ? `${m[1]}-${c.var.userId}-${m[2]}` : id;
+};
 
 app.put("/cardio/:id", async (c) => {
   const b = await c.req.json<Partial<typeof t.cardio.$inferInsert>>();
@@ -928,7 +933,7 @@ app.get("/dashboard", async (c) => {
     if (r.status === "done") { run++; done++; best = Math.max(best, run); }
     else if (r.status === "missed" || r.status === "skipped") {
       missed++;
-      if (r.excuse !== "planned" && r.excuse !== "sick") run = 0;
+      if (r.excuse !== "planned" && r.excuse !== "sick" && r.excuse !== "sport") run = 0; // planned rest, sick and "played a sport instead" never break the streak
     }
   }
   streak = run;
